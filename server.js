@@ -1,56 +1,28 @@
 const express = require('express');
+const path = require('path');
+const axios = require('axios');
 const app = express();
 const PORT = 2000;
 
-// මුල් පිටුව (Home Page)
-app.get('/', (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html lang="si">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>InvestySignals | Crypto Trading</title>
-            <style>
-                body {
-                    font-family: 'Arial', sans-serif;
-                    background-color: #0f172a;
-                    color: #ffffff;
-                    text-align: center;
-                    padding: 50px 20px;
-                    margin: 0;
-                }
-                h1 {
-                    color: #3b82f6;
-                    font-size: 2.5em;
-                }
-                p {
-                    font-size: 1.2em;
-                    color: #94a3b8;
-                    line-height: 1.6;
-                }
-                .container {
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background-color: #1e293b;
-                    border-radius: 10px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🚀 InvestySignals</h1>
-                <p>ඔබේ විශ්වාසවන්ත Crypto Trading සහකරු.</p>
-                <p>අපගේ නවතම වෙබ් අඩවිය ඉතා ඉක්මනින් ඔබ වෙත පැමිණෙනවා. රැඳී සිටින්න!</p>
-            </div>
-        </body>
-        </html>
-    `);
+// 1. Static files (images, css) පාවිච්චි කරන්න public folder එක සෙට් කිරීම
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 2. Binance එකෙන් Live Prices ගන්න API එක
+app.get('/api/prices', async (req, res) => {
+    try {
+        const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbols=["BTCUSDT","ETHUSDT","SOLUSDT"]');
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: "Data fetch failed" });
+    }
 });
 
-// සර්වර් එක start කිරීම
-app.listen(PORT, () => {
-    console.log("✅ InvestySignals Server is running on port 2000");
+// 3. මුල් පිටුවට index.html යැවීම
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// 4. වැදගත්ම දේ: 0.0.0.0 දමා Listen කිරීම
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 InvestySignals Live: http://213.35.98.214:${PORT}`);
 });
