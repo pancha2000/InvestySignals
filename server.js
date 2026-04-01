@@ -1,6 +1,6 @@
 const express = require('express');
 const app = express();
-const PORT = 3000;
+const PORT = 2000;
 
 // මුල් පිටුව (Home Page)
 app.get('/', (req, res) => {
@@ -52,5 +52,5 @@ app.get('/', (req, res) => {
 
 // සර්වර් එක start කිරීම
 app.listen(PORT, () => {
-    console.log("✅ InvestySignals Server is running on port 3000");
+    console.log("✅ InvestySignals Server is running on port 2000");
 });
