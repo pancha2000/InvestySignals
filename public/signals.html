@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Signals — InvestySignals</title>
+<meta name="description" content="Real-time crypto trading signals for Binance Futures. Entry, TP, SL and signal grade for every trade.">
+<!-- Google AdSense — replace publisher ID -->
+<!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #070b14;
+  --surface:  #0c1220;
+  --card:     #101827;
+  --border:   #1a2640;
+  --border2:  #243350;
+  --cyan:     #00d4ff;
+  --green:    #00ff88;
+  --red:      #ff3d5a;
+  --yellow:   #ffc333;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --dim:      #334155;
+  --font-h:   'Rajdhani', sans-serif;
+  --font-n:   'IBM Plex Mono', monospace;
+  --font-b:   'Outfit', sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-height:1.6; overflow-x:hidden; }
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--surface); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+
+/* ── Sidebar (same as index) ── */
+.sidebar { position:fixed; top:0; left:0; height:100vh; width:280px; background:var(--surface); border-right:1px solid var(--border); z-index:1000; transform:translateX(-100%); transition:transform .35s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
+.sidebar.open { transform:translateX(0); }
+.sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:999; opacity:0; pointer-events:none; transition:opacity .3s; backdrop-filter:blur(2px); }
+.sidebar-overlay.show { opacity:1; pointer-events:all; }
+.sidebar-head { display:flex; align-items:center; justify-content:space-between; padding:20px 20px 16px; border-bottom:1px solid var(--border); }
+.sidebar-logo { font-family:var(--font-h); font-size:1.3rem; font-weight:700; letter-spacing:.05em; }
+.sidebar-logo span { color:var(--cyan); }
+.sidebar-close { background:none; border:none; color:var(--muted); font-size:1.4rem; cursor:pointer; }
+.sidebar-nav { flex:1; padding:16px 12px; overflow-y:auto; }
+.nav-section { font-size:.65rem; font-weight:600; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; padding:12px 8px 6px; }
+.sidebar-nav a { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; color:var(--text); text-decoration:none; font-size:.9rem; transition:all .2s; margin-bottom:2px; }
+.sidebar-nav a:hover { background:rgba(0,212,255,.07); color:var(--cyan); }
+.sidebar-nav a.active { background:rgba(0,212,255,.1); color:var(--cyan); border-left:2px solid var(--cyan); }
+.nav-icon { font-size:1rem; width:22px; text-align:center; }
+.sidebar-footer { padding:16px; border-top:1px solid var(--border); }
+.sidebar-socials { display:flex; gap:8px; justify-content:center; }
+.sidebar-socials a { width:36px; height:36px; border-radius:8px; background:var(--card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--muted); text-decoration:none; font-size:.85rem; transition:all .2s; }
+.sidebar-socials a:hover { border-color:var(--cyan); color:var(--cyan); }
+
+/* ── Ticker ── */
+.ticker-bar { background:var(--surface); border-bottom:1px solid var(--border); overflow:hidden; height:36px; position:sticky; top:0; z-index:100; }
+.ticker-track { display:flex; animation:tickerScroll 30s linear infinite; white-space:nowrap; height:100%; }
+.ticker-track:hover { animation-play-state:paused; }
+@keyframes tickerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+.ticker-item { display:inline-flex; align-items:center; gap:8px; padding:0 24px; height:100%; border-right:1px solid var(--border); font-family:var(--font-n); font-size:.75rem; flex-shrink:0; }
+.t-sym { color:var(--muted); }
+.t-price { color:var(--text); font-weight:500; }
+.t-chg.up   { color:var(--green); }
+.t-chg.down { color:var(--red); }
+
+/* ── Topbar ── */
+.topbar { position:sticky; top:36px; z-index:200; background:rgba(7,11,20,.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:60px; }
+.topbar-left { display:flex; align-items:center; gap:12px; }
+.menu-btn { background:none; border:1px solid var(--border); color:var(--text); width:36px; height:36px; border-radius:8px; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+.menu-btn:hover { border-color:var(--cyan); color:var(--cyan); }
+.topbar-logo { font-family:var(--font-h); font-size:1.35rem; font-weight:700; letter-spacing:.05em; }
+.topbar-logo span { color:var(--cyan); }
+.topbar-right { display:flex; align-items:center; gap:12px; }
+.live-badge { display:flex; align-items:center; gap:6px; font-size:.72rem; font-weight:600; color:var(--green); letter-spacing:.08em; text-transform:uppercase; font-family:var(--font-n); }
+.live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.3)} }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 18px; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; text-decoration:none; transition:all .2s; }
+.btn-outline { background:transparent; color:var(--cyan); border:1px solid var(--cyan); }
+.btn-outline:hover { background:rgba(0,212,255,.08); }
+
+/* ── Page Header ── */
+.page-header { padding:40px 24px 0; max-width:1200px; margin:0 auto; }
+.page-header-inner { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px; padding-bottom:24px; border-bottom:1px solid var(--border); }
+.ph-label { font-family:var(--font-n); font-size:.7rem; color:var(--cyan); letter-spacing:.15em; text-transform:uppercase; margin-bottom:8px; }
+.ph-title { font-family:var(--font-h); font-size:clamp(1.8rem,4vw,2.6rem); font-weight:700; }
+.ph-sub   { color:var(--muted); font-size:.9rem; margin-top:6px; }
+.ph-right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+/* ── Ad Slot ── */
+.ad-slot { background:var(--card); border:1px dashed var(--border2); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; font-family:var(--font-n); }
+.ad-leaderboard { width:100%; height:90px; max-width:728px; margin:0 auto; }
+.ad-wrap { padding:20px 24px; max-width:1200px; margin:0 auto; }
+
+/* ── Filters ── */
+.filters { max-width:1200px; margin:0 auto; padding:20px 24px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.filter-btn { padding:6px 16px; border-radius:100px; font-size:.8rem; font-weight:600; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); transition:all .2s; font-family:var(--font-b); }
+.filter-btn:hover  { border-color:var(--border2); color:var(--text); }
+.filter-btn.active { border-color:var(--cyan); color:var(--cyan); background:rgba(0,212,255,.08); }
+.filter-btn.long   { border-color:var(--green); color:var(--green); background:rgba(0,255,136,.07); }
+.filter-btn.short  { border-color:var(--red); color:var(--red); background:rgba(255,61,90,.07); }
+.filters-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
+.filter-select { background:var(--card); border:1px solid var(--border); color:var(--text); padding:6px 12px; border-radius:8px; font-size:.82rem; cursor:pointer; font-family:var(--font-b); }
+
+/* ── Summary Bar ── */
+.summary-bar { max-width:1200px; margin:0 auto; padding:0 24px 24px; display:flex; gap:16px; flex-wrap:wrap; }
+.sum-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 20px; flex:1; min-width:120px; text-align:center; }
+.sum-val { font-family:var(--font-n); font-size:1.3rem; font-weight:600; }
+.sum-lbl { font-size:.72rem; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.07em; }
+
+/* ── Signal Cards ── */
+.signals-container { max-width:1200px; margin:0 auto; padding:0 24px 60px; }
+.signals-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+
+.signal-card {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  transition:all .25s;
+  animation:fadeUp .4s ease both;
+}
+.signal-card:hover { border-color:var(--border2); transform:translateY(-3px); box-shadow:0 16px 40px rgba(0,0,0,.35); }
+@keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+.sc-accent { height:3px; }
+.sc-accent.long  { background:linear-gradient(90deg, var(--green), var(--cyan)); }
+.sc-accent.short { background:linear-gradient(90deg, var(--red), #ff8c00); }
+
+.sc-body { padding:18px; }
+.sc-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.sc-left { display:flex; align-items:center; gap:10px; }
+.sc-emoji { font-size:1.5rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:var(--surface); border-radius:10px; border:1px solid var(--border); font-family:var(--font-n); font-size:1rem; }
+.sc-pair { font-family:var(--font-h); font-size:1.2rem; font-weight:700; line-height:1; }
+.sc-tf   { font-family:var(--font-n); font-size:.65rem; color:var(--muted); margin-top:2px; }
+.sc-badges { display:flex; gap:6px; align-items:center; }
+.badge { padding:3px 10px; border-radius:6px; font-size:.72rem; font-weight:700; font-family:var(--font-n); letter-spacing:.04em; }
+.badge-long  { background:rgba(0,255,136,.15); color:var(--green); }
+.badge-short { background:rgba(255,61,90,.15); color:var(--red); }
+.badge-grade-ap { background:rgba(0,255,136,.15); color:var(--green); }
+.badge-grade-a  { background:rgba(0,212,255,.12); color:var(--cyan); }
+.badge-grade-bp { background:rgba(255,195,51,.12); color:var(--yellow); }
+.badge-grade-b  { background:rgba(255,195,51,.08); color:#e6ad2e; }
+
+.sc-status { display:flex; align-items:center; gap:5px; font-size:.7rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; font-family:var(--font-n); }
+.status-dot { width:6px; height:6px; border-radius:50%; }
+.st-active  .status-dot { background:var(--green); box-shadow:0 0 6px var(--green); }
+.st-active  { color:var(--green); }
+.st-waiting .status-dot { background:var(--yellow); box-shadow:0 0 6px var(--yellow); }
+.st-waiting { color:var(--yellow); }
+.st-closed  .status-dot { background:var(--dim); }
+.st-closed  { color:var(--muted); }
+
+.sc-prices { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.sc-price-box { background:var(--surface); border-radius:8px; padding:10px 12px; }
+.spb-label { font-size:.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px; font-family:var(--font-n); }
+.spb-val   { font-family:var(--font-n); font-size:.95rem; font-weight:600; }
+.spb-val.entry  { color:var(--text); }
+.spb-val.tp     { color:var(--green); }
+.spb-val.sl     { color:var(--red); }
+
+.sc-tp-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.sc-tp-box  { background:rgba(0,255,136,.05); border:1px solid rgba(0,255,136,.12); border-radius:8px; padding:8px 12px; }
+.sc-tp-label { font-size:.62rem; color:var(--green); text-transform:uppercase; letter-spacing:.08em; font-family:var(--font-n); }
+.sc-tp-val   { font-family:var(--font-n); font-size:.9rem; color:var(--green); font-weight:600; margin-top:2px; }
+
+.sc-meta { display:flex; align-items:center; justify-content:space-between; padding-top:10px; border-top:1px solid var(--border); font-size:.75rem; color:var(--muted); font-family:var(--font-n); flex-wrap:wrap; gap:6px; }
+.sc-meta-item { display:flex; align-items:center; gap:4px; }
+.sc-rrr  { color:var(--cyan); font-weight:600; }
+.sc-conf { display:flex; align-items:center; gap:6px; }
+.conf-bar { width:60px; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+.conf-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,var(--cyan),var(--green)); }
+.sc-exchange { color:var(--dim); }
+
+/* ── Empty State ── */
+.empty-state { text-align:center; padding:60px 20px; color:var(--muted); }
+.empty-icon  { font-size:3rem; margin-bottom:16px; }
+.empty-text  { font-size:.95rem; }
+
+/* ── Footer ── */
+.footer { background:var(--surface); border-top:1px solid var(--border); padding:24px; text-align:center; }
+.footer p { font-size:.78rem; color:var(--dim); line-height:1.8; }
+.footer-disclaimer { max-width:700px; margin:10px auto 0; font-size:.72rem; color:var(--dim); }
+
+@media(max-width:640px) {
+  .signals-grid { grid-template-columns:1fr; }
+  .summary-bar  { gap:8px; }
+  .sum-card     { min-width:calc(50% - 4px); }
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-head">
+    <div class="sidebar-logo">INVESTY<span>SIGNALS</span></div>
+    <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Navigation</div>
+    <a href="index.html"><span class="nav-icon">🏠</span> Home</a>
+    <a href="signals.html" class="active"><span class="nav-icon">📡</span> Live Signals</a>
+    <a href="index.html#gainers"><span class="nav-icon">📈</span> Top Gainers</a>
+    <a href="index.html#features"><span class="nav-icon">⚡</span> Features</a>
+    <a href="index.html#stats"><span class="nav-icon">🏆</span> Track Record</a>
+    <div class="nav-section" style="margin-top:12px">Resources</div>
+    <a href="index.html#how"><span class="nav-icon">📖</span> How It Works</a>
+    <a href="#"><span class="nav-icon">🔔</span> Get Alerts</a>
+    <a href="#"><span class="nav-icon">💬</span> Community</a>
+    <a href="#"><span class="nav-icon">📞</span> Contact</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-socials">
+      <a href="#" title="Telegram">✈</a>
+      <a href="#" title="WhatsApp">💬</a>
+      <a href="#" title="Twitter">𝕏</a>
+      <a href="#" title="YouTube">▶</a>
+    </div>
+  </div>
+</aside>
+
+<!-- Ticker Bar -->
+<div class="ticker-bar">
+  <div class="ticker-track" id="ticker">
+    <div class="ticker-item"><span class="t-sym">BTC/USDT</span><span class="t-price" id="tk-BTCUSDT">$--,---</span><span class="t-chg up" id="tc-BTCUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">ETH/USDT</span><span class="t-price" id="tk-ETHUSDT">$--,---</span><span class="t-chg up" id="tc-ETHUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BNB/USDT</span><span class="t-price" id="tk-BNBUSDT">$---</span><span class="t-chg up" id="tc-BNBUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">SOL/USDT</span><span class="t-price" id="tk-SOLUSDT">$---</span><span class="t-chg up" id="tc-SOLUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">XRP/USDT</span><span class="t-price" id="tk-XRPUSDT">$---</span><span class="t-chg up" id="tc-XRPUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BTC/USDT</span><span class="t-price" id="tk2-BTCUSDT">$--,---</span><span class="t-chg up" id="tc2-BTCUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">ETH/USDT</span><span class="t-price" id="tk2-ETHUSDT">$--,---</span><span class="t-chg up" id="tc2-ETHUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BNB/USDT</span><span class="t-price" id="tk2-BNBUSDT">$---</span><span class="t-chg up" id="tc2-BNBUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">SOL/USDT</span><span class="t-price" id="tk2-SOLUSDT">$---</span><span class="t-chg up" id="tc2-SOLUSDT">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">XRP/USDT</span><span class="t-price" id="tk2-XRPUSDT">$---</span><span class="t-chg up" id="tc2-XRPUSDT">+0.00%</span></div>
+  </div>
+</div>
+
+<!-- Topbar -->
+<header class="topbar">
+  <div class="topbar-left">
+    <button class="menu-btn" onclick="openSidebar()">☰</button>
+    <div class="topbar-logo">INVESTY<span>SIGNALS</span></div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+    <a href="index.html" class="btn btn-outline">← Home</a>
+  </div>
+</header>
+
+<!-- Page Header -->
+<div class="page-header">
+  <div class="page-header-inner">
+    <div>
+      <div class="ph-label">📡 Binance Futures</div>
+      <div class="ph-title">Live Trading Signals</div>
+      <div class="ph-sub">Graded signals with entry, targets &amp; stop loss. Real analysis, not bots.</div>
+    </div>
+    <div class="ph-right">
+      <div class="live-badge" style="font-size:.8rem;gap:8px;padding:8px 16px;background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.2);border-radius:8px;">
+        <div class="live-dot"></div> AUTO-REFRESH
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ad Slot -->
+<div class="ad-wrap"><div class="ad-slot ad-leaderboard">Advertisement</div></div>
+
+<!-- Summary Bar -->
+<div class="summary-bar">
+  <div class="sum-card"><div class="sum-val" id="cnt-total" style="color:var(--cyan)">6</div><div class="sum-lbl">Total Signals</div></div>
+  <div class="sum-card"><div class="sum-val" id="cnt-active" style="color:var(--green)">4</div><div class="sum-lbl">Active</div></div>
+  <div class="sum-card"><div class="sum-val" id="cnt-waiting" style="color:var(--yellow)">1</div><div class="sum-lbl">Waiting</div></div>
+  <div class="sum-card"><div class="sum-val" id="cnt-closed" style="color:var(--muted)">1</div><div class="sum-lbl">Closed</div></div>
+  <div class="sum-card"><div class="sum-val" style="color:var(--text)">78%</div><div class="sum-lbl">Win Rate</div></div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <button class="filter-btn active" onclick="setFilter('ALL',this)">All</button>
+  <button class="filter-btn" onclick="setFilter('LONG',this)">▲ Long</button>
+  <button class="filter-btn" onclick="setFilter('SHORT',this)">▼ Short</button>
+  <button class="filter-btn" onclick="setFilter('ACTIVE',this)">● Active</button>
+  <button class="filter-btn" onclick="setFilter('WAITING',this)">◎ Waiting</button>
+  <div class="filters-right">
+    <select class="filter-select" id="sort-select" onchange="renderSignals()">
+      <option value="grade">Sort: Grade</option>
+      <option value="conf">Sort: Confidence</option>
+      <option value="rrr">Sort: RRR</option>
+      <option value="newest">Sort: Newest</option>
+    </select>
+  </div>
+</div>
+
+<!-- Signals Grid -->
+<div class="signals-container">
+  <div class="signals-grid" id="signals-grid">
+    <!-- rendered by JS -->
+  </div>
+</div>
+
+<!-- Ad Slot 2 -->
+<div class="ad-wrap" style="padding-bottom:32px"><div class="ad-slot ad-leaderboard">Advertisement</div></div>
+
+<!-- Footer -->
+<footer class="footer">
+  <p>© 2026 InvestySignals · Built in 🇱🇰 Sri Lanka</p>
+  <p class="footer-disclaimer">⚠️ All signals are for educational purposes only. Crypto trading involves risk. Always do your own research. Not financial advice.</p>
+</footer>
+
+<script>
+/* ── Signal Data (loaded from /api/signals) ── */
+let allSignals = [];
+let activeFilter = 'ALL';
+
+/* ── Grade badge class ── */
+function gradeClass(g) {
+  if (g === 'A+') return 'badge-grade-ap';
+  if (g === 'A')  return 'badge-grade-a';
+  if (g === 'B+') return 'badge-grade-bp';
+  return 'badge-grade-b';
+}
+
+/* ── Price formatter ── */
+function fmt(p) {
+  if (p >= 1000) return '$' + p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (p >= 1)    return '$' + p.toFixed(4);
+  return '$' + p.toFixed(6);
+}
+
+/* ── Status class ── */
+function statusCls(s) {
+  if (s === 'ACTIVE')  return 'st-active';
+  if (s === 'WAITING') return 'st-waiting';
+  return 'st-closed';
+}
+
+/* ── Sort signals ── */
+const GRADE_ORDER = {'A+':0,'A':1,'B+':2,'B':3,'C':4};
+function sortSignals(signals) {
+  const by = document.getElementById('sort-select').value;
+  return [...signals].sort((a,b) => {
+    if (by === 'grade') return (GRADE_ORDER[a.grade]??9) - (GRADE_ORDER[b.grade]??9);
+    if (by === 'conf')  return b.confidence - a.confidence;
+    if (by === 'rrr')   return parseFloat(b.rrr) - parseFloat(a.rrr);
+    if (by === 'newest') return new Date(b.posted) - new Date(a.posted);
+    return 0;
+  });
+}
+
+/* ── Render signals ── */
+function renderSignals() {
+  const grid = document.getElementById('signals-grid');
+  let signals = allSignals;
+
+  if (activeFilter !== 'ALL') {
+    if (['LONG','SHORT'].includes(activeFilter)) signals = signals.filter(s => s.direction === activeFilter);
+    else signals = signals.filter(s => s.status === activeFilter);
+  }
+
+  signals = sortSignals(signals);
+
+  if (signals.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📭</div><div class="empty-text">No signals match this filter.</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = signals.map((s, i) => `
+    <div class="signal-card" style="animation-delay:${i*0.06}s">
+      <div class="sc-accent ${s.direction.toLowerCase()}"></div>
+      <div class="sc-body">
+        <div class="sc-top">
+          <div class="sc-left">
+            <div class="sc-emoji">${s.emoji}</div>
+            <div>
+              <div class="sc-pair">${s.pair}</div>
+              <div class="sc-tf">${s.timeframe} · ${s.exchange}</div>
+            </div>
+          </div>
+          <div class="sc-badges">
+            <span class="badge badge-${s.direction.toLowerCase()}">${s.direction}</span>
+            <span class="badge ${gradeClass(s.grade)}">${s.grade}</span>
+          </div>
+        </div>
+
+        <div class="sc-prices">
+          <div class="sc-price-box">
+            <div class="spb-label">Entry</div>
+            <div class="spb-val entry">${fmt(s.entry)}</div>
+          </div>
+          <div class="sc-price-box">
+            <div class="spb-label">Stop Loss</div>
+            <div class="spb-val sl">${fmt(s.sl)}</div>
+          </div>
+        </div>
+
+        <div class="sc-tp-grid">
+          <div class="sc-tp-box">
+            <div class="sc-tp-label">TP 1</div>
+            <div class="sc-tp-val">${fmt(s.tp1)}</div>
+          </div>
+          <div class="sc-tp-box">
+            <div class="sc-tp-label">TP 2</div>
+            <div class="sc-tp-val">${fmt(s.tp2)}</div>
+          </div>
+        </div>
+
+        <div class="sc-meta">
+          <div class="sc-meta-item">
+            RRR: <span class="sc-rrr">${s.rrr}</span>
+          </div>
+          <div class="sc-conf">
+            <span>${s.confidence}%</span>
+            <div class="conf-bar"><div class="conf-fill" style="width:${s.confidence}%"></div></div>
+          </div>
+          <div class="sc-status ${statusCls(s.status)}">
+            <div class="status-dot"></div> ${s.status}
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  /* Update summary counts */
+  document.getElementById('cnt-total').textContent   = allSignals.length;
+  document.getElementById('cnt-active').textContent  = allSignals.filter(s=>s.status==='ACTIVE').length;
+  document.getElementById('cnt-waiting').textContent = allSignals.filter(s=>s.status==='WAITING').length;
+  document.getElementById('cnt-closed').textContent  = allSignals.filter(s=>s.status==='CLOSED').length;
+}
+
+/* ── Filter buttons ── */
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active','long','short'));
+  btn.classList.add('active');
+  if (f === 'LONG')  btn.classList.add('long');
+  if (f === 'SHORT') btn.classList.add('short');
+  renderSignals();
+}
+
+/* ── Load signals from API ── */
+async function loadSignals() {
+  try {
+    const res = await fetch('/api/signals');
+    const json = await res.json();
+    if (json.success) { allSignals = json.data; renderSignals(); }
+  } catch(e) { console.error('Signal load failed:', e); }
+}
+
+/* ── Sidebar ── */
+function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('show'); }
+
+/* ── WebSocket (ticker only on this page) ── */
+const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+let ws, wsRetry = 1000;
+
+function connectWS() {
+  ws = new WebSocket(`${wsProto}//${location.host}`);
+  ws.onopen = () => { wsRetry = 1000; };
+  ws.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'market_update') updateTicker(data.ticker);
+  };
+  ws.onclose = () => setTimeout(connectWS, wsRetry = Math.min(wsRetry * 1.5, 15000));
+}
+
+/* ── Ticker update ── */
+function fmt2(p) {
+  if (p >= 1000) return '$' + p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (p >= 1) return '$' + p.toFixed(4);
+  return '$' + p.toFixed(6);
+}
+function updateTicker(coins) {
+  if (!coins) return;
+  coins.forEach(c => {
+    const up = c.change >= 0;
+    const chgStr = (up?'+':'') + c.change.toFixed(2)+'%';
+    ['tk-','tk2-'].forEach(pfx => {
+      const pEl = document.getElementById(pfx+c.symbol);
+      const cEl = document.getElementById(pfx.replace('tk','tc')+c.symbol);
+      if (pEl) pEl.textContent = fmt2(c.price);
+      if (cEl) { cEl.textContent=chgStr; cEl.className=`t-chg ${up?'up':'down'}`; }
+    });
+  });
+}
+
+/* ── Init ── */
+loadSignals();
+connectWS();
+// Refresh signals every 60s
+setInterval(loadSignals, 60000);
+</script>
+</body>
+</html>
