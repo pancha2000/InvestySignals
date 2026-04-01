@@ -283,6 +283,7 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
       <div class="ds-section">Main</div>
       <a href="dashboard.html" class="active"><span class="ni">📊</span> Dashboard</a>
       <a href="live-signals.html"><span class="ni">📡</span> Live Signals <span class="ds-badge green">LIVE</span></a>
+      <a href="analysis.html"><span class="ni">🔬</span> Analysis</a>
       <div class="ds-section">Market</div>
       <a href="#"><span class="ni">📈</span> Top Gainers</a>
       <a href="#"><span class="ni">🔥</span> Watchlist</a>
@@ -318,19 +319,19 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
         <div class="sc-icon">📡</div>
         <div class="sc-val cyan" id="stat-signals">—</div>
         <div class="sc-lbl">Total Signals</div>
-        <div class="sc-sub up">+12 this week</div>
+        <div class="sc-sub" style="color:var(--muted)">All time</div>
       </div>
       <div class="stat-card s-green">
         <div class="sc-icon">🏆</div>
-        <div class="sc-val green">78%</div>
+        <div class="sc-val green" id="stat-winrate">—</div>
         <div class="sc-lbl">Win Rate</div>
-        <div class="sc-sub up">▲ vs last month</div>
+        <div class="sc-sub" style="color:var(--muted)">Closed trades</div>
       </div>
       <div class="stat-card s-yellow">
         <div class="sc-icon">⚡</div>
-        <div class="sc-val yellow">2.4×</div>
+        <div class="sc-val yellow" id="stat-rrr">—</div>
         <div class="sc-lbl">Avg RRR</div>
-        <div class="sc-sub up">Consistent</div>
+        <div class="sc-sub" style="color:var(--muted)">Closed trades</div>
       </div>
       <div class="stat-card s-red">
         <div class="sc-icon">🔴</div>
@@ -354,51 +355,10 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
           </div>
           <div class="panel-body">
             <div class="signal-list" id="signalList">
-              <!-- Signals injected by JS -->
-              <div class="sig-card">
-                <div class="sig-top">
-                  <div class="sig-pair">BTC/USDT</div>
-                  <div class="sig-dir long">LONG</div>
-                </div>
-                <div class="sig-rows">
-                  <div class="sig-row"><div class="sig-lbl">Entry</div><div class="sig-val">$97,240</div></div>
-                  <div class="sig-row"><div class="sig-lbl">TP1</div><div class="sig-val green">$98,800</div></div>
-                  <div class="sig-row"><div class="sig-lbl">SL</div><div class="sig-val red">$96,100</div></div>
-                </div>
-                <div class="sig-foot">
-                  <div class="sig-time">2h ago</div>
-                  <div class="sig-status active">● ACTIVE</div>
-                </div>
-              </div>
-              <div class="sig-card">
-                <div class="sig-top">
-                  <div class="sig-pair">ETH/USDT</div>
-                  <div class="sig-dir long">LONG</div>
-                </div>
-                <div class="sig-rows">
-                  <div class="sig-row"><div class="sig-lbl">Entry</div><div class="sig-val">$3,125</div></div>
-                  <div class="sig-row"><div class="sig-lbl">TP1</div><div class="sig-val green">$3,240</div></div>
-                  <div class="sig-row"><div class="sig-lbl">SL</div><div class="sig-val red">$3,050</div></div>
-                </div>
-                <div class="sig-foot">
-                  <div class="sig-time">4h ago</div>
-                  <div class="sig-status tp1">✓ TP1 HIT</div>
-                </div>
-              </div>
-              <div class="sig-card">
-                <div class="sig-top">
-                  <div class="sig-pair">SOL/USDT</div>
-                  <div class="sig-dir short">SHORT</div>
-                </div>
-                <div class="sig-rows">
-                  <div class="sig-row"><div class="sig-lbl">Entry</div><div class="sig-val">$182.40</div></div>
-                  <div class="sig-row"><div class="sig-lbl">TP1</div><div class="sig-val green">$174.00</div></div>
-                  <div class="sig-row"><div class="sig-lbl">SL</div><div class="sig-val red">$187.50</div></div>
-                </div>
-                <div class="sig-foot">
-                  <div class="sig-time">8h ago</div>
-                  <div class="sig-status closed">CLOSED</div>
-                </div>
+              <div class="empty-state">
+                <div class="empty-icon">📡</div>
+                <div class="empty-text">No signals yet</div>
+                <div class="empty-sub">Signals will appear here once generated from the Analysis page.</div>
               </div>
             </div>
           </div>
@@ -408,28 +368,13 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
         <div class="panel">
           <div class="panel-head">
             <div class="panel-title">📊 Win Rate by Pair</div>
-            <span style="font-size:.75rem;color:var(--muted);font-family:var(--font-n)">Last 30 days</span>
+            <span style="font-size:.75rem;color:var(--muted);font-family:var(--font-n)">Closed trades</span>
           </div>
-          <div class="panel-body">
-            <div class="perf-bar-wrap">
-              <div class="perf-labels"><span class="name">BTC/USDT</span><span class="pct">85%</span></div>
-              <div class="perf-track"><div class="perf-fill" style="width:85%"></div></div>
-            </div>
-            <div class="perf-bar-wrap">
-              <div class="perf-labels"><span class="name">ETH/USDT</span><span class="pct">79%</span></div>
-              <div class="perf-track"><div class="perf-fill" style="width:79%"></div></div>
-            </div>
-            <div class="perf-bar-wrap">
-              <div class="perf-labels"><span class="name">SOL/USDT</span><span class="pct">74%</span></div>
-              <div class="perf-track"><div class="perf-fill" style="width:74%"></div></div>
-            </div>
-            <div class="perf-bar-wrap">
-              <div class="perf-labels"><span class="name">BNB/USDT</span><span class="pct">71%</span></div>
-              <div class="perf-track"><div class="perf-fill" style="width:71%"></div></div>
-            </div>
-            <div class="perf-bar-wrap">
-              <div class="perf-labels"><span class="name">XRP/USDT</span><span class="pct">68%</span></div>
-              <div class="perf-track"><div class="perf-fill" style="width:68%"></div></div>
+          <div class="panel-body" id="perfPanel">
+            <div class="empty-state">
+              <div class="empty-icon">📊</div>
+              <div class="empty-text">No closed trades yet</div>
+              <div class="empty-sub">Win rate per pair will appear here after trades close.</div>
             </div>
           </div>
         </div>
@@ -494,12 +439,12 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
             <span class="panel-tag pt-new">NEW</span>
           </div>
           <div class="panel-body" style="padding-top:4px;padding-bottom:4px">
-            <div class="activity-list">
-              <div class="act-row"><div class="act-dot green"></div><div><div class="act-text">BTC/USDT Long — TP1 reached ✓</div><div class="act-time">12 min ago</div></div></div>
-              <div class="act-row"><div class="act-dot cyan"></div><div><div class="act-text">New signal: ETH/USDT Long posted</div><div class="act-time">4h ago</div></div></div>
-              <div class="act-row"><div class="act-dot yellow"></div><div><div class="act-text">SOL/USDT — Approaching SL zone</div><div class="act-time">6h ago</div></div></div>
-              <div class="act-row"><div class="act-dot green"></div><div><div class="act-text">BNB/USDT Long — Full TP hit ✓</div><div class="act-time">Yesterday</div></div></div>
-              <div class="act-row"><div class="act-dot red"></div><div><div class="act-text">XRP/USDT Short — SL hit</div><div class="act-time">2 days ago</div></div></div>
+            <div class="activity-list" id="activityList">
+              <div class="empty-state" style="padding:20px 0">
+                <div class="empty-icon">🔔</div>
+                <div class="empty-text">No activity yet</div>
+                <div class="empty-sub">Signal activity will show here.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -560,9 +505,11 @@ onAuthStateChanged(auth, (user) => {
   document.getElementById('userEmail').textContent   = email;
   document.getElementById('welcomeName').textContent = name.split(' ')[0];
 
-  // Fake stats (replace with real API calls)
-  document.getElementById('stat-signals').textContent = '1,248';
-  document.getElementById('stat-active').textContent  = '3';
+  // Stats — will be populated from real data (API/DB)
+  document.getElementById('stat-signals').textContent = '0';
+  document.getElementById('stat-active').textContent  = '0';
+  document.getElementById('stat-winrate').textContent = '—';
+  document.getElementById('stat-rrr').textContent     = '—';
 });
 
 window.handleSignOut = async function() {

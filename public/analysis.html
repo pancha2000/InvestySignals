@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analysis — InvestySignals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #070b14;
+  --surface:  #0c1220;
+  --card:     #101827;
+  --border:   #1a2640;
+  --border2:  #243350;
+  --cyan:     #00d4ff;
+  --green:    #00ff88;
+  --red:      #ff3d5a;
+  --yellow:   #ffc333;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --dim:      #334155;
+  --font-h:   'Rajdhani', sans-serif;
+  --font-n:   'IBM Plex Mono', monospace;
+  --font-b:   'Outfit', sans-serif;
+  --sidebar-w: 240px;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-height:1.6; overflow-x:hidden; min-height:100vh; }
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--surface); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+
+/* ── Auth Guard ── */
+.auth-guard { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; }
+.auth-spinner { width:40px; height:40px; border:3px solid var(--border2); border-top-color:var(--cyan); border-radius:50%; animation:spin 0.7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── Top Bar ── */
+.top-bar { position:fixed; top:0; left:0; right:0; height:34px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 16px; z-index:300; }
+.tb-left { display:flex; align-items:center; gap:10px; }
+.tb-brand { font-family:var(--font-h); font-weight:700; font-size:.88rem; letter-spacing:.04em; color:var(--text); }
+.tb-brand span { color:var(--cyan); }
+.live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.mob-menu-btn { display:none; background:none; border:none; color:var(--text); font-size:1.2rem; cursor:pointer; padding:4px; }
+@media(max-width:768px){ .mob-menu-btn{display:block} }
+
+/* ── Sidebar ── */
+.dash-sidebar { width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); position:fixed; top:34px; left:0; height:calc(100vh - 34px); display:flex; flex-direction:column; z-index:200; transition:transform .3s cubic-bezier(.4,0,.2,1); overflow-y:auto; }
+.ds-brand { padding:18px 16px 14px; border-bottom:1px solid var(--border); }
+.ds-logo { font-family:var(--font-h); font-size:1.15rem; font-weight:700; letter-spacing:.06em; display:flex; align-items:center; gap:8px; }
+.ds-logo span { color:var(--cyan); }
+.ds-user { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.ds-avatar { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,var(--cyan),var(--green)); display:flex; align-items:center; justify-content:center; font-family:var(--font-h); font-weight:700; font-size:.85rem; color:#000; flex-shrink:0; }
+.ds-uname { font-size:.82rem; font-weight:600; line-height:1.2; }
+.ds-uemail { font-size:.68rem; color:var(--muted); font-family:var(--font-n); }
+.ds-nav { flex:1; padding:10px 8px; }
+.ds-section { font-size:.62rem; font-weight:600; color:var(--dim); letter-spacing:.12em; text-transform:uppercase; padding:10px 8px 4px; }
+.ds-nav a { display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:8px; color:var(--muted); text-decoration:none; font-size:.84rem; font-weight:500; transition:all .2s; margin-bottom:1px; }
+.ds-nav a:hover { background:rgba(255,255,255,.04); color:var(--text); }
+.ds-nav a.active { background:rgba(0,212,255,.08); color:var(--cyan); border-left:2px solid var(--cyan); padding-left:8px; }
+.ni { font-size:.95rem; width:18px; text-align:center; }
+.ds-badge { font-family:var(--font-n); font-size:.6rem; padding:2px 6px; border-radius:4px; font-weight:600; margin-left:auto; }
+.ds-badge.green { background:rgba(0,255,136,.12); color:var(--green); }
+.ds-footer { padding:12px 16px; border-top:1px solid var(--border); }
+.btn-signout { width:100%; padding:8px; background:rgba(255,61,90,.06); border:1px solid rgba(255,61,90,.2); color:var(--red); border-radius:8px; font-size:.8rem; cursor:pointer; transition:all .2s; font-family:var(--font-b); }
+.btn-signout:hover { background:rgba(255,61,90,.12); }
+.mob-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:199; }
+.mob-overlay.show { display:block; }
+@media(max-width:768px){
+  .dash-sidebar { transform:translateX(-100%); top:0; height:100vh; }
+  .dash-sidebar.open { transform:translateX(0); }
+}
+
+/* ── Main Layout ── */
+.dash-layout { display:flex; padding-top:34px; }
+.dash-main { margin-left:var(--sidebar-w); flex:1; padding:28px; max-width:1200px; }
+@media(max-width:768px){ .dash-main { margin-left:0; padding:16px; } }
+
+/* ── Welcome Bar ── */
+.welcome-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+.welcome-bar h1 { font-family:var(--font-h); font-size:1.6rem; font-weight:700; letter-spacing:.02em; }
+.welcome-time { font-family:var(--font-n); font-size:.72rem; color:var(--muted); }
+
+/* ── Section Panels ── */
+.panel { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.panel-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); }
+.panel-title { font-family:var(--font-h); font-size:1rem; font-weight:600; letter-spacing:.03em; display:flex; align-items:center; gap:8px; }
+.panel-body { padding:16px 18px; }
+.panel-tag { font-family:var(--font-n); font-size:.6rem; padding:2px 7px; border-radius:4px; font-weight:600; }
+.pt-live { background:rgba(0,255,136,.1); color:var(--green); }
+
+/* ── Scanner Controls ── */
+.scanner-controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+.btn-scan { display:inline-flex; align-items:center; gap:8px; padding:10px 22px; background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.08)); border:1px solid rgba(0,212,255,.35); color:var(--cyan); border-radius:10px; font-family:var(--font-b); font-size:.88rem; font-weight:600; cursor:pointer; transition:all .25s; }
+.btn-scan:hover:not(:disabled) { background:linear-gradient(135deg,rgba(0,212,255,.25),rgba(0,212,255,.14)); border-color:var(--cyan); box-shadow:0 0 16px rgba(0,212,255,.2); }
+.btn-scan:disabled { opacity:.5; cursor:not-allowed; }
+.btn-scan.scanning { animation:scanPulse 1.2s ease-in-out infinite; }
+@keyframes scanPulse { 0%,100%{box-shadow:0 0 0 rgba(0,212,255,0)} 50%{box-shadow:0 0 18px rgba(0,212,255,.35)} }
+
+.manual-input-wrap { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.manual-input { background:var(--surface); border:1px solid var(--border2); color:var(--text); border-radius:8px; padding:8px 14px; font-family:var(--font-n); font-size:.82rem; width:160px; outline:none; transition:border .2s; text-transform:uppercase; }
+.manual-input::placeholder { color:var(--muted); text-transform:none; }
+.manual-input:focus { border-color:var(--cyan); }
+.btn-deep { display:inline-flex; align-items:center; gap:6px; padding:8px 18px; background:linear-gradient(135deg,rgba(0,255,136,.12),rgba(0,255,136,.06)); border:1px solid rgba(0,255,136,.3); color:var(--green); border-radius:8px; font-family:var(--font-b); font-size:.82rem; font-weight:600; cursor:pointer; transition:all .25s; white-space:nowrap; }
+.btn-deep:hover:not(:disabled) { background:linear-gradient(135deg,rgba(0,255,136,.22),rgba(0,255,136,.12)); border-color:var(--green); }
+.btn-deep:disabled { opacity:.5; cursor:not-allowed; }
+
+/* ── Scan Results Table ── */
+.scan-table-wrap { overflow-x:auto; }
+.scan-table { width:100%; border-collapse:collapse; font-size:.84rem; }
+.scan-table th { font-family:var(--font-n); font-size:.65rem; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; padding:8px 12px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+.scan-table td { padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.03); vertical-align:middle; }
+.scan-table tr:last-child td { border-bottom:none; }
+.scan-table tr:hover td { background:rgba(255,255,255,.025); }
+.sym-cell { font-family:var(--font-n); font-weight:600; font-size:.88rem; color:var(--text); }
+.price-cell { font-family:var(--font-n); font-size:.85rem; color:var(--cyan); }
+.chg-cell { font-family:var(--font-n); font-size:.82rem; font-weight:600; }
+.chg-cell.up { color:var(--green); }
+.chg-cell.dn { color:var(--red); }
+.vol-cell { font-family:var(--font-n); font-size:.78rem; color:var(--muted); }
+.rank-cell { font-family:var(--font-n); font-size:.72rem; color:var(--dim); padding-right:4px; }
+.btn-row-deep { padding:5px 12px; background:rgba(0,255,136,.08); border:1px solid rgba(0,255,136,.2); color:var(--green); border-radius:6px; font-size:.75rem; font-weight:600; cursor:pointer; font-family:var(--font-b); transition:all .2s; white-space:nowrap; }
+.btn-row-deep:hover { background:rgba(0,255,136,.16); border-color:var(--green); }
+.btn-row-deep:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ── Empty / Loading States ── */
+.empty-state { text-align:center; padding:40px 20px; color:var(--muted); }
+.empty-icon { font-size:2.5rem; margin-bottom:12px; }
+.empty-text { font-size:.95rem; font-weight:500; color:var(--text); margin-bottom:6px; }
+.empty-sub { font-size:.82rem; line-height:1.6; }
+.loading-row td { text-align:center; padding:30px; color:var(--muted); font-size:.85rem; }
+
+/* ── Scan Count Badge ── */
+.scan-meta { font-family:var(--font-n); font-size:.7rem; color:var(--muted); }
+.coin-count { color:var(--cyan); font-weight:600; }
+
+/* ── Deep Scan Result ── */
+.deep-result { margin-top:24px; }
+.deep-card { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.deep-card.long-card  { border-color:rgba(0,255,136,.3); }
+.deep-card.short-card { border-color:rgba(255,61,90,.3); }
+.deep-card.neutral-card { border-color:rgba(255,195,51,.3); }
+
+.deep-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+.deep-header.long-bg  { background:linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02)); }
+.deep-header.short-bg { background:linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02)); }
+.deep-header.neutral-bg { background:linear-gradient(135deg,rgba(255,195,51,.07),rgba(255,195,51,.02)); }
+
+.deep-pair { font-family:var(--font-h); font-size:1.6rem; font-weight:700; letter-spacing:.04em; }
+.deep-dir { font-family:var(--font-n); font-size:.75rem; font-weight:700; padding:4px 14px; border-radius:6px; letter-spacing:.08em; }
+.deep-dir.long  { background:rgba(0,255,136,.15); color:var(--green); border:1px solid rgba(0,255,136,.3); }
+.deep-dir.short { background:rgba(255,61,90,.15); color:var(--red); border:1px solid rgba(255,61,90,.3); }
+.deep-dir.neutral { background:rgba(255,195,51,.15); color:var(--yellow); border:1px solid rgba(255,195,51,.3); }
+
+.deep-entry-type { display:flex; align-items:center; gap:8px; }
+.entry-badge { font-family:var(--font-n); font-size:.7rem; padding:3px 10px; border-radius:4px; font-weight:600; letter-spacing:.05em; }
+.entry-badge.market { background:rgba(0,212,255,.12); color:var(--cyan); border:1px solid rgba(0,212,255,.25); }
+.entry-badge.limit  { background:rgba(255,195,51,.12); color:var(--yellow); border:1px solid rgba(255,195,51,.25); }
+
+.deep-levels { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px 20px; border-bottom:1px solid var(--border); }
+.level-box { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+.level-lbl { font-family:var(--font-n); font-size:.62rem; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; }
+.level-val { font-family:var(--font-n); font-size:1rem; font-weight:600; }
+.level-val.entry-val { color:var(--cyan); }
+.level-val.tp1-val   { color:var(--green); }
+.level-val.tp2-val   { color:rgba(0,255,136,.65); }
+.level-val.sl-val    { color:var(--red); }
+.level-sub { font-size:.68rem; color:var(--muted); margin-top:2px; }
+
+.deep-indicators { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; padding:16px 20px; border-bottom:1px solid var(--border); }
+.ind-box { display:flex; flex-direction:column; gap:4px; }
+.ind-lbl { font-family:var(--font-n); font-size:.62rem; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+.ind-val { font-family:var(--font-n); font-size:.95rem; font-weight:600; }
+.ind-bar-track { height:5px; background:var(--border); border-radius:3px; overflow:hidden; margin-top:4px; }
+.ind-bar-fill { height:100%; border-radius:3px; transition:width .6s ease; }
+
+.deep-reasoning { padding:16px 20px; }
+.reasoning-title { font-family:var(--font-n); font-size:.65rem; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; margin-bottom:10px; }
+.reasoning-list { display:flex; flex-direction:column; gap:7px; }
+.reason-item { display:flex; align-items:flex-start; gap:8px; font-size:.83rem; line-height:1.5; }
+.reason-icon { font-size:.85rem; flex-shrink:0; margin-top:1px; }
+.reason-txt { color:var(--text); }
+.reason-txt strong { color:var(--cyan); }
+
+.deep-disclaimer { margin:12px 20px 16px; padding:10px 14px; background:rgba(255,195,51,.05); border:1px solid rgba(255,195,51,.15); border-radius:8px; font-size:.75rem; color:var(--muted); line-height:1.6; }
+.deep-disclaimer strong { color:var(--yellow); }
+
+/* ── RSI Gauge ── */
+.rsi-gauge-wrap { position:relative; }
+.rsi-zone-labels { display:flex; justify-content:space-between; font-family:var(--font-n); font-size:.6rem; color:var(--dim); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<!-- Auth Guard -->
+<div class="auth-guard" id="authGuard">
+  <div class="auth-spinner"></div>
+</div>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="tb-left">
+    <button class="mob-menu-btn" onclick="openMobSidebar()">☰</button>
+    <div class="tb-brand">INVESTY<span>SIGNALS</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;font-weight:600;color:var(--green);font-family:var(--font-n)">
+    <div class="live-dot"></div> LIVE
+  </div>
+</div>
+
+<div class="mob-overlay" id="mobOverlay" onclick="closeMobSidebar()"></div>
+
+<!-- Dashboard Layout -->
+<div class="dash-layout">
+
+  <!-- Sidebar -->
+  <aside class="dash-sidebar" id="dashSidebar">
+    <div class="ds-brand">
+      <div class="ds-logo">INVESTY<span>SIGNALS</span></div>
+      <div class="live-dot" style="margin-left:auto"></div>
+    </div>
+    <div class="ds-user">
+      <div class="ds-avatar" id="userAvatar">?</div>
+      <div>
+        <div class="ds-uname" id="userName">Loading…</div>
+        <div class="ds-uemail" id="userEmail">—</div>
+      </div>
+    </div>
+    <nav class="ds-nav">
+      <div class="ds-section">Main</div>
+      <a href="dashboard.html"><span class="ni">📊</span> Dashboard</a>
+      <a href="live-signals.html"><span class="ni">📡</span> Live Signals <span class="ds-badge green">LIVE</span></a>
+      <a href="analysis.html" class="active"><span class="ni">🔬</span> Analysis</a>
+      <div class="ds-section">Market</div>
+      <a href="#"><span class="ni">📈</span> Top Gainers</a>
+      <a href="#"><span class="ni">🔥</span> Watchlist</a>
+      <a href="#"><span class="ni">📰</span> Market News</a>
+      <div class="ds-section">Account</div>
+      <a href="#"><span class="ni">👤</span> My Profile</a>
+      <a href="#"><span class="ni">🔔</span> Alerts</a>
+      <a href="#"><span class="ni">⚙️</span> Settings</a>
+      <div class="ds-section">Support</div>
+      <a href="index.html"><span class="ni">🏠</span> Home</a>
+      <a href="#"><span class="ni">💬</span> Community</a>
+    </nav>
+    <div class="ds-footer">
+      <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="dash-main" id="dashMain" style="display:none">
+
+    <!-- Welcome -->
+    <div class="welcome-bar">
+      <div>
+        <h1>🔬 Market Analysis</h1>
+        <p style="color:var(--muted);font-size:.88rem;margin-top:4px">Scan Binance Futures by volume · Deep scan with RSI & Volume</p>
+      </div>
+      <div class="welcome-time" id="clockDisplay">—</div>
+    </div>
+
+    <!-- ── MARKET SCANNER ── -->
+    <div class="panel" style="margin-bottom:24px">
+      <div class="panel-head">
+        <div class="panel-title">📡 Market Scanner <span class="panel-tag pt-live">BINANCE FUTURES</span></div>
+        <span class="scan-meta" id="scanMeta">Not scanned yet</span>
+      </div>
+      <div class="panel-body">
+
+        <!-- Controls -->
+        <div class="scanner-controls">
+          <button class="btn-scan" id="btnScan" onclick="runMarketScan()">
+            <span id="btnScanIcon">📡</span> Scan Market
+          </button>
+          <div class="manual-input-wrap">
+            <input class="manual-input" id="manualCoin" type="text" placeholder="e.g. BTCUSDT" maxlength="12">
+            <button class="btn-deep" id="btnManualDeep" onclick="runManualDeepScan()">🔬 Deep Scan</button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="scan-table-wrap">
+          <table class="scan-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Symbol</th>
+                <th>Price</th>
+                <th>24h Change</th>
+                <th>24h Volume (USDT)</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="scanTableBody">
+              <tr class="loading-row"><td colspan="6">
+                <div class="empty-state">
+                  <div class="empty-icon">📡</div>
+                  <div class="empty-text">Ready to Scan</div>
+                  <div class="empty-sub">Click "Scan Market" to fetch top Binance Futures coins by volume.</div>
+                </div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── DEEP SCAN RESULT ── -->
+    <div id="deepResult" style="display:none"></div>
+
+  </main>
+</div>
+
+<!-- Firebase Auth -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
+  authDomain: "crypto-98b33.firebaseapp.com",
+  projectId: "crypto-98b33",
+  storageBucket: "crypto-98b33.firebasestorage.app",
+  messagingSenderId: "619954501803",
+  appId: "1:619954501803:web:559d48b801f072abd71fee",
+  measurementId: "G-V1R4YK8L75"
+};
+
+const app   = initializeApp(firebaseConfig);
+const auth  = getAuth(app);
+
+onAuthStateChanged(auth, (user) => {
+  document.getElementById('authGuard').style.display = 'none';
+  if (!user) { window.location.href = 'login.html'; return; }
+
+  document.getElementById('dashMain').style.display = 'block';
+  const name     = user.displayName || user.email?.split('@')[0] || 'Trader';
+  const email    = user.email || '';
+  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2) || 'U';
+  document.getElementById('userAvatar').textContent = initials;
+  document.getElementById('userName').textContent   = name;
+  document.getElementById('userEmail').textContent  = email;
+});
+
+window.handleSignOut = async function() {
+  await signOut(auth);
+  window.location.href = 'index.html';
+};
+</script>
+
+<script>
+// ────────────────────────────────────────────────
+//  CONSTANTS
+// ────────────────────────────────────────────────
+const BINANCE_FAPI  = 'https://fapi.binance.com';
+const SCAN_LIMIT    = 20;   // top N coins by volume
+const RSI_PERIOD    = 14;
+const KLINE_LIMIT   = 60;   // candles to fetch for RSI
+const KLINE_TF      = '1h'; // timeframe
+
+// ────────────────────────────────────────────────
+//  CLOCK
+// ────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const el  = document.getElementById('clockDisplay');
+  if (el) el.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())} • ${now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+function openMobSidebar()  { document.getElementById('dashSidebar').classList.add('open'); document.getElementById('mobOverlay').classList.add('show'); }
+function closeMobSidebar() { document.getElementById('dashSidebar').classList.remove('open'); document.getElementById('mobOverlay').classList.remove('show'); }
+
+// ────────────────────────────────────────────────
+//  FORMAT HELPERS
+// ────────────────────────────────────────────────
+function fmtPrice(p) {
+  p = parseFloat(p);
+  if (p >= 1000)       return '$' + p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (p >= 1)          return '$' + p.toFixed(4);
+  if (p >= 0.01)       return '$' + p.toFixed(5);
+  return '$' + p.toFixed(6);
+}
+
+function fmtVol(v) {
+  v = parseFloat(v);
+  if (v >= 1e9) return (v/1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v/1e3).toFixed(1) + 'K';
+  return v.toFixed(0);
+}
+
+// ────────────────────────────────────────────────
+//  RSI CALCULATION  (Wilder smoothing)
+// ────────────────────────────────────────────────
+function calcRSI(closes, period) {
+  if (closes.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i-1];
+    if (diff > 0) gains  += diff;
+    else          losses -= diff;
+  }
+  let avgGain = gains  / period;
+  let avgLoss = losses / period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0))  / period;
+    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+// ────────────────────────────────────────────────
+//  VOLUME ANALYSIS
+// ────────────────────────────────────────────────
+function analyzeVolume(klines) {
+  // klines[i] = [openTime, open, high, low, close, volume, ...]
+  const vols = klines.map(k => parseFloat(k[5]));
+  const avg20 = vols.slice(-21, -1).reduce((a,b) => a+b, 0) / 20;
+  const last3  = (vols.slice(-4,-1).reduce((a,b)=>a+b,0)) / 3;
+  const ratio  = avg20 > 0 ? last3 / avg20 : 1;
+  return {
+    avg20,
+    last3,
+    ratio,
+    surge: ratio >= 1.5,
+    label: ratio >= 2.0 ? 'Very High' : ratio >= 1.5 ? 'High' : ratio >= 1.0 ? 'Normal' : 'Low'
+  };
+}
+
+// ────────────────────────────────────────────────
+//  ENTRY DECISION
+// ────────────────────────────────────────────────
+function decideEntry(rsi, volInfo, closes, highs, lows, currentPrice) {
+  // Direction
+  let direction = 'NEUTRAL';
+  if      (rsi <= 45)             direction = 'LONG';
+  else if (rsi >= 55)             direction = 'SHORT';
+
+  // Entry type
+  // Market: RSI at extreme + volume surge
+  // Limit:  RSI not at extreme OR low volume (better price possible)
+  let entryType = 'LIMIT';
+  if ((direction === 'LONG'  && rsi <= 35 && volInfo.surge) ||
+      (direction === 'SHORT' && rsi >= 65 && volInfo.surge)) {
+    entryType = 'MARKET';
+  }
+
+  // Price levels
+  const recent10H = Math.max(...highs.slice(-10));
+  const recent10L = Math.min(...lows.slice(-10));
+  const recent5H  = Math.max(...highs.slice(-5));
+  const recent5L  = Math.min(...lows.slice(-5));
+  const swingRange = recent10H - recent10L;
+
+  let entryPrice, slPrice, tp1Price, tp2Price;
+
+  if (direction === 'LONG') {
+    if (entryType === 'MARKET') {
+      entryPrice = currentPrice;
+    } else {
+      // Limit: recent 5-candle low as entry zone
+      entryPrice = recent5L;
+    }
+    slPrice  = recent10L - swingRange * 0.05;
+    const risk = entryPrice - slPrice;
+    tp1Price = entryPrice + risk * 1.5;
+    tp2Price = entryPrice + risk * 2.5;
+
+  } else if (direction === 'SHORT') {
+    if (entryType === 'MARKET') {
+      entryPrice = currentPrice;
+    } else {
+      entryPrice = recent5H;
+    }
+    slPrice  = recent10H + swingRange * 0.05;
+    const risk = slPrice - entryPrice;
+    tp1Price = entryPrice - risk * 1.5;
+    tp2Price = entryPrice - risk * 2.5;
+
+  } else {
+    // Neutral — no trade
+    entryPrice = currentPrice;
+    slPrice    = currentPrice;
+    tp1Price   = currentPrice;
+    tp2Price   = currentPrice;
+  }
+
+  return { direction, entryType, entryPrice, slPrice, tp1Price, tp2Price };
+}
+
+// ────────────────────────────────────────────────
+//  MARKET SCANNER
+// ────────────────────────────────────────────────
+async function runMarketScan() {
+  const btn  = document.getElementById('btnScan');
+  const body = document.getElementById('scanTableBody');
+  const meta = document.getElementById('scanMeta');
+
+  btn.disabled = true;
+  btn.classList.add('scanning');
+  document.getElementById('btnScanIcon').textContent = '⟳';
+  body.innerHTML = '<tr class="loading-row"><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">⟳ Fetching top coins from Binance Futures…</td></tr>';
+  meta.textContent = 'Scanning…';
+
+  try {
+    const res  = await fetch(`${BINANCE_FAPI}/fapi/v1/ticker/24hr`);
+    const data = await res.json();
+
+    // Filter USDT perpetuals, sort by quoteVolume desc, take top N
+    const coins = data
+      .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 0)
+      .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, SCAN_LIMIT);
+
+    meta.innerHTML = `Showing top <span class="coin-count">${coins.length}</span> by 24h volume · ${new Date().toLocaleTimeString()}`;
+
+    body.innerHTML = '';
+    coins.forEach((coin, i) => {
+      const chg = parseFloat(coin.priceChangePercent);
+      const tr  = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="rank-cell">${i+1}</td>
+        <td class="sym-cell">${coin.symbol.replace('USDT','')}<span style="color:var(--muted);font-weight:400">/USDT</span></td>
+        <td class="price-cell">${fmtPrice(coin.lastPrice)}</td>
+        <td class="chg-cell ${chg >= 0 ? 'up' : 'dn'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</td>
+        <td class="vol-cell">${fmtVol(coin.quoteVolume)}</td>
+        <td><button class="btn-row-deep" onclick="runDeepScan('${coin.symbol}')">🔬 Deep Scan</button></td>
+      `;
+      body.appendChild(tr);
+    });
+
+  } catch(err) {
+    body.innerHTML = `<tr class="loading-row"><td colspan="6" style="text-align:center;padding:28px;color:var(--red)">⚠ Failed to fetch data. Check your connection.<br><small style="color:var(--muted)">${err.message}</small></td></tr>`;
+    meta.textContent = 'Error';
+  }
+
+  btn.disabled = false;
+  btn.classList.remove('scanning');
+  document.getElementById('btnScanIcon').textContent = '📡';
+}
+
+// ────────────────────────────────────────────────
+//  MANUAL DEEP SCAN
+// ────────────────────────────────────────────────
+async function runManualDeepScan() {
+  let sym = document.getElementById('manualCoin').value.trim().toUpperCase();
+  if (!sym) return;
+  if (!sym.endsWith('USDT')) sym = sym + 'USDT';
+  await runDeepScan(sym);
+}
+
+// ────────────────────────────────────────────────
+//  DEEP SCAN
+// ────────────────────────────────────────────────
+async function runDeepScan(symbol) {
+  const container = document.getElementById('deepResult');
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="panel deep-card">
+      <div class="panel-body">
+        <div class="empty-state">
+          <div class="empty-icon">🔬</div>
+          <div class="empty-text">Deep scanning ${symbol}…</div>
+          <div class="empty-sub">Fetching ${KLINE_TF} candles · Calculating RSI(${RSI_PERIOD}) · Analysing volume…</div>
+        </div>
+      </div>
+    </div>`;
+
+  // Scroll to result
+  container.scrollIntoView({ behavior:'smooth', block:'start' });
+
+  // Disable all deep scan buttons temporarily
+  document.querySelectorAll('.btn-row-deep, #btnManualDeep').forEach(b => b.disabled = true);
+
+  try {
+    // Fetch klines
+    const klRes = await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${KLINE_TF}&limit=${KLINE_LIMIT}`);
+    if (!klRes.ok) throw new Error(`Symbol ${symbol} not found`);
+    const klines = await klRes.json();
+    if (!klines || klines.length < RSI_PERIOD + 2) throw new Error('Not enough candle data');
+
+    // Fetch current price
+    const tkRes = await fetch(`${BINANCE_FAPI}/fapi/v1/ticker/price?symbol=${symbol}`);
+    const tkData = await tkRes.json();
+    const currentPrice = parseFloat(tkData.price);
+
+    // Extract arrays
+    const closes = klines.map(k => parseFloat(k[4]));
+    const highs  = klines.map(k => parseFloat(k[2]));
+    const lows   = klines.map(k => parseFloat(k[3]));
+
+    // Calculate indicators
+    const rsi     = calcRSI(closes, RSI_PERIOD);
+    const volInfo = analyzeVolume(klines);
+    const entry   = decideEntry(rsi, volInfo, closes, highs, lows, currentPrice);
+
+    // Render result
+    renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice);
+
+  } catch(err) {
+    container.innerHTML = `
+      <div class="panel deep-card">
+        <div class="panel-body">
+          <div class="empty-state">
+            <div class="empty-icon">⚠</div>
+            <div class="empty-text" style="color:var(--red)">Deep scan failed</div>
+            <div class="empty-sub">${err.message}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  document.querySelectorAll('.btn-row-deep, #btnManualDeep').forEach(b => b.disabled = false);
+}
+
+// ────────────────────────────────────────────────
+//  RENDER DEEP RESULT
+// ────────────────────────────────────────────────
+function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice) {
+  const { direction, entryType, entryPrice, slPrice, tp1Price, tp2Price } = entry;
+  const pair = symbol.replace('USDT', '/USDT');
+
+  // Color classes
+  const cardCls   = direction === 'LONG' ? 'long-card' : direction === 'SHORT' ? 'short-card' : 'neutral-card';
+  const hdrCls    = direction === 'LONG' ? 'long-bg'   : direction === 'SHORT' ? 'short-bg'   : 'neutral-bg';
+  const dirCls    = direction === 'LONG' ? 'long'      : direction === 'SHORT' ? 'short'       : 'neutral';
+  const dirLabel  = direction === 'LONG' ? '▲ LONG'    : direction === 'SHORT' ? '▼ SHORT'     : '— NEUTRAL';
+  const entBadge  = entryType === 'MARKET' ? 'market' : 'limit';
+
+  // RSI color
+  const rsiColor  = rsi <= 30 ? 'var(--green)' : rsi >= 70 ? 'var(--red)' : rsi <= 45 ? 'rgba(0,255,136,.7)' : rsi >= 55 ? 'rgba(255,61,90,.7)' : 'var(--yellow)';
+  const rsiLabel  = rsi <= 30 ? 'Oversold' : rsi >= 70 ? 'Overbought' : rsi <= 45 ? 'Bearish territory' : rsi >= 55 ? 'Bullish territory' : 'Neutral zone';
+  const rsiFill   = rsi.toFixed(0);
+
+  // Volume color
+  const volColor  = volInfo.surge ? 'var(--green)' : volInfo.ratio >= 1 ? 'var(--cyan)' : 'var(--muted)';
+
+  // Entry reason bullets
+  const reasons = buildReasons(rsi, volInfo, direction, entryType);
+
+  container.innerHTML = `
+    <div class="deep-result">
+      <div class="panel deep-card ${cardCls}">
+
+        <!-- Header -->
+        <div class="deep-header ${hdrCls}">
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div class="deep-pair">${pair}</div>
+            <div class="deep-dir ${dirCls}">${dirLabel}</div>
+          </div>
+          <div class="deep-entry-type">
+            <span class="entry-badge ${entBadge}">${entryType} ENTRY</span>
+            <span style="font-family:var(--font-n);font-size:.72rem;color:var(--muted)">1H · RSI(${RSI_PERIOD})</span>
+          </div>
+        </div>
+
+        ${direction === 'NEUTRAL' ? `
+        <div class="panel-body">
+          <div class="empty-state" style="padding:28px 0">
+            <div class="empty-icon">🟡</div>
+            <div class="empty-text">No clear entry signal</div>
+            <div class="empty-sub">RSI is in neutral zone (${rsi.toFixed(1)}) with no strong volume confirmation.<br>Wait for RSI to move below 45 or above 55 with volume surge.</div>
+          </div>
+        </div>
+        ` : `
+
+        <!-- Price Levels -->
+        <div class="deep-levels">
+          <div class="level-box">
+            <div class="level-lbl">Entry</div>
+            <div class="level-val entry-val">${fmtPrice(entryPrice)}</div>
+            <div class="level-sub">${entryType === 'MARKET' ? 'Current price' : 'Limit order zone'}</div>
+          </div>
+          <div class="level-box">
+            <div class="level-lbl">TP 1</div>
+            <div class="level-val tp1-val">${fmtPrice(tp1Price)}</div>
+            <div class="level-sub">Risk × 1.5</div>
+          </div>
+          <div class="level-box">
+            <div class="level-lbl">TP 2</div>
+            <div class="level-val tp2-val">${fmtPrice(tp2Price)}</div>
+            <div class="level-sub">Risk × 2.5</div>
+          </div>
+          <div class="level-box">
+            <div class="level-lbl">Stop Loss</div>
+            <div class="level-val sl-val">${fmtPrice(slPrice)}</div>
+            <div class="level-sub">10-candle swing</div>
+          </div>
+          <div class="level-box">
+            <div class="level-lbl">Current</div>
+            <div class="level-val" style="color:var(--text)">${fmtPrice(currentPrice)}</div>
+            <div class="level-sub">Live price</div>
+          </div>
+        </div>
+
+        <!-- Indicators -->
+        <div class="deep-indicators">
+          <div class="ind-box">
+            <div class="ind-lbl">RSI (${RSI_PERIOD}) · 1H</div>
+            <div class="ind-val" style="color:${rsiColor}">${rsi.toFixed(1)}</div>
+            <div class="ind-bar-track">
+              <div class="ind-bar-fill" style="width:${rsiFill}%;background:${rsiColor}"></div>
+            </div>
+            <div class="rsi-zone-labels"><span>0</span><span>30</span><span>50</span><span>70</span><span>100</span></div>
+            <div style="font-size:.72rem;color:${rsiColor};margin-top:4px">${rsiLabel}</div>
+          </div>
+          <div class="ind-box">
+            <div class="ind-lbl">Volume (3-bar avg)</div>
+            <div class="ind-val" style="color:${volColor}">${volInfo.label}</div>
+            <div class="ind-bar-track">
+              <div class="ind-bar-fill" style="width:${Math.min(volInfo.ratio*50,100)}%;background:${volColor}"></div>
+            </div>
+            <div style="font-size:.72rem;color:${volColor};margin-top:4px">${volInfo.ratio.toFixed(2)}× avg20</div>
+          </div>
+        </div>
+
+        <!-- Reasoning -->
+        <div class="deep-reasoning">
+          <div class="reasoning-title">🧠 Analysis</div>
+          <div class="reasoning-list">
+            ${reasons.map(r => `<div class="reason-item"><span class="reason-icon">${r.icon}</span><span class="reason-txt">${r.text}</span></div>`).join('')}
+          </div>
+        </div>
+
+        `}
+
+        <!-- Disclaimer -->
+        <div class="deep-disclaimer">
+          <strong>⚠ Note:</strong> This analysis is based on RSI(14) and volume on 1H candles only. Always do your own research and manage risk. Never risk more than you can afford to lose.
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+// ────────────────────────────────────────────────
+//  BUILD REASON BULLETS
+// ────────────────────────────────────────────────
+function buildReasons(rsi, volInfo, direction, entryType) {
+  const reasons = [];
+  const r = rsi.toFixed(1);
+
+  if (direction === 'LONG') {
+    if (rsi <= 30)       reasons.push({ icon:'🟢', text: `RSI at <strong>${r}</strong> — deeply oversold. Strong mean-reversion signal.` });
+    else if (rsi <= 45)  reasons.push({ icon:'🟢', text: `RSI at <strong>${r}</strong> — below 45, showing bearish weakness that often precedes a long reversal.` });
+
+    if (volInfo.surge)   reasons.push({ icon:'📈', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). High volume confirms buying interest.` });
+    else                 reasons.push({ icon:'📊', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Moderate volume — limit entry preferred for better fill.` });
+
+    if (entryType === 'MARKET') reasons.push({ icon:'⚡', text: `<strong>Market entry</strong> recommended — RSI at oversold extreme with volume surge. Momentum favours immediate entry.` });
+    else                         reasons.push({ icon:'⏳', text: `<strong>Limit entry</strong> recommended — wait for price to pull back to the recent 5-candle low for a better entry price.` });
+
+  } else if (direction === 'SHORT') {
+    if (rsi >= 70)       reasons.push({ icon:'🔴', text: `RSI at <strong>${r}</strong> — deeply overbought. Strong mean-reversion short signal.` });
+    else if (rsi >= 55)  reasons.push({ icon:'🔴', text: `RSI at <strong>${r}</strong> — above 55, showing bullish exhaustion that often precedes a short setup.` });
+
+    if (volInfo.surge)   reasons.push({ icon:'📉', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). High volume confirms selling pressure.` });
+    else                 reasons.push({ icon:'📊', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Moderate volume — limit entry at recent high zone is safer.` });
+
+    if (entryType === 'MARKET') reasons.push({ icon:'⚡', text: `<strong>Market entry</strong> recommended — RSI overbought with volume surge. Momentum favours immediate short entry.` });
+    else                         reasons.push({ icon:'⏳', text: `<strong>Limit entry</strong> recommended — wait for a bounce to the recent 5-candle high for a better short entry.` });
+  }
+
+  // TP / SL note
+  reasons.push({ icon:'🎯', text: `TP1 = 1.5× risk, TP2 = 2.5× risk. Stop is placed beyond the 10-candle swing extreme with a small buffer.` });
+
+  return reasons;
+}
+</script>
+
+</body>
+</html>
