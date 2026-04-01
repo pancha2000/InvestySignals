@@ -3,6 +3,7 @@ const path = require('path');
 const axios = require('axios');
 const app = express();
 const PORT = 2000;
+const HOST = '0.0.0.0';
 
 // 1. Static files (images, css) පාවිච්චි කරන්න public folder එක සෙට් කිරීම
 app.use(express.static(path.join(__dirname, 'public')));
