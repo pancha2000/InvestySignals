@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — InvestySignals</title>
+<meta name="description" content="Sign in to your InvestySignals account and access real-time crypto trading signals.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #070b14;
+  --surface:  #0c1220;
+  --card:     #101827;
+  --border:   #1a2640;
+  --border2:  #243350;
+  --cyan:     #00d4ff;
+  --green:    #00ff88;
+  --red:      #ff3d5a;
+  --yellow:   #ffc333;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --dim:      #334155;
+  --font-h:   'Rajdhani', sans-serif;
+  --font-n:   'IBM Plex Mono', monospace;
+  --font-b:   'Outfit', sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-height:1.6; overflow-x:hidden; min-height:100vh; }
+
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--surface); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+
+/* ── Ticker Bar ── */
+.ticker-bar { background:var(--surface); border-bottom:1px solid var(--border); overflow:hidden; height:36px; position:sticky; top:0; z-index:100; }
+.ticker-track { display:flex; gap:0; animation:tickerScroll 30s linear infinite; white-space:nowrap; height:100%; }
+.ticker-track:hover { animation-play-state:paused; }
+@keyframes tickerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+.ticker-item { display:inline-flex; align-items:center; gap:8px; padding:0 24px; height:100%; border-right:1px solid var(--border); font-family:var(--font-n); font-size:.75rem; flex-shrink:0; }
+.t-sym { color:var(--muted); }
+.t-price { color:var(--text); font-weight:500; }
+.t-chg.up   { color:var(--green); }
+.t-chg.down { color:var(--red); }
+
+/* ── Topbar ── */
+.topbar { position:sticky; top:36px; z-index:200; background:rgba(7,11,20,.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:60px; }
+.topbar-left { display:flex; align-items:center; gap:12px; }
+.topbar-logo { font-family:var(--font-h); font-size:1.35rem; font-weight:700; letter-spacing:.05em; text-decoration:none; color:var(--text); }
+.topbar-logo span { color:var(--cyan); }
+.topbar-right { display:flex; align-items:center; gap:12px; }
+.live-badge { display:flex; align-items:center; gap:6px; font-size:.72rem; font-weight:600; color:var(--green); letter-spacing:.08em; text-transform:uppercase; font-family:var(--font-n); }
+.live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.3)} }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 18px; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; text-decoration:none; transition:all .2s; letter-spacing:.02em; border:none; }
+.btn-outline { background:transparent; color:var(--cyan); border:1px solid var(--cyan); }
+.btn-outline:hover { background:rgba(0,212,255,.08); }
+.btn-primary { background:var(--cyan); color:#000; border:none; }
+.btn-primary:hover { background:#22deff; transform:translateY(-1px); box-shadow:0 4px 20px rgba(0,212,255,.3); }
+
+/* ── Page Layout ── */
+.auth-page { min-height:calc(100vh - 96px); display:flex; align-items:center; justify-content:center; padding:40px 24px; position:relative; overflow:hidden; }
+
+/* Animated background */
+.auth-bg { position:absolute; inset:0; background:radial-gradient(ellipse 70% 60% at 20% 50%, rgba(0,212,255,.06) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 80% 50%, rgba(0,255,136,.04) 0%, transparent 60%); }
+.auth-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px); background-size:50px 50px; mask-image:radial-gradient(ellipse at center, black 20%, transparent 75%); }
+
+/* Floating orbs */
+.orb { position:absolute; border-radius:50%; pointer-events:none; }
+.orb1 { width:300px; height:300px; top:-100px; right:-50px; background:radial-gradient(circle, rgba(0,212,255,.06) 0%, transparent 70%); animation:floatOrb 8s ease-in-out infinite; }
+.orb2 { width:200px; height:200px; bottom:-50px; left:-50px; background:radial-gradient(circle, rgba(0,255,136,.05) 0%, transparent 70%); animation:floatOrb 10s ease-in-out infinite reverse; }
+@keyframes floatOrb { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-20px) scale(1.05)} }
+
+/* ── Auth Card ── */
+.auth-container { position:relative; display:grid; grid-template-columns:1fr 1fr; max-width:900px; width:100%; gap:0; border-radius:20px; overflow:hidden; border:1px solid var(--border); box-shadow:0 40px 100px rgba(0,0,0,.6); animation:slideUp .5s cubic-bezier(.4,0,.2,1); }
+@keyframes slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+
+/* Left panel — branding */
+.auth-left { background:linear-gradient(160deg, rgba(0,212,255,.1) 0%, rgba(0,0,0,0) 40%, rgba(0,255,136,.06) 100%), var(--surface); padding:50px 40px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden; border-right:1px solid var(--border); }
+.auth-left-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(0,212,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,.05) 1px, transparent 1px); background-size:30px 30px; opacity:.6; }
+.auth-left-content { position:relative; }
+.auth-brand { font-family:var(--font-h); font-size:1.6rem; font-weight:700; letter-spacing:.05em; margin-bottom:32px; }
+.auth-brand span { color:var(--cyan); }
+.auth-tagline { font-family:var(--font-h); font-size:2rem; font-weight:700; line-height:1.2; margin-bottom:16px; }
+.auth-tagline .c-cyan { color:var(--cyan); }
+.auth-tagline .c-green { color:var(--green); }
+.auth-desc { font-size:.9rem; color:var(--muted); line-height:1.8; margin-bottom:36px; }
+.auth-perks { display:flex; flex-direction:column; gap:14px; }
+.perk { display:flex; align-items:center; gap:12px; font-size:.87rem; }
+.perk-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.9rem; flex-shrink:0; }
+.perk-icon.cyan   { background:rgba(0,212,255,.12); border:1px solid rgba(0,212,255,.2); }
+.perk-icon.green  { background:rgba(0,255,136,.1); border:1px solid rgba(0,255,136,.2); }
+.perk-icon.yellow { background:rgba(255,195,51,.1); border:1px solid rgba(255,195,51,.2); }
+.perk-text { color:var(--text); }
+.perk-text strong { color:var(--cyan); }
+
+.auth-left-footer { position:relative; }
+.auth-stats-row { display:flex; gap:24px; flex-wrap:wrap; }
+.a-stat { text-align:center; }
+.a-stat-n { font-family:var(--font-n); font-size:1.3rem; font-weight:600; color:var(--cyan); }
+.a-stat-l { font-size:.67rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+
+/* Right panel — form */
+.auth-right { background:var(--card); padding:50px 40px; display:flex; flex-direction:column; justify-content:center; }
+.auth-title { font-family:var(--font-h); font-size:1.9rem; font-weight:700; margin-bottom:6px; }
+.auth-subtitle { font-size:.88rem; color:var(--muted); margin-bottom:32px; }
+.auth-subtitle a { color:var(--cyan); text-decoration:none; font-weight:500; }
+.auth-subtitle a:hover { text-decoration:underline; }
+
+/* Form */
+.form-group { margin-bottom:20px; }
+.form-label { display:block; font-size:.8rem; font-weight:600; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; font-family:var(--font-n); }
+.form-input { width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text); padding:12px 16px; border-radius:10px; font-family:var(--font-b); font-size:.92rem; outline:none; transition:all .2s; }
+.form-input:focus { border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,212,255,.1); }
+.form-input::placeholder { color:var(--dim); }
+.form-input.error { border-color:var(--red); box-shadow:0 0 0 3px rgba(255,61,90,.1); }
+
+/* Password wrapper */
+.input-wrap { position:relative; }
+.input-wrap .form-input { padding-right:46px; }
+.toggle-pass { position:absolute; right:14px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; padding:4px; transition:color .2s; }
+.toggle-pass:hover { color:var(--cyan); }
+
+.forgot-link { display:block; text-align:right; font-size:.8rem; color:var(--muted); text-decoration:none; margin-top:6px; transition:color .2s; }
+.forgot-link:hover { color:var(--cyan); }
+
+/* Submit button */
+.btn-submit { width:100%; padding:13px; background:var(--cyan); color:#000; font-family:var(--font-h); font-size:1.1rem; font-weight:700; letter-spacing:.05em; border:none; border-radius:10px; cursor:pointer; transition:all .25s; margin-top:4px; display:flex; align-items:center; justify-content:center; gap:8px; }
+.btn-submit:hover { background:#22deff; transform:translateY(-1px); box-shadow:0 6px 24px rgba(0,212,255,.35); }
+.btn-submit:active { transform:translateY(0); }
+.btn-submit:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+
+/* Divider */
+.auth-divider { display:flex; align-items:center; gap:12px; margin:24px 0; }
+.auth-divider::before, .auth-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+.auth-divider span { font-size:.75rem; color:var(--dim); text-transform:uppercase; letter-spacing:.1em; font-family:var(--font-n); white-space:nowrap; }
+
+/* Google button */
+.btn-google { width:100%; padding:12px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:var(--font-b); font-size:.9rem; font-weight:500; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; transition:all .2s; text-decoration:none; }
+.btn-google:hover { border-color:var(--border2); background:rgba(255,255,255,.04); transform:translateY(-1px); }
+.google-icon { width:20px; height:20px; flex-shrink:0; }
+
+/* Error message */
+.error-msg { background:rgba(255,61,90,.1); border:1px solid rgba(255,61,90,.25); color:var(--red); padding:12px 16px; border-radius:8px; font-size:.84rem; margin-bottom:20px; display:none; align-items:center; gap:8px; }
+.error-msg.show { display:flex; }
+.error-msg .err-icon { font-size:1rem; flex-shrink:0; }
+
+/* Success message */
+.success-msg { background:rgba(0,255,136,.08); border:1px solid rgba(0,255,136,.2); color:var(--green); padding:12px 16px; border-radius:8px; font-size:.84rem; margin-bottom:20px; display:none; align-items:center; gap:8px; }
+.success-msg.show { display:flex; }
+
+/* Loading spinner */
+.spinner { width:18px; height:18px; border:2px solid rgba(0,0,0,.3); border-top-color:#000; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ── Footer ── */
+.auth-footer { text-align:center; margin-top:10px; }
+.auth-footer p { font-size:.78rem; color:var(--dim); }
+.auth-footer a { color:var(--muted); text-decoration:none; transition:color .2s; }
+.auth-footer a:hover { color:var(--cyan); }
+
+/* ── Responsive ── */
+@media(max-width:720px) {
+  .auth-container { grid-template-columns:1fr; max-width:480px; }
+  .auth-left { display:none; }
+  .auth-right { padding:40px 28px; }
+  .topbar-right .btn { display:none; }
+}
+@media(max-width:400px) {
+  .auth-right { padding:32px 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Ticker Bar -->
+<div class="ticker-bar">
+  <div class="ticker-track">
+    <div class="ticker-item"><span class="t-sym">BTC/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">ETH/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BNB/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">SOL/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">XRP/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BTC/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">ETH/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BNB/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">SOL/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">XRP/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+  </div>
+</div>
+
+<!-- Topbar -->
+<header class="topbar">
+  <div class="topbar-left">
+    <a href="index.html" class="topbar-logo">INVESTY<span>SIGNALS</span></a>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+    <a href="register.html" class="btn btn-outline">Create Account</a>
+  </div>
+</header>
+
+<!-- Auth Page -->
+<main class="auth-page">
+  <div class="auth-bg"></div>
+  <div class="auth-grid"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+
+  <div class="auth-container">
+    <!-- Left Branding Panel -->
+    <div class="auth-left">
+      <div class="auth-left-grid"></div>
+      <div class="auth-left-content">
+        <div class="auth-brand">INVESTY<span>SIGNALS</span></div>
+        <div class="auth-tagline">
+          Trade <span class="c-cyan">Smarter</span>,<br>
+          Profit <span class="c-green">Faster</span>
+        </div>
+        <p class="auth-desc">Sri Lanka's #1 crypto signal platform. Access real-time Binance Futures signals with high accuracy entries and defined targets.</p>
+        <div class="auth-perks">
+          <div class="perk">
+            <div class="perk-icon cyan">📡</div>
+            <div class="perk-text"><strong>Real-time signals</strong> — entry, TP &amp; SL</div>
+          </div>
+          <div class="perk">
+            <div class="perk-icon green">📈</div>
+            <div class="perk-text"><strong>78% win rate</strong> — verified track record</div>
+          </div>
+          <div class="perk">
+            <div class="perk-icon yellow">⚡</div>
+            <div class="perk-text"><strong>Live WebSocket</strong> — zero API delay</div>
+          </div>
+          <div class="perk">
+            <div class="perk-icon cyan">🏆</div>
+            <div class="perk-text"><strong>5,000+ traders</strong> — active community</div>
+          </div>
+        </div>
+      </div>
+      <div class="auth-left-footer">
+        <div class="auth-stats-row">
+          <div class="a-stat"><div class="a-stat-n">1,200+</div><div class="a-stat-l">Signals</div></div>
+          <div class="a-stat"><div class="a-stat-n">78%</div><div class="a-stat-l">Win Rate</div></div>
+          <div class="a-stat"><div class="a-stat-n">2.4×</div><div class="a-stat-l">Avg RRR</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Form Panel -->
+    <div class="auth-right">
+      <div class="auth-title">Welcome Back 👋</div>
+      <div class="auth-subtitle">Don't have an account? <a href="register.html">Create one free →</a></div>
+
+      <!-- Error / Success Messages -->
+      <div class="error-msg" id="errorMsg"><span class="err-icon">⚠</span><span id="errorText">Invalid email or password.</span></div>
+      <div class="success-msg" id="successMsg"><span>✓</span><span id="successText">Login successful! Redirecting…</span></div>
+
+      <!-- Google Sign In -->
+      <button class="btn-google" id="googleBtn" onclick="signInWithGoogle()">
+        <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="auth-divider"><span>or sign in with email</span></div>
+
+      <!-- Login Form -->
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address</label>
+          <input class="form-input" type="email" id="email" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <div class="input-wrap">
+            <input class="form-input" type="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
+            <button type="button" class="toggle-pass" onclick="togglePassword('password', this)" title="Show/hide password">👁</button>
+          </div>
+          <a href="#" class="forgot-link" onclick="handleForgotPassword(event)">Forgot password?</a>
+        </div>
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <span id="submitText">Sign In</span>
+        </button>
+      </form>
+
+      <div class="auth-footer" style="margin-top:20px">
+        <p>By signing in, you agree to our <a href="#">Terms</a> &amp; <a href="#">Privacy Policy</a>.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
+  authDomain: "crypto-98b33.firebaseapp.com",
+  projectId: "crypto-98b33",
+  storageBucket: "crypto-98b33.firebasestorage.app",
+  messagingSenderId: "619954501803",
+  appId: "1:619954501803:web:559d48b801f072abd71fee",
+  measurementId: "G-V1R4YK8L75"
+};
+
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+// ── Redirect if already logged in ──
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    window.location.href = 'dashboard.html';
+  }
+});
+
+// ── Email/Password Login ──
+window.handleLogin = async function(e) {
+  e.preventDefault();
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('submitBtn');
+  const btnText  = document.getElementById('submitText');
+
+  hideMessages();
+  btn.disabled = true;
+  btnText.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    showSuccess('Login successful! Redirecting…');
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 1200);
+  } catch (err) {
+    btn.disabled = false;
+    btnText.textContent = 'Sign In';
+    showError(getFriendlyError(err.code));
+    document.getElementById('password').classList.add('error');
+  }
+};
+
+// ── Google Sign In ──
+window.signInWithGoogle = async function() {
+  const gBtn = document.getElementById('googleBtn');
+  gBtn.disabled = true;
+  gBtn.style.opacity = '.6';
+  hideMessages();
+  try {
+    await signInWithPopup(auth, googleProvider);
+    showSuccess('Login successful! Redirecting…');
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 1200);
+  } catch (err) {
+    gBtn.disabled = false;
+    gBtn.style.opacity = '1';
+    if (err.code !== 'auth/popup-closed-by-user') {
+      showError(getFriendlyError(err.code));
+    }
+  }
+};
+
+// ── Forgot Password ──
+window.handleForgotPassword = async function(e) {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  if (!email) {
+    showError('Please enter your email address first.');
+    document.getElementById('email').focus();
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showSuccess('Password reset email sent! Check your inbox.');
+  } catch (err) {
+    showError(getFriendlyError(err.code));
+  }
+};
+
+// ── Toggle Password Visibility ──
+window.togglePassword = function(id, btn) {
+  const input = document.getElementById(id);
+  if (input.type === 'password') { input.type = 'text'; btn.textContent = '🙈'; }
+  else { input.type = 'password'; btn.textContent = '👁'; }
+};
+
+// ── Helpers ──
+function showError(msg) {
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorMsg').classList.add('show');
+}
+function showSuccess(msg) {
+  document.getElementById('successText').textContent = msg;
+  document.getElementById('successMsg').classList.add('show');
+}
+function hideMessages() {
+  document.getElementById('errorMsg').classList.remove('show');
+  document.getElementById('successMsg').classList.remove('show');
+  document.querySelectorAll('.form-input').forEach(el => el.classList.remove('error'));
+}
+
+function getFriendlyError(code) {
+  const map = {
+    'auth/user-not-found':      'No account found with this email address.',
+    'auth/wrong-password':      'Incorrect password. Please try again.',
+    'auth/invalid-email':       'Please enter a valid email address.',
+    'auth/user-disabled':       'This account has been disabled.',
+    'auth/too-many-requests':   'Too many attempts. Please try again later.',
+    'auth/network-request-failed': 'Network error. Check your connection.',
+    'auth/invalid-credential':  'Invalid email or password. Please try again.',
+    'auth/popup-blocked':       'Popup blocked. Please allow popups for this site.',
+  };
+  return map[code] || 'Something went wrong. Please try again.';
+}
+</script>
+
+<!-- Remove error class on input -->
+<script>
+document.querySelectorAll('.form-input').forEach(el => {
+  el.addEventListener('input', () => el.classList.remove('error'));
+});
+</script>
+
+</body>
+</html>

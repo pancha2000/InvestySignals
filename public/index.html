@@ -88,6 +88,8 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
 .btn-outline:hover { background:rgba(0,212,255,.08); }
 .btn-green { background:var(--green); color:#000; border:none; }
 .btn-green:hover { background:#22ffaa; box-shadow:0 4px 20px rgba(0,255,136,.3); }
+.btn-ghost { background:transparent; color:var(--text); border:1px solid var(--border2); }
+.btn-ghost:hover { border-color:var(--border); background:rgba(255,255,255,.04); }
 
 /* ── Hero ── */
 .hero { position:relative; min-height:88vh; display:flex; align-items:center; overflow:hidden; padding:60px 24px; }
@@ -216,9 +218,12 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
 
 /* ── Responsive ── */
 @media(max-width:640px) {
-  .topbar-right .btn { display:none; }
+  .topbar-right .btn-primary { display:none; }
   .hero-actions .btn:nth-child(2) { display:none; }
   .hero-stats { gap:20px; }
+}
+@media(max-width:400px) {
+  .topbar-right .btn-ghost { display:none; }
 }
 </style>
 </head>
@@ -245,6 +250,16 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
     <a href="#"><span class="nav-icon">🔔</span> Get Alerts</a>
     <a href="#"><span class="nav-icon">💬</span> Community</a>
     <a href="#"><span class="nav-icon">📞</span> Contact</a>
+    <!-- Auth section — toggled by Firebase -->
+    <div class="nav-section" style="margin-top:12px">Account</div>
+    <div id="sidebarGuest">
+      <a href="login.html"><span class="nav-icon">🔑</span> Sign In</a>
+      <a href="register.html" style="color:var(--green)"><span class="nav-icon">🚀</span> Register Free</a>
+    </div>
+    <div id="sidebarUser" style="display:none">
+      <a href="dashboard.html"><span class="nav-icon">📊</span> My Dashboard</a>
+      <a href="#" onclick="handleSignOut()" style="color:var(--red)"><span class="nav-icon">🚪</span> Sign Out</a>
+    </div>
   </nav>
   <div class="sidebar-footer">
     <div class="sidebar-socials">
@@ -281,7 +296,14 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
   </div>
   <div class="topbar-right">
     <div class="live-badge"><div class="live-dot"></div> LIVE</div>
-    <a href="signals.html" class="btn btn-primary">📡 View Signals</a>
+    <!-- Auth buttons — toggled by Firebase -->
+    <div id="authButtons">
+      <a href="login.html" class="btn btn-ghost" style="font-size:.82rem;padding:7px 16px">Sign In</a>
+      <a href="register.html" class="btn btn-primary" style="font-size:.82rem;padding:7px 16px">🚀 Register Free</a>
+    </div>
+    <div id="dashButtons" style="display:none">
+      <a href="dashboard.html" class="btn btn-primary" style="font-size:.82rem;padding:7px 16px">📊 Dashboard</a>
+    </div>
   </div>
 </header>
 
@@ -544,6 +566,45 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
     </div>
   </div>
 </footer>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
+  authDomain: "crypto-98b33.firebaseapp.com",
+  projectId: "crypto-98b33",
+  storageBucket: "crypto-98b33.firebasestorage.app",
+  messagingSenderId: "619954501803",
+  appId: "1:619954501803:web:559d48b801f072abd71fee",
+  measurementId: "G-V1R4YK8L75"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // Logged in → show Dashboard button, hide Login/Register
+    document.getElementById('authButtons').style.display = 'none';
+    document.getElementById('dashButtons').style.display  = 'flex';
+    document.getElementById('sidebarGuest').style.display = 'none';
+    document.getElementById('sidebarUser').style.display  = 'block';
+  } else {
+    // Guest → show Login/Register
+    document.getElementById('authButtons').style.display = 'flex';
+    document.getElementById('dashButtons').style.display  = 'none';
+    document.getElementById('sidebarGuest').style.display = 'block';
+    document.getElementById('sidebarUser').style.display  = 'none';
+  }
+});
+
+window.handleSignOut = async function() {
+  await signOut(auth);
+  closeSidebar();
+};
+</script>
 
 <script>
 /* ── Sidebar ── */

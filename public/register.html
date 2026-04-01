@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Account — InvestySignals</title>
+<meta name="description" content="Join InvestySignals free. Get real-time crypto trading signals for Binance Futures traders.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #070b14;
+  --surface:  #0c1220;
+  --card:     #101827;
+  --border:   #1a2640;
+  --border2:  #243350;
+  --cyan:     #00d4ff;
+  --green:    #00ff88;
+  --red:      #ff3d5a;
+  --yellow:   #ffc333;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --dim:      #334155;
+  --font-h:   'Rajdhani', sans-serif;
+  --font-n:   'IBM Plex Mono', monospace;
+  --font-b:   'Outfit', sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-height:1.6; overflow-x:hidden; min-height:100vh; }
+
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--surface); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+
+/* ── Ticker Bar ── */
+.ticker-bar { background:var(--surface); border-bottom:1px solid var(--border); overflow:hidden; height:36px; position:sticky; top:0; z-index:100; }
+.ticker-track { display:flex; gap:0; animation:tickerScroll 30s linear infinite; white-space:nowrap; height:100%; }
+.ticker-track:hover { animation-play-state:paused; }
+@keyframes tickerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+.ticker-item { display:inline-flex; align-items:center; gap:8px; padding:0 24px; height:100%; border-right:1px solid var(--border); font-family:var(--font-n); font-size:.75rem; flex-shrink:0; }
+.t-sym { color:var(--muted); }
+.t-price { color:var(--text); font-weight:500; }
+.t-chg.up   { color:var(--green); }
+.t-chg.down { color:var(--red); }
+
+/* ── Topbar ── */
+.topbar { position:sticky; top:36px; z-index:200; background:rgba(7,11,20,.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:60px; }
+.topbar-left { display:flex; align-items:center; gap:12px; }
+.topbar-logo { font-family:var(--font-h); font-size:1.35rem; font-weight:700; letter-spacing:.05em; text-decoration:none; color:var(--text); }
+.topbar-logo span { color:var(--cyan); }
+.topbar-right { display:flex; align-items:center; gap:12px; }
+.live-badge { display:flex; align-items:center; gap:6px; font-size:.72rem; font-weight:600; color:var(--green); letter-spacing:.08em; text-transform:uppercase; font-family:var(--font-n); }
+.live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.3)} }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 18px; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; text-decoration:none; transition:all .2s; letter-spacing:.02em; border:none; }
+.btn-outline { background:transparent; color:var(--cyan); border:1px solid var(--cyan); }
+.btn-outline:hover { background:rgba(0,212,255,.08); }
+.btn-primary { background:var(--cyan); color:#000; border:none; }
+.btn-primary:hover { background:#22deff; transform:translateY(-1px); box-shadow:0 4px 20px rgba(0,212,255,.3); }
+
+/* ── Page Layout ── */
+.auth-page { min-height:calc(100vh - 96px); display:flex; align-items:center; justify-content:center; padding:40px 24px; position:relative; overflow:hidden; }
+.auth-bg { position:absolute; inset:0; background:radial-gradient(ellipse 70% 60% at 80% 40%, rgba(0,255,136,.05) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 10% 70%, rgba(0,212,255,.05) 0%, transparent 60%); }
+.auth-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px); background-size:50px 50px; mask-image:radial-gradient(ellipse at center, black 20%, transparent 75%); }
+.orb { position:absolute; border-radius:50%; pointer-events:none; }
+.orb1 { width:350px; height:350px; top:-80px; left:-80px; background:radial-gradient(circle, rgba(0,255,136,.05) 0%, transparent 70%); animation:floatOrb 9s ease-in-out infinite; }
+.orb2 { width:250px; height:250px; bottom:-60px; right:-60px; background:radial-gradient(circle, rgba(0,212,255,.06) 0%, transparent 70%); animation:floatOrb 11s ease-in-out infinite reverse; }
+@keyframes floatOrb { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-20px) scale(1.05)} }
+
+/* ── Auth Card ── */
+.auth-container { position:relative; display:grid; grid-template-columns:1fr 1fr; max-width:960px; width:100%; gap:0; border-radius:20px; overflow:hidden; border:1px solid var(--border); box-shadow:0 40px 100px rgba(0,0,0,.6); animation:slideUp .5s cubic-bezier(.4,0,.2,1); }
+@keyframes slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+
+/* Left panel */
+.auth-left { background:linear-gradient(160deg, rgba(0,255,136,.08) 0%, rgba(0,0,0,0) 40%, rgba(0,212,255,.06) 100%), var(--surface); padding:50px 40px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden; border-right:1px solid var(--border); }
+.auth-left-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(0,255,136,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,.04) 1px, transparent 1px); background-size:30px 30px; opacity:.7; }
+.auth-left-content { position:relative; }
+.auth-brand { font-family:var(--font-h); font-size:1.6rem; font-weight:700; letter-spacing:.05em; margin-bottom:32px; }
+.auth-brand span { color:var(--cyan); }
+.auth-tagline { font-family:var(--font-h); font-size:2rem; font-weight:700; line-height:1.2; margin-bottom:16px; }
+.auth-tagline .c-cyan { color:var(--cyan); }
+.auth-tagline .c-green { color:var(--green); }
+.auth-desc { font-size:.9rem; color:var(--muted); line-height:1.8; margin-bottom:32px; }
+
+/* Free badge */
+.free-badge { display:inline-flex; align-items:center; gap:8px; background:rgba(0,255,136,.08); border:1px solid rgba(0,255,136,.2); color:var(--green); padding:8px 16px; border-radius:100px; font-size:.8rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:28px; font-family:var(--font-n); }
+.free-badge::before { content:'🎁'; }
+
+.auth-perks { display:flex; flex-direction:column; gap:14px; }
+.perk { display:flex; align-items:center; gap:12px; font-size:.87rem; }
+.perk-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.9rem; flex-shrink:0; }
+.perk-icon.cyan   { background:rgba(0,212,255,.12); border:1px solid rgba(0,212,255,.2); }
+.perk-icon.green  { background:rgba(0,255,136,.1); border:1px solid rgba(0,255,136,.2); }
+.perk-icon.yellow { background:rgba(255,195,51,.1); border:1px solid rgba(255,195,51,.2); }
+.perk-icon.red    { background:rgba(255,61,90,.1); border:1px solid rgba(255,61,90,.2); }
+.perk-text { color:var(--text); }
+.perk-text strong { color:var(--green); }
+
+.auth-left-footer { position:relative; }
+.trust-row { display:flex; align-items:center; gap:10px; font-size:.82rem; color:var(--muted); }
+.trust-avatars { display:flex; }
+.trust-avatars .av { width:28px; height:28px; border-radius:50%; border:2px solid var(--surface); background:linear-gradient(135deg,var(--cyan),var(--green)); display:flex; align-items:center; justify-content:center; font-size:.6rem; font-weight:700; color:#000; margin-left:-8px; }
+.trust-avatars .av:first-child { margin-left:0; }
+
+/* Right panel */
+.auth-right { background:var(--card); padding:44px 40px; display:flex; flex-direction:column; justify-content:center; }
+.auth-title { font-family:var(--font-h); font-size:1.9rem; font-weight:700; margin-bottom:6px; }
+.auth-subtitle { font-size:.88rem; color:var(--muted); margin-bottom:28px; }
+.auth-subtitle a { color:var(--cyan); text-decoration:none; font-weight:500; }
+.auth-subtitle a:hover { text-decoration:underline; }
+
+/* Form */
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.form-group { margin-bottom:18px; }
+.form-label { display:block; font-size:.78rem; font-weight:600; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; font-family:var(--font-n); }
+.form-input { width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text); padding:11px 14px; border-radius:10px; font-family:var(--font-b); font-size:.9rem; outline:none; transition:all .2s; }
+.form-input:focus { border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,212,255,.1); }
+.form-input::placeholder { color:var(--dim); }
+.form-input.error { border-color:var(--red); box-shadow:0 0 0 3px rgba(255,61,90,.1); }
+
+.input-wrap { position:relative; }
+.input-wrap .form-input { padding-right:46px; }
+.toggle-pass { position:absolute; right:14px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; padding:4px; transition:color .2s; }
+.toggle-pass:hover { color:var(--cyan); }
+
+/* Password strength */
+.pw-strength { margin-top:8px; }
+.pw-bars { display:flex; gap:4px; margin-bottom:4px; }
+.pw-bar { height:3px; flex:1; border-radius:2px; background:var(--border); transition:all .3s; }
+.pw-bar.weak   { background:var(--red); }
+.pw-bar.fair   { background:var(--yellow); }
+.pw-bar.strong { background:var(--green); }
+.pw-label { font-size:.72rem; font-family:var(--font-n); color:var(--muted); }
+.pw-label.weak   { color:var(--red); }
+.pw-label.fair   { color:var(--yellow); }
+.pw-label.strong { color:var(--green); }
+
+/* Terms checkbox */
+.checkbox-wrap { display:flex; align-items:flex-start; gap:10px; font-size:.83rem; color:var(--muted); cursor:pointer; }
+.checkbox-wrap input[type="checkbox"] { width:16px; height:16px; border:1px solid var(--border2); border-radius:4px; background:var(--surface); cursor:pointer; accent-color:var(--cyan); margin-top:2px; flex-shrink:0; }
+.checkbox-wrap a { color:var(--cyan); text-decoration:none; }
+.checkbox-wrap a:hover { text-decoration:underline; }
+
+/* Submit */
+.btn-submit { width:100%; padding:13px; background:var(--green); color:#000; font-family:var(--font-h); font-size:1.1rem; font-weight:700; letter-spacing:.05em; border:none; border-radius:10px; cursor:pointer; transition:all .25s; margin-top:16px; display:flex; align-items:center; justify-content:center; gap:8px; }
+.btn-submit:hover { background:#22ffaa; transform:translateY(-1px); box-shadow:0 6px 24px rgba(0,255,136,.3); }
+.btn-submit:active { transform:translateY(0); }
+.btn-submit:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+
+/* Divider */
+.auth-divider { display:flex; align-items:center; gap:12px; margin:20px 0; }
+.auth-divider::before, .auth-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+.auth-divider span { font-size:.75rem; color:var(--dim); text-transform:uppercase; letter-spacing:.1em; font-family:var(--font-n); white-space:nowrap; }
+
+.btn-google { width:100%; padding:11px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:var(--font-b); font-size:.9rem; font-weight:500; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; transition:all .2s; text-decoration:none; }
+.btn-google:hover { border-color:var(--border2); background:rgba(255,255,255,.04); transform:translateY(-1px); }
+.google-icon { width:20px; height:20px; flex-shrink:0; }
+
+/* Messages */
+.error-msg { background:rgba(255,61,90,.1); border:1px solid rgba(255,61,90,.25); color:var(--red); padding:11px 14px; border-radius:8px; font-size:.84rem; margin-bottom:18px; display:none; align-items:center; gap:8px; }
+.error-msg.show { display:flex; }
+.success-msg { background:rgba(0,255,136,.08); border:1px solid rgba(0,255,136,.2); color:var(--green); padding:11px 14px; border-radius:8px; font-size:.84rem; margin-bottom:18px; display:none; align-items:center; gap:8px; }
+.success-msg.show { display:flex; }
+
+.spinner { width:18px; height:18px; border:2px solid rgba(0,0,0,.3); border-top-color:#000; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ── Responsive ── */
+@media(max-width:720px) {
+  .auth-container { grid-template-columns:1fr; max-width:500px; }
+  .auth-left { display:none; }
+  .auth-right { padding:36px 24px; }
+  .form-row { grid-template-columns:1fr; }
+  .topbar-right .btn { display:none; }
+}
+@media(max-width:400px) {
+  .auth-right { padding:28px 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Ticker Bar -->
+<div class="ticker-bar">
+  <div class="ticker-track">
+    <div class="ticker-item"><span class="t-sym">BTC/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">ETH/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BNB/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">SOL/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">XRP/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BTC/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">ETH/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">BNB/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">SOL/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    <div class="ticker-item"><span class="t-sym">XRP/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+  </div>
+</div>
+
+<!-- Topbar -->
+<header class="topbar">
+  <div class="topbar-left">
+    <a href="index.html" class="topbar-logo">INVESTY<span>SIGNALS</span></a>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+    <a href="login.html" class="btn btn-outline">Sign In</a>
+  </div>
+</header>
+
+<!-- Auth Page -->
+<main class="auth-page">
+  <div class="auth-bg"></div>
+  <div class="auth-grid"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+
+  <div class="auth-container">
+    <!-- Left Branding Panel -->
+    <div class="auth-left">
+      <div class="auth-left-grid"></div>
+      <div class="auth-left-content">
+        <div class="auth-brand">INVESTY<span>SIGNALS</span></div>
+        <div class="free-badge">100% Free — No Credit Card</div>
+        <div class="auth-tagline">
+          Join <span class="c-green">5,000+</span><br>
+          <span class="c-cyan">Traders</span> Today
+        </div>
+        <p class="auth-desc">Get access to real-time crypto signals, live market data and a disciplined trading community — completely free.</p>
+        <div class="auth-perks">
+          <div class="perk">
+            <div class="perk-icon green">📡</div>
+            <div class="perk-text"><strong>Free real-time signals</strong> — no paywall</div>
+          </div>
+          <div class="perk">
+            <div class="perk-icon cyan">📊</div>
+            <div class="perk-text"><strong>Live market dashboard</strong> — WebSocket data</div>
+          </div>
+          <div class="perk">
+            <div class="perk-icon yellow">🏆</div>
+            <div class="perk-text"><strong>Transparent track record</strong> — all verified</div>
+          </div>
+          <div class="perk">
+            <div class="perk-icon red">🔔</div>
+            <div class="perk-text"><strong>Instant alerts</strong> — Telegram &amp; WhatsApp</div>
+          </div>
+        </div>
+      </div>
+      <div class="auth-left-footer">
+        <div class="trust-row">
+          <div class="trust-avatars">
+            <div class="av">AK</div>
+            <div class="av">DW</div>
+            <div class="av">MR</div>
+            <div class="av">+</div>
+          </div>
+          <span>Joined by traders from all over Sri Lanka 🇱🇰</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Form Panel -->
+    <div class="auth-right">
+      <div class="auth-title">Create Account 🚀</div>
+      <div class="auth-subtitle">Already have an account? <a href="login.html">Sign in →</a></div>
+
+      <div class="error-msg" id="errorMsg"><span>⚠</span><span id="errorText">Something went wrong.</span></div>
+      <div class="success-msg" id="successMsg"><span>✓</span><span id="successText">Account created! Welcome to InvestySignals!</span></div>
+
+      <!-- Google Sign Up -->
+      <button class="btn-google" id="googleBtn" onclick="signUpWithGoogle()">
+        <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="auth-divider"><span>or register with email</span></div>
+
+      <!-- Register Form -->
+      <form id="registerForm" onsubmit="handleRegister(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="firstName">First Name</label>
+            <input class="form-input" type="text" id="firstName" placeholder="Kasun" required autocomplete="given-name">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="lastName">Last Name</label>
+            <input class="form-input" type="text" id="lastName" placeholder="Perera" autocomplete="family-name">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address</label>
+          <input class="form-input" type="email" id="email" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <div class="input-wrap">
+            <input class="form-input" type="password" id="password" placeholder="At least 8 characters" required autocomplete="new-password" oninput="checkStrength(this.value)">
+            <button type="button" class="toggle-pass" onclick="togglePassword('password', this)" title="Show/hide">👁</button>
+          </div>
+          <div class="pw-strength" id="pwStrength" style="display:none">
+            <div class="pw-bars">
+              <div class="pw-bar" id="bar1"></div>
+              <div class="pw-bar" id="bar2"></div>
+              <div class="pw-bar" id="bar3"></div>
+              <div class="pw-bar" id="bar4"></div>
+            </div>
+            <div class="pw-label" id="pwLabel">Too short</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="confirmPassword">Confirm Password</label>
+          <div class="input-wrap">
+            <input class="form-input" type="password" id="confirmPassword" placeholder="Repeat your password" required autocomplete="new-password">
+            <button type="button" class="toggle-pass" onclick="togglePassword('confirmPassword', this)" title="Show/hide">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-wrap">
+            <input type="checkbox" id="agreeTerms" required>
+            <span>I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>. I understand trading involves risk.</span>
+          </label>
+        </div>
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <span id="submitText">🚀 Create Free Account</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
+  authDomain: "crypto-98b33.firebaseapp.com",
+  projectId: "crypto-98b33",
+  storageBucket: "crypto-98b33.firebasestorage.app",
+  messagingSenderId: "619954501803",
+  appId: "1:619954501803:web:559d48b801f072abd71fee",
+  measurementId: "G-V1R4YK8L75"
+};
+
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+// ── Redirect if already logged in ──
+onAuthStateChanged(auth, (user) => {
+  if (user) window.location.href = 'dashboard.html';
+});
+
+// ── Email/Password Register ──
+window.handleRegister = async function(e) {
+  e.preventDefault();
+  hideMessages();
+
+  const firstName = document.getElementById('firstName').value.trim();
+  const lastName  = document.getElementById('lastName').value.trim();
+  const email     = document.getElementById('email').value.trim();
+  const password  = document.getElementById('password').value;
+  const confirm   = document.getElementById('confirmPassword').value;
+  const btn       = document.getElementById('submitBtn');
+  const btnText   = document.getElementById('submitText');
+
+  // Validate password match
+  if (password !== confirm) {
+    showError('Passwords do not match. Please try again.');
+    document.getElementById('confirmPassword').classList.add('error');
+    return;
+  }
+
+  // Validate password length
+  if (password.length < 8) {
+    showError('Password must be at least 8 characters long.');
+    document.getElementById('password').classList.add('error');
+    return;
+  }
+
+  btn.disabled = true;
+  btnText.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    // Set display name
+    const displayName = [firstName, lastName].filter(Boolean).join(' ') || firstName;
+    if (displayName) {
+      await updateProfile(userCredential.user, { displayName });
+    }
+    showSuccess(`Welcome, ${firstName || 'Trader'}! Account created successfully 🎉`);
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
+  } catch (err) {
+    btn.disabled = false;
+    btnText.innerHTML = '🚀 Create Free Account';
+    showError(getFriendlyError(err.code));
+    if (err.code === 'auth/email-already-in-use') {
+      document.getElementById('email').classList.add('error');
+    }
+  }
+};
+
+// ── Google Sign Up ──
+window.signUpWithGoogle = async function() {
+  const gBtn = document.getElementById('googleBtn');
+  gBtn.disabled = true;
+  gBtn.style.opacity = '.6';
+  hideMessages();
+  try {
+    await signInWithPopup(auth, googleProvider);
+    showSuccess('Account created! Redirecting…');
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 1200);
+  } catch (err) {
+    gBtn.disabled = false;
+    gBtn.style.opacity = '1';
+    if (err.code !== 'auth/popup-closed-by-user') {
+      showError(getFriendlyError(err.code));
+    }
+  }
+};
+
+// ── Password Strength ──
+window.checkStrength = function(val) {
+  const el = document.getElementById('pwStrength');
+  const lbl = document.getElementById('pwLabel');
+  const bars = [document.getElementById('bar1'), document.getElementById('bar2'), document.getElementById('bar3'), document.getElementById('bar4')];
+
+  if (!val) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+
+  let score = 0;
+  if (val.length >= 8)  score++;
+  if (val.length >= 12) score++;
+  if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
+  if (/[0-9]/.test(val) && /[^A-Za-z0-9]/.test(val)) score++;
+
+  bars.forEach(b => { b.className = 'pw-bar'; });
+  lbl.className = 'pw-label';
+
+  if (score <= 1) {
+    bars[0].classList.add('weak');
+    lbl.textContent = 'Weak'; lbl.classList.add('weak');
+  } else if (score === 2) {
+    bars[0].classList.add('fair'); bars[1].classList.add('fair');
+    lbl.textContent = 'Fair'; lbl.classList.add('fair');
+  } else if (score === 3) {
+    bars[0].classList.add('strong'); bars[1].classList.add('strong'); bars[2].classList.add('strong');
+    lbl.textContent = 'Good'; lbl.classList.add('strong');
+  } else {
+    bars.forEach(b => b.classList.add('strong'));
+    lbl.textContent = 'Strong ✓'; lbl.classList.add('strong');
+  }
+};
+
+// ── Toggle Password ──
+window.togglePassword = function(id, btn) {
+  const input = document.getElementById(id);
+  if (input.type === 'password') { input.type = 'text'; btn.textContent = '🙈'; }
+  else { input.type = 'password'; btn.textContent = '👁'; }
+};
+
+// ── Helpers ──
+function showError(msg) {
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorMsg').classList.add('show');
+}
+function showSuccess(msg) {
+  document.getElementById('successText').textContent = msg;
+  document.getElementById('successMsg').classList.add('show');
+}
+function hideMessages() {
+  document.getElementById('errorMsg').classList.remove('show');
+  document.getElementById('successMsg').classList.remove('show');
+  document.querySelectorAll('.form-input').forEach(el => el.classList.remove('error'));
+}
+
+function getFriendlyError(code) {
+  const map = {
+    'auth/email-already-in-use':    'This email is already registered. Try signing in instead.',
+    'auth/invalid-email':           'Please enter a valid email address.',
+    'auth/weak-password':           'Password is too weak. Use at least 8 characters.',
+    'auth/network-request-failed':  'Network error. Check your connection.',
+    'auth/too-many-requests':       'Too many attempts. Please try again later.',
+    'auth/popup-blocked':           'Popup blocked. Please allow popups for this site.',
+    'auth/operation-not-allowed':   'Email registration is not enabled. Please contact support.',
+  };
+  return map[code] || 'Something went wrong. Please try again.';
+}
+</script>
+
+<script>
+document.querySelectorAll('.form-input').forEach(el => {
+  el.addEventListener('input', () => el.classList.remove('error'));
+});
+</script>
+
+</body>
+</html>
