@@ -3,44 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InvestySignals | Live Dashboard</title>
+    <title>InvestySignals | Live Market</title>
     <style>
-        body { background-color: #0f172a; color: white; font-family: sans-serif; text-align: center; margin: 0; }
-        .header { background: #1e293b; padding: 20px; border-bottom: 3px solid #3b82f6; }
-        .logo { width: 120px; border-radius: 50%; margin-bottom: 10px; border: 2px solid #3b82f6; }
-        .price-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; padding: 40px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 15px; width: 220px; box-shadow: 0 10px 15px rgba(0,0,0,0.3); }
-        .price { font-size: 1.8em; color: #10b981; font-weight: bold; }
-        .symbol { color: #94a3b8; font-size: 1.1em; }
+        body { background: #0f172a; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; }
+        .header { padding: 40px; background: linear-gradient(to right, #1e293b, #3b82f6); }
+        .market-container { display: flex; justify-content: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
+        .coin-card { background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 12px; width: 250px; }
+        .coin-price { font-size: 24px; color: #10b981; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="header">
-        <img src="logo.jpg" alt="InvestySignals Logo" class="logo">
-        <h1>INVESTY SIGNALS</h1>
-        <p>ඔබේ විශ්වාසවන්ත ක්‍රිප්ටෝ සහකරු</p>
+        <h1>🚀 INVESTY SIGNALS</h1>
+        <p>ලංකාවේ අංක 1 ක්‍රිප්ටෝ සිග්නල් සේවාව</p>
     </div>
-
-    <div class="price-container" id="prices">
-        <p>දත්ත ලබාගනිමින් පවතී...</p>
+    <div class="market-container" id="market-data">
+        <p>දත්ත ලෝඩ් වෙමින් පවතී...</p>
     </div>
-
-    <script>
-        async function updatePrices() {
-            try {
-                const res = await fetch('/api/prices');
-                const data = await res.json();
-                const container = document.getElementById('prices');
-                container.innerHTML = data.map(coin => `
-                    <div class="card">
-                        <div class="symbol">${coin.symbol.replace('USDT', '')} / USDT</div>
-                        <div class="price">$${parseFloat(coin.price).toLocaleString()}</div>
-                    </div>
-                `).join('');
-            } catch (e) { console.log("Error fetching prices"); }
-        }
-        setInterval(updatePrices, 3000); // තත්පර 3කට වරක් update වේ
-        updatePrices();
-    </script>
 </body>
 </html>
