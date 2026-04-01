@@ -193,6 +193,25 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
 .perf-track { height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
 .perf-fill  { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--cyan),var(--green)); transition:width .8s ease; }
 
+/* ── Top Gainers ── */
+.gainer-list { display:flex; flex-direction:column; gap:0; }
+.gainer-row { display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.04); }
+.gainer-row:last-child { border-bottom:none; }
+.gainer-rank { font-family:var(--font-n); font-size:.68rem; color:var(--dim); width:18px; flex-shrink:0; }
+.gainer-left { display:flex; align-items:center; gap:9px; flex:1; }
+.gainer-icon { width:30px; height:30px; border-radius:7px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:.85rem; }
+.gainer-sym  { font-family:var(--font-n); font-size:.83rem; font-weight:600; }
+.gainer-vol  { font-size:.68rem; color:var(--muted); }
+.gainer-right { text-align:right; }
+.gainer-price { font-family:var(--font-n); font-size:.82rem; font-weight:600; }
+.gainer-chg   { font-family:var(--font-n); font-size:.78rem; font-weight:700; }
+.gainer-chg.up   { color:var(--green); }
+.gainer-chg.down { color:var(--red); }
+.ws-status { display:flex; align-items:center; gap:5px; font-family:var(--font-n); font-size:.62rem; }
+.ws-status.connected { color:var(--green); }
+.ws-status.disconnected { color:var(--red); }
+.ws-status.connecting { color:var(--yellow); }
+
 /* ── Empty state ── */
 .empty-state { text-align:center; padding:40px 20px; color:var(--muted); }
 .empty-icon { font-size:2.5rem; margin-bottom:10px; }
@@ -263,7 +282,7 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
     <nav class="ds-nav">
       <div class="ds-section">Main</div>
       <a href="dashboard.html" class="active"><span class="ni">📊</span> Dashboard</a>
-      <a href="signals.html"><span class="ni">📡</span> Live Signals <span class="ds-badge green">LIVE</span></a>
+      <a href="live-signals.html"><span class="ni">📡</span> Live Signals <span class="ds-badge green">LIVE</span></a>
       <div class="ds-section">Market</div>
       <a href="#"><span class="ni">📈</span> Top Gainers</a>
       <a href="#"><span class="ni">🔥</span> Watchlist</a>
@@ -452,6 +471,22 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
           </div>
         </div>
 
+        <!-- Top Gainers -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">📈 Top Gainers</div>
+            <span class="ws-status connecting" id="wsStatus"><span class="live-dot" style="width:6px;height:6px"></span> LIVE</span>
+          </div>
+          <div class="panel-body" style="padding-top:4px;padding-bottom:4px">
+            <div class="gainer-list" id="gainerList">
+              <div class="empty-state" style="padding:24px 0">
+                <div class="empty-icon">⏳</div>
+                <div class="empty-text">Connecting to Binance…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Recent Activity -->
         <div class="panel">
           <div class="panel-head">
@@ -562,24 +597,49 @@ function closeMobSidebar() { document.getElementById('dashSidebar').classList.re
 const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
 let ws, wsRetry = 1000;
 
+function setWsStatus(state) {
+  const el = document.getElementById('wsStatus');
+  if (!el) return;
+  el.className = 'ws-status ' + state;
+  el.innerHTML = state === 'connected'
+    ? '<span class="live-dot" style="width:6px;height:6px"></span> LIVE'
+    : state === 'connecting'
+    ? '<span style="color:var(--yellow)">⟳</span> Connecting…'
+    : '<span style="color:var(--red)">✕</span> Offline';
+}
+
 function connectWS() {
+  setWsStatus('connecting');
   try {
     ws = new WebSocket(`${wsProto}//${location.host}`);
-    ws.onopen = () => { wsRetry = 1000; };
+    ws.onopen  = () => { wsRetry = 1000; setWsStatus('connected'); };
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'market_update') updatePrices(data.ticker);
+        if (data.type === 'market_update') {
+          if (data.ticker)     updatePrices(data.ticker);
+          if (data.topGainers) updateGainers(data.topGainers);
+        }
       } catch(err) {}
     };
-    ws.onclose = () => setTimeout(connectWS, wsRetry = Math.min(wsRetry * 1.5, 15000));
-  } catch(err) {}
+    ws.onclose = () => {
+      setWsStatus('disconnected');
+      setTimeout(connectWS, wsRetry = Math.min(wsRetry * 1.5, 15000));
+    };
+    ws.onerror = () => setWsStatus('disconnected');
+  } catch(err) { setWsStatus('disconnected'); }
 }
 
 function fmt(price) {
   if (price >= 1000) return '$' + price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   if (price >= 1)    return '$' + price.toFixed(4);
   return '$' + price.toFixed(6);
+}
+
+function fmtVol(vol) {
+  if (vol >= 1e9) return '$' + (vol/1e9).toFixed(1) + 'B';
+  if (vol >= 1e6) return '$' + (vol/1e6).toFixed(1) + 'M';
+  return '$' + (vol/1e3).toFixed(0) + 'K';
 }
 
 function updatePrices(coins) {
@@ -592,17 +652,50 @@ function updatePrices(coins) {
     const chgStr = (up ? '+' : '') + c.change.toFixed(2) + '%';
     const cls = up ? 'up' : 'down';
     const fmtPrice = fmt(c.price);
-    // Ticker
+    // Ticker bar (first set only has IDs)
     const tp = document.getElementById(`tk-${sym}`);
     const tc = document.getElementById(`tc-${sym}`);
     if (tp) tp.textContent = fmtPrice;
     if (tc) { tc.textContent = chgStr; tc.className = `t-chg ${cls}`; }
-    // Market list
+    // Market list panel
     const mp = document.getElementById(`mp-${sym}`);
     const mc = document.getElementById(`mc-${sym}`);
     if (mp) mp.textContent = fmtPrice;
     if (mc) { mc.textContent = chgStr; mc.className = `mkt-chg ${cls}`; }
   });
+}
+
+function updateGainers(gainers) {
+  const list = document.getElementById('gainerList');
+  if (!list || !gainers || gainers.length === 0) return;
+
+  // Emoji map for common coins
+  const emojiMap = {
+    BTC:'₿', ETH:'Ξ', BNB:'◈', SOL:'◎', XRP:'✕',
+    DOGE:'Ð', ADA:'₳', DOT:'●', AVAX:'🔺', MATIC:'◆',
+    LINK:'⬡', UNI:'🦄', LTC:'Ł', ATOM:'⚛', NEAR:'Ⓝ'
+  };
+
+  list.innerHTML = gainers.map((c, i) => {
+    const up = c.change >= 0;
+    const chgStr = (up ? '+' : '') + c.change.toFixed(2) + '%';
+    const emoji = emojiMap[c.base] || c.base.charAt(0);
+    return `
+      <div class="gainer-row">
+        <div class="gainer-rank">#${i+1}</div>
+        <div class="gainer-left">
+          <div class="gainer-icon">${emoji}</div>
+          <div>
+            <div class="gainer-sym">${c.base}/USDT</div>
+            <div class="gainer-vol">Vol ${fmtVol(c.volume)}</div>
+          </div>
+        </div>
+        <div class="gainer-right">
+          <div class="gainer-price">${fmt(c.price)}</div>
+          <div class="gainer-chg ${up ? 'up' : 'down'}">${chgStr}</div>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 connectWS();
