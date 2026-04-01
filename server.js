@@ -1,7 +1,8 @@
-const express = require('express');
-const path    = require('path');
-const http    = require('http');
+const express   = require('express');
+const path      = require('path');
+const http      = require('http');
 const WebSocket = require('ws');
+const https     = require('https');
 
 const app    = express();
 const server = http.createServer(app);
@@ -13,15 +14,23 @@ const HOST = '0.0.0.0';
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-/* ─── Market Data Store ─────────────────────────────────── */
-let marketData  = {};   // symbol → ticker object
-let topGainers  = [];
-let tickerCoins = {};   // BTC, ETH, BNB, SOL, XRP snapshot
+/* ═══════════════════════════════════════════════════════
+   Market Data Store
+═══════════════════════════════════════════════════════ */
+let marketData   = {};   // symbol → { symbol, base, price, change, volume, high, low }
+let topGainers   = [];   // top 5 sorted by 24h change
+let tickerCoins  = {};   // BTC, ETH, BNB, SOL, XRP snapshot
 
-const WATCH_SYMBOLS = ['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT'];
-const MIN_VOLUME_USDT = 5_000_000; // $5M min 24h volume for gainers
+const WATCH_SYMBOLS   = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
+const MIN_VOLUME_USDT = 10_000_000;  // $10M minimum 24h volume
+const EXCLUDE_SYMBOLS = new Set([
+  'USDCUSDT','BUSDUSDT','TUSDUSDT','USDTUSDT','DAIUSDT',
+  'FDUSDUSDT','EURUSDT','GBPUSDT','AUDUSDT','BRLBUSD'
+]);
 
-/* ─── Hardcoded Signals (replace with real analysis later) ─ */
+/* ═══════════════════════════════════════════════════════
+   Hardcoded Signals
+═══════════════════════════════════════════════════════ */
 const SIGNALS = [
   {
     id: 1, pair: 'BTC/USDT', coin: 'BTC', emoji: '₿',
@@ -67,7 +76,9 @@ const SIGNALS = [
   },
 ];
 
-/* ─── REST API Endpoints ────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════
+   REST API Endpoints
+═══════════════════════════════════════════════════════ */
 app.get('/api/signals', (req, res) => {
   res.json({ success: true, count: SIGNALS.length, data: SIGNALS });
 });
@@ -81,91 +92,256 @@ app.get('/api/market/ticker', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', clients: wss.clients.size, uptime: process.uptime() });
+  res.json({
+    status      : 'ok',
+    clients     : wss.clients.size,
+    uptime      : process.uptime(),
+    marketCoins : Object.keys(marketData).length,
+    topGainers  : topGainers.length,
+    wsState     : binanceWsState,
+  });
 });
 
-/* ─── WebSocket: Broadcast to browsers ─────────────────── */
-function broadcast(payload) {
-  const msg = JSON.stringify(payload);
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) client.send(msg);
+/* ═══════════════════════════════════════════════════════
+   Helpers
+═══════════════════════════════════════════════════════ */
+function parseTicker(t) {
+  /* Works for both:
+     WS  !miniTicker@arr  → fields: s, c, P, q, h, l
+     REST ticker/24hr     → fields: symbol, lastPrice, priceChangePercent, quoteVolume, highPrice, lowPrice */
+  const symbol = t.s      || t.symbol;
+  const price  = parseFloat(t.c  || t.lastPrice             || 0);
+  const change = parseFloat(t.P  || t.priceChangePercent    || 0);
+  const volume = parseFloat(t.q  || t.quoteVolume           || 0);
+  const high   = parseFloat(t.h  || t.highPrice             || 0);
+  const low    = parseFloat(t.l  || t.lowPrice              || 0);
+  return { symbol, base: symbol.replace('USDT',''), price, change, volume, high, low };
+}
+
+function isValidTicker(obj) {
+  if (!obj.symbol || !obj.symbol.endsWith('USDT'))  return false;
+  if (EXCLUDE_SYMBOLS.has(obj.symbol))               return false;
+  if (/DOWN|UP|BEAR|BULL|LONG|SHORT|3L|3S|5L|5S/.test(obj.symbol)) return false;
+  if (obj.price  <= 0) return false;
+  if (obj.volume <= 0) return false;
+  return true;
+}
+
+function rebuildTopGainers() {
+  topGainers = Object.values(marketData)
+    .filter(t => t.volume >= MIN_VOLUME_USDT)
+    .sort((a, b) => b.change - a.change)
+    .slice(0, 5);
+}
+
+function refreshTickerSnapshot() {
+  WATCH_SYMBOLS.forEach(s => {
+    if (marketData[s]) tickerCoins[s] = marketData[s];
   });
 }
 
-wss.on('connection', (ws, req) => {
-  console.log(`[WS] Client connected — total: ${wss.clients.size}`);
+/* ═══════════════════════════════════════════════════════
+   REST Fallback — Binance /api/v3/ticker/24hr
+   Called on startup to pre-fill data before WS connects,
+   and automatically when WS is down.
+═══════════════════════════════════════════════════════ */
+let restFallbackTimer = null;
 
-  // Send current snapshot immediately
-  if (topGainers.length > 0) {
-    ws.send(JSON.stringify({
-      type: 'market_update',
-      topGainers: topGainers.slice(0, 5),
-      ticker: WATCH_SYMBOLS.map(s => marketData[s]).filter(Boolean)
-    }));
+function fetchViaREST() {
+  const url = 'https://api.binance.com/api/v3/ticker/24hr';
+  console.log('[REST] Fetching full ticker snapshot…');
+
+  const req = https.get(url, { timeout: 12000 }, (res) => {
+    if (res.statusCode !== 200) {
+      console.error('[REST] HTTP', res.statusCode);
+      res.resume();
+      return;
+    }
+    let raw = '';
+    res.on('data', chunk => raw += chunk);
+    res.on('end', () => {
+      try {
+        const tickers = JSON.parse(raw);
+        let count = 0;
+        tickers.forEach(t => {
+          const obj = parseTicker(t);
+          if (!isValidTicker(obj)) return;
+          marketData[obj.symbol] = obj;
+          count++;
+        });
+        refreshTickerSnapshot();
+        rebuildTopGainers();
+        console.log(`[REST] ✅ Loaded ${count} coins — topGainers: ${topGainers.map(g => g.base + ' ' + g.change.toFixed(2) + '%').join(', ')}`);
+        broadcastUpdate();
+      } catch (e) {
+        console.error('[REST] Parse error:', e.message);
+      }
+    });
+  });
+  req.on('error', err => console.error('[REST] Request error:', err.message));
+  req.on('timeout', ()   => { req.destroy(); console.error('[REST] Timeout'); });
+}
+
+/* ═══════════════════════════════════════════════════════
+   Browser WebSocket — broadcast to all connected browsers
+═══════════════════════════════════════════════════════ */
+function broadcastUpdate() {
+  if (wss.clients.size === 0) return;
+  const payload = JSON.stringify({
+    type      : 'market_update',
+    topGainers: topGainers.slice(0, 5),
+    ticker    : WATCH_SYMBOLS.map(s => marketData[s]).filter(Boolean),
+  });
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      try { client.send(payload); } catch (_) {}
+    }
+  });
+}
+
+wss.on('connection', (ws) => {
+  console.log(`[WS:Browser] Client connected — total: ${wss.clients.size}`);
+
+  // Send current snapshot immediately so the browser shows data right away
+  const snap = {
+    type      : 'market_update',
+    topGainers: topGainers.slice(0, 5),
+    ticker    : WATCH_SYMBOLS.map(s => marketData[s]).filter(Boolean),
+  };
+  try { ws.send(JSON.stringify(snap)); } catch (_) {}
+
+  ws.on('close', () => console.log(`[WS:Browser] Client left — total: ${wss.clients.size}`));
+  ws.on('error', () => {});
+});
+
+/* ═══════════════════════════════════════════════════════
+   Binance WebSocket — !miniTicker@arr live stream
+═══════════════════════════════════════════════════════ */
+let binanceWs      = null;
+let binanceWsState = 'disconnected';
+let broadcastTimer = null;
+let reconnectTimer = null;
+let reconnectDelay = 3000;
+let healthTimer    = null;
+let lastMessageAt  = 0;
+
+const MAX_RECONNECT_DELAY = 60000;
+
+function startBroadcastLoop() {
+  if (broadcastTimer) return;
+  broadcastTimer = setInterval(broadcastUpdate, 2000);
+  console.log('[Broadcast] Loop started (2s interval)');
+}
+
+function stopBroadcastLoop() {
+  if (!broadcastTimer) return;
+  clearInterval(broadcastTimer);
+  broadcastTimer = null;
+  console.log('[Broadcast] Loop stopped');
+}
+
+function startHealthCheck() {
+  if (healthTimer) return;
+  healthTimer = setInterval(() => {
+    if (binanceWsState !== 'connected') return;
+    const silentMs = Date.now() - lastMessageAt;
+    if (silentMs > 45000) {
+      console.warn(`[Binance] No message for ${Math.round(silentMs/1000)}s — forcing reconnect`);
+      if (binanceWs) {
+        try { binanceWs.terminate(); } catch (_) {}
+      }
+    }
+  }, 15000);
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+
+  // While WS is down, keep data fresh via REST every 30s
+  if (restFallbackTimer) clearTimeout(restFallbackTimer);
+  restFallbackTimer = setTimeout(fetchViaREST, 8000);
+
+  console.log(`[Binance] Reconnecting in ${reconnectDelay / 1000}s…`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectBinance();
+  }, reconnectDelay);
+
+  reconnectDelay = Math.min(reconnectDelay * 1.6, MAX_RECONNECT_DELAY);
+}
+
+function connectBinance() {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  binanceWsState = 'connecting';
+  console.log('[Binance] Connecting to Binance !miniTicker@arr …');
+
+  let ws;
+  try {
+    ws = new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr', {
+      handshakeTimeout: 15000,
+    });
+  } catch (e) {
+    console.error('[Binance] Constructor error:', e.message);
+    scheduleReconnect();
+    return;
   }
 
-  ws.on('close', () => console.log(`[WS] Client left — total: ${wss.clients.size}`));
-});
+  binanceWs = ws;
 
-/* ─── Binance WebSocket Stream ──────────────────────────── */
-function connectBinance() {
-  const bWS = new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr');
+  /* ── open ── */
+  ws.on('open', () => {
+    console.log('✅ Binance stream CONNECTED');
+    binanceWsState = 'connected';
+    reconnectDelay = 3000;       // reset backoff
+    lastMessageAt  = Date.now();
+    startBroadcastLoop();
+    startHealthCheck();
+  });
 
-  bWS.on('open', () => console.log('✅ Binance stream connected'));
-
-  bWS.on('message', (raw) => {
+  /* ── message ── */
+  ws.on('message', (raw) => {
+    lastMessageAt = Date.now();
     try {
       const tickers = JSON.parse(raw);
+      if (!Array.isArray(tickers)) return;
 
-      // Update market data store
       tickers.forEach(t => {
-        if (!t.s.endsWith('USDT')) return;
-        if (/DOWN|UP|BEAR|BULL/.test(t.s)) return;
-        marketData[t.s] = {
-          symbol  : t.s,
-          base    : t.s.replace('USDT',''),
-          price   : parseFloat(t.c),
-          change  : parseFloat(t.P),  // 24h % change
-          volume  : parseFloat(t.q),  // 24h quote vol (USDT)
-          high    : parseFloat(t.h),
-          low     : parseFloat(t.l),
-        };
+        const obj = parseTicker(t);
+        if (!isValidTicker(obj)) return;
+        marketData[obj.symbol] = obj;
       });
 
-      // Snapshot watch coins
-      WATCH_SYMBOLS.forEach(s => {
-        if (marketData[s]) tickerCoins[s] = marketData[s];
-      });
-
-      // Top 5 gainers (min volume filter)
-      topGainers = Object.values(marketData)
-        .filter(t => t.volume >= MIN_VOLUME_USDT && t.price > 0.0001)
-        .sort((a, b) => b.change - a.change)
-        .slice(0, 5);
-
-    } catch (e) { console.error('[Binance] Parse error:', e.message); }
+      refreshTickerSnapshot();
+      rebuildTopGainers();
+    } catch (e) {
+      console.error('[Binance] Parse error:', e.message);
+    }
   });
 
-  bWS.on('error', err => console.error('[Binance] Error:', err.message));
-  bWS.on('close', () => {
-    console.log('[Binance] Disconnected — reconnecting in 5s...');
-    setTimeout(connectBinance, 5000);
+  /* ── error ── */
+  ws.on('error', (err) => {
+    console.error('[Binance] Error:', err.message);
+    // 'close' fires right after 'error' — let close handle reconnect
   });
 
-  // Push to browsers every 2s
-  const interval = setInterval(() => {
-    if (topGainers.length === 0) return;
-    broadcast({
-      type      : 'market_update',
-      topGainers: topGainers.slice(0, 5),
-      ticker    : WATCH_SYMBOLS.map(s => marketData[s]).filter(Boolean)
-    });
-  }, 2000);
-
-  bWS.on('close', () => clearInterval(interval));
+  /* ── close ── (single handler — no leaks) ── */
+  ws.on('close', (code, reason) => {
+    const why = reason ? reason.toString() : 'none';
+    console.log(`[Binance] DISCONNECTED — code:${code}  reason:${why}`);
+    binanceWsState = 'disconnected';
+    stopBroadcastLoop();
+    scheduleReconnect();
+  });
 }
 
-connectBinance();
+/* ═══════════════════════════════════════════════════════
+   Startup
+   Step 1: Fetch REST snapshot immediately (data ready before WS)
+   Step 2: After 2s, open Binance WS stream
+═══════════════════════════════════════════════════════ */
+fetchViaREST();
+setTimeout(connectBinance, 2000);
 
 server.listen(PORT, HOST, () => {
   console.log(`🚀 InvestySignals running → http://${HOST}:${PORT}`);
