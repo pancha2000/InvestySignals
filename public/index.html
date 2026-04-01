@@ -1,24 +1,919 @@
 <!DOCTYPE html>
 <html lang="si">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InvestySignals | Live Market</title>
-    <style>
-        body { background: #0f172a; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; }
-        .header { padding: 40px; background: linear-gradient(to right, #1e293b, #3b82f6); }
-        .market-container { display: flex; justify-content: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
-        .coin-card { background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 12px; width: 250px; }
-        .coin-price { font-size: 24px; color: #10b981; font-weight: bold; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InvestySignals | Lanka's #1 Crypto Signal Service</title>
+  <meta name="description" content="ලංකාවේ අංක 1 Crypto Signal සේවාව. Real-time signals, market analysis සහ expert tips." />
+
+  <!-- AdSense -->
+  <!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #060d1a;
+      --bg2: #0a1628;
+      --card: #0e1f38;
+      --border: #1a3050;
+      --cyan: #00e5ff;
+      --green: #00ff9d;
+      --red: #ff4466;
+      --gold: #ffd060;
+      --text: #cdd9f0;
+      --muted: #5a7a9a;
+      --sidebar-w: 280px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ─── SIDEBAR ─── */
+    .sidebar-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .sidebar-overlay.open { opacity: 1; pointer-events: all; }
+
+    .sidebar {
+      position: fixed; top: 0; left: 0;
+      width: var(--sidebar-w);
+      height: 100%;
+      background: #080f1e;
+      border-right: 1px solid var(--border);
+      z-index: 101;
+      transform: translateX(-100%);
+      transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      display: flex; flex-direction: column;
+      padding: 0;
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    .sidebar-header {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sidebar-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      color: var(--cyan);
+      letter-spacing: 2px;
+    }
+    .sidebar-close {
+      background: none; border: none;
+      color: var(--muted); cursor: pointer;
+      font-size: 1.4rem; padding: 4px;
+      transition: color 0.2s;
+    }
+    .sidebar-close:hover { color: var(--cyan); }
+
+    .sidebar-nav { padding: 20px 0; flex: 1; }
+    .sidebar-nav a {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 20px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-nav a:hover {
+      color: var(--cyan);
+      background: rgba(0,229,255,0.05);
+      border-left-color: var(--cyan);
+    }
+    .sidebar-nav a .nav-icon { font-size: 1.1rem; width: 20px; }
+
+    .sidebar-tag {
+      padding: 6px 20px;
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .sidebar-footer {
+      padding: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .sidebar-socials { display: flex; gap: 10px; }
+    .social-btn {
+      flex: 1; padding: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      text-align: center;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+    .social-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    /* ─── TICKER BAR ─── */
+    .ticker-bar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 0;
+      overflow: hidden;
+      position: relative;
+    }
+    .ticker-bar::before, .ticker-bar::after {
+      content: '';
+      position: absolute; top: 0;
+      width: 80px; height: 100%; z-index: 2;
+    }
+    .ticker-bar::before { left: 0; background: linear-gradient(to right, var(--bg2), transparent); }
+    .ticker-bar::after  { right: 0; background: linear-gradient(to left, var(--bg2), transparent); }
+
+    .ticker-track {
+      display: flex; gap: 0;
+      animation: ticker 40s linear infinite;
+      width: max-content;
+    }
+    .ticker-track:hover { animation-play-state: paused; }
+
+    @keyframes ticker {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .ticker-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 28px;
+      white-space: nowrap;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      border-right: 1px solid var(--border);
+    }
+    .ticker-item .t-sym { color: var(--text); font-weight: 600; }
+    .ticker-item .t-price { color: var(--cyan); }
+    .ticker-item .t-chg.up { color: var(--green); }
+    .ticker-item .t-chg.dn { color: var(--red); }
+
+    /* ─── TOPBAR ─── */
+    .topbar {
+      display: flex; align-items: center;
+      padding: 0 24px;
+      height: 64px;
+      background: rgba(6, 13, 26, 0.95);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+    .topbar-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      letter-spacing: 3px;
+      background: linear-gradient(135deg, var(--cyan), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .topbar-logo span { -webkit-text-fill-color: var(--muted); font-size: 1rem; letter-spacing: 1px; margin-left: 4px; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+    .menu-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      padding: 8px 14px;
+      font-size: 0.9rem;
+      display: flex; align-items: center; gap: 8px;
+      transition: all 0.2s;
+    }
+    .menu-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    .live-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(0,255,157,0.1);
+      border: 1px solid rgba(0,255,157,0.3);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--green);
+      letter-spacing: 1px;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative;
+      padding: 80px 24px 60px;
+      text-align: center;
+      overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,229,255,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 50% at 80% 80%, rgba(0,255,157,0.05) 0%, transparent 70%);
+    }
+    .hero-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.04) 1px, transparent 1px);
+      background-size: 50px 50px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black, transparent);
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; }
+
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(0,229,255,0.08);
+      border: 1px solid rgba(0,229,255,0.25);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 0.78rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 28px;
+      animation: fade-up 0.6s ease both;
+    }
+    .hero h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 10vw, 6rem);
+      line-height: 0.95;
+      letter-spacing: 3px;
+      margin-bottom: 20px;
+      animation: fade-up 0.6s 0.1s ease both;
+    }
+    .hero h1 .accent { color: var(--cyan); }
+    .hero p {
+      font-size: clamp(1rem, 2.5vw, 1.15rem);
+      color: var(--muted);
+      max-width: 540px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+      animation: fade-up 0.6s 0.2s ease both;
+    }
+    .hero-actions {
+      display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;
+      animation: fade-up 0.6s 0.3s ease both;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan), #0099cc);
+      color: #000;
+      font-weight: 700;
+      padding: 13px 28px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      letter-spacing: 0.5px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      text-decoration: none;
+      display: inline-block;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,229,255,0.4); }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      font-weight: 500;
+      padding: 13px 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-block;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── ADSENSE PLACEHOLDER ─── */
+    .ad-slot {
+      background: rgba(255,255,255,0.02);
+      border: 1px dashed rgba(255,255,255,0.08);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      letter-spacing: 1px;
+    }
+    .ad-leaderboard { width: 100%; height: 90px; margin: 8px 0; }
+    .ad-rectangle  { width: 100%; height: 250px; }
+
+    /* ─── SECTION ─── */
+    .section { padding: 60px 24px; max-width: 1200px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.72rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2rem, 5vw, 3rem);
+      letter-spacing: 2px;
+      margin-bottom: 40px;
+      line-height: 1;
+    }
+
+    /* ─── MARKET CARDS ─── */
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .coin-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+      cursor: pointer;
+    }
+    .coin-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .coin-card:hover { transform: translateY(-4px); border-color: rgba(0,229,255,0.3); }
+    .coin-card:hover::before { opacity: 1; }
+
+    .coin-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .coin-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      background: rgba(255,255,255,0.06);
+    }
+    .coin-name { font-weight: 600; font-size: 0.95rem; }
+    .coin-sym  { color: var(--muted); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; }
+
+    .coin-price {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
+    .coin-change {
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .coin-change.up { background: rgba(0,255,157,0.12); color: var(--green); }
+    .coin-change.dn { background: rgba(255,68,102,0.12); color: var(--red); }
+
+    .coin-volume { margin-top: 10px; color: var(--muted); font-size: 0.78rem; }
+
+    /* ─── SIGNALS ─── */
+    .signals-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .signal-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 16px;
+      transition: border-color 0.2s;
+      animation: fade-up 0.5s ease both;
+    }
+    .signal-card:hover { border-color: rgba(0,229,255,0.25); }
+
+    .signal-dir {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
+    }
+    .signal-dir.long  { background: rgba(0,255,157,0.12); color: var(--green); }
+    .signal-dir.short { background: rgba(255,68,102,0.12); color: var(--red); }
+
+    .signal-info .s-pair { font-weight: 600; font-size: 1rem; margin-bottom: 3px; }
+    .signal-info .s-meta { color: var(--muted); font-size: 0.8rem; }
+
+    .signal-prices { text-align: right; }
+    .signal-prices .sp-entry { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; }
+    .signal-prices .sp-tp    { color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+    .signal-prices .sp-sl    { color: var(--red);   font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+
+    .signal-grade {
+      width: 38px; height: 38px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .grade-a  { background: rgba(0,229,255,0.15); color: var(--cyan); border: 1px solid rgba(0,229,255,0.3); }
+    .grade-b  { background: rgba(255,208,96,0.12); color: var(--gold); border: 1px solid rgba(255,208,96,0.3); }
+    .grade-c  { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--border); }
+
+    /* ─── STATS STRIP ─── */
+    .stats-strip {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 40px 24px;
+    }
+    .stats-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 30px;
+    }
+    .stat-item { text-align: center; }
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--cyan), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-lbl { color: var(--muted); font-size: 0.82rem; letter-spacing: 1px; }
+
+    /* ─── FEATURES ─── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 26px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .feature-card:hover { transform: translateY(-3px); border-color: rgba(0,229,255,0.25); }
+    .feature-icon {
+      font-size: 1.8rem; margin-bottom: 16px;
+      display: block;
+    }
+    .feature-title { font-weight: 600; font-size: 1.05rem; margin-bottom: 8px; }
+    .feature-desc  { color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+
+    /* ─── FOOTER ─── */
+    footer {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 40px 24px 24px;
+    }
+    .footer-inner {
+      max-width: 1200px; margin: 0 auto;
+    }
+    .footer-top {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    .footer-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      letter-spacing: 3px;
+      background: linear-gradient(135deg, var(--cyan), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    .footer-desc { color: var(--muted); font-size: 0.88rem; max-width: 360px; line-height: 1.6; }
+    .footer-links { display: flex; gap: 20px; align-items: flex-start; }
+    .footer-links a { color: var(--muted); text-decoration: none; font-size: 0.88rem; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--cyan); }
+    .footer-bottom {
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+    }
+    .footer-copy { color: var(--muted); font-size: 0.8rem; }
+    .footer-disclaimer { color: var(--muted); font-size: 0.75rem; max-width: 500px; text-align: right; line-height: 1.5; }
+
+    /* ─── SCROLL ANIMATION ─── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ─── LOADING SKELETON ─── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card) 0%, var(--border) 50%, var(--card) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 640px) {
+      .signal-card { grid-template-columns: auto 1fr; grid-template-rows: auto auto; }
+      .signal-prices { grid-column: 2; }
+      .signal-grade  { grid-row: 1; grid-column: 3; }
+      .footer-top { grid-template-columns: 1fr; }
+      .footer-links { flex-wrap: wrap; }
+      .footer-disclaimer { text-align: left; }
+    }
+  </style>
 </head>
+
 <body>
-    <div class="header">
-        <h1>🚀 INVESTY SIGNALS</h1>
-        <p>ලංකාවේ අංක 1 ක්‍රිප්ටෝ සිග්නල් සේවාව</p>
+
+  <!-- SIDEBAR OVERLAY -->
+  <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-logo">INVESTY<span style="color:var(--cyan)">SIGNALS</span></span>
+      <button class="sidebar-close" onclick="closeSidebar()">✕</button>
     </div>
-    <div class="market-container" id="market-data">
-        <p>දත්ත ලෝඩ් වෙමින් පවතී...</p>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-tag">Navigation</div>
+      <a href="#market" onclick="closeSidebar()"><span class="nav-icon">📊</span> Market Overview</a>
+      <a href="#signals" onclick="closeSidebar()"><span class="nav-icon">📡</span> Live Signals</a>
+      <a href="#features" onclick="closeSidebar()"><span class="nav-icon">⚡</span> Features</a>
+      <a href="#stats" onclick="closeSidebar()"><span class="nav-icon">🏆</span> Track Record</a>
+
+      <div class="sidebar-tag" style="margin-top:20px">Resources</div>
+      <a href="#"><span class="nav-icon">📖</span> How It Works</a>
+      <a href="#"><span class="nav-icon">🔔</span> Get Alerts</a>
+      <a href="#"><span class="nav-icon">💬</span> Community</a>
+      <a href="#"><span class="nav-icon">📞</span> Contact</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div style="color:var(--muted);font-size:0.78rem;margin-bottom:10px">Connect with us</div>
+      <div class="sidebar-socials">
+        <a class="social-btn" href="#">📢 Telegram</a>
+        <a class="social-btn" href="#">📱 WhatsApp</a>
+        <a class="social-btn" href="#">▶ YouTube</a>
+      </div>
     </div>
+  </aside>
+
+  <!-- TICKER BAR -->
+  <div class="ticker-bar">
+    <div class="ticker-track" id="ticker">
+      <!-- JS fills this -->
+      <div class="ticker-item"><span class="t-sym">BTC/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+      <div class="ticker-item"><span class="t-sym">ETH/USDT</span><span class="t-price">$--,---</span><span class="t-chg up">+0.00%</span></div>
+      <div class="ticker-item"><span class="t-sym">BNB/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+      <div class="ticker-item"><span class="t-sym">SOL/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+      <div class="ticker-item"><span class="t-sym">XRP/USDT</span><span class="t-price">$---</span><span class="t-chg up">+0.00%</span></div>
+    </div>
+  </div>
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-logo">INVESTY<span>SIGNALS</span></div>
+    <div class="topbar-right">
+      <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+      <button class="menu-btn" onclick="openSidebar()">☰ Menu</button>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-grid"></div>
+    <div class="hero-content">
+      <div class="hero-tag">🇱🇰 ලංකාවේ අංක 1 Crypto Signal සේවාව</div>
+      <h1>TRADE<br><span class="accent">SMARTER.</span><br>WIN MORE.</h1>
+      <p>Professional-grade crypto signals, real-time market analysis, සහ expert risk management — ඔබේ trading journey සාර්ථක කරගන්න.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="#signals">View Live Signals →</a>
+        <a class="btn-outline" href="#features">Learn More</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- AD SLOT (Leaderboard) -->
+  <div style="max-width:1200px;margin:0 auto;padding:0 24px">
+    <div class="ad-slot ad-leaderboard">Advertisement</div>
+  </div>
+
+  <!-- MARKET OVERVIEW -->
+  <section class="section" id="market">
+    <div class="section-label reveal">Live Market</div>
+    <div class="section-title reveal">Market <span style="color:var(--cyan)">Overview</span></div>
+    <div class="market-grid" id="market-grid">
+      <!-- Skeleton loaders -->
+      <div class="coin-card"><div class="skeleton" style="height:120px"></div></div>
+      <div class="coin-card"><div class="skeleton" style="height:120px"></div></div>
+      <div class="coin-card"><div class="skeleton" style="height:120px"></div></div>
+      <div class="coin-card"><div class="skeleton" style="height:120px"></div></div>
+      <div class="coin-card"><div class="skeleton" style="height:120px"></div></div>
+      <div class="coin-card"><div class="skeleton" style="height:120px"></div></div>
+    </div>
+  </section>
+
+  <!-- STATS STRIP -->
+  <div class="stats-strip" id="stats">
+    <div class="stats-inner">
+      <div class="stat-item reveal">
+        <div class="stat-num" id="cnt-signals">1,200+</div>
+        <div class="stat-lbl">Signals Delivered</div>
+      </div>
+      <div class="stat-item reveal">
+        <div class="stat-num">78%</div>
+        <div class="stat-lbl">Win Rate</div>
+      </div>
+      <div class="stat-item reveal">
+        <div class="stat-num">5,000+</div>
+        <div class="stat-lbl">Active Members</div>
+      </div>
+      <div class="stat-item reveal">
+        <div class="stat-num">24/7</div>
+        <div class="stat-lbl">Market Coverage</div>
+      </div>
+      <div class="stat-item reveal">
+        <div class="stat-num">3.2x</div>
+        <div class="stat-lbl">Avg RRR</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGNALS -->
+  <section class="section" id="signals">
+    <div class="section-label reveal">Real-time</div>
+    <div class="section-title reveal">Latest <span style="color:var(--cyan)">Signals</span></div>
+
+    <!-- AD SLOT (Rectangle) -->
+    <div class="ad-slot ad-rectangle reveal" style="margin-bottom:24px">Advertisement</div>
+
+    <div class="signals-list" id="signals-list">
+      <!-- JS fills -->
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section" id="features">
+    <div class="section-label reveal">Why InvestySignals</div>
+    <div class="section-title reveal">Built for <span style="color:var(--cyan)">Real Traders</span></div>
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <span class="feature-icon">📡</span>
+        <div class="feature-title">Real-time Signals</div>
+        <div class="feature-desc">SMC-based analysis. Futures trading signals with precise entry, TP සහ SL levels.</div>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">🧠</span>
+        <div class="feature-title">AI-Powered Analysis</div>
+        <div class="feature-desc">20+ technical indicators combine කරලා high-probability setups identify කරනවා.</div>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">⚡</span>
+        <div class="feature-title">Multi-Timeframe</div>
+        <div class="feature-desc">5m, 1H, 4H, Daily timeframes scan කරලා strong confluence confirm කරනවා.</div>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">🛡️</span>
+        <div class="feature-title">Risk Management</div>
+        <div class="feature-desc">Every signal has clear Stop Loss. Capital protection first, profits second.</div>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">📊</span>
+        <div class="feature-title">Market Scanner</div>
+        <div class="feature-desc">Top futures coins automatically scan කරලා best opportunities identify කරනවා.</div>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">🔔</span>
+        <div class="feature-title">WhatsApp & Telegram</div>
+        <div class="feature-desc">Signals direct WhatsApp/Telegram වලට deliver වෙනවා — miss කරන්නෑ.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER AD -->
+  <div style="max-width:1200px;margin:0 auto;padding:0 24px">
+    <div class="ad-slot ad-leaderboard">Advertisement</div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-top">
+        <div>
+          <div class="footer-logo">INVESTY SIGNALS</div>
+          <div class="footer-desc">ලංකාවේ ජනප්‍රියම Crypto Signal Platform. Professional traders සහ beginners දෙකටම ගැලපේ.</div>
+        </div>
+        <div class="footer-links">
+          <a href="#market">Market</a>
+          <a href="#signals">Signals</a>
+          <a href="#features">Features</a>
+          <a href="#">Privacy</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">© 2026 InvestySignals. All rights reserved.</div>
+        <div class="footer-disclaimer">⚠️ Crypto trading involves significant risk. Past performance is not indicative of future results. Trade responsibly.</div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // ─── SIDEBAR ───
+    function openSidebar() {
+      document.getElementById('sidebar').classList.add('open');
+      document.getElementById('overlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('overlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
+
+    // ─── SCROLL REVEAL ───
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // ─── COINS CONFIG ───
+    const COINS = [
+      { sym: 'BTCUSDT',  name: 'Bitcoin',  ticker: 'BTC',  icon: '₿' },
+      { sym: 'ETHUSDT',  name: 'Ethereum', ticker: 'ETH',  icon: 'Ξ' },
+      { sym: 'BNBUSDT',  name: 'BNB',      ticker: 'BNB',  icon: '⬡' },
+      { sym: 'SOLUSDT',  name: 'Solana',   ticker: 'SOL',  icon: '◎' },
+      { sym: 'XRPUSDT',  name: 'XRP',      ticker: 'XRP',  icon: '✕' },
+      { sym: 'ADAUSDT',  name: 'Cardano',  ticker: 'ADA',  icon: '₳' },
+    ];
+
+    // ─── MARKET DATA ───
+    async function fetchMarket() {
+      try {
+        const symbols = COINS.map(c => `"${c.sym}"`).join(',');
+        const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=[${symbols}]`);
+        const data = await res.json();
+        renderMarket(data);
+        updateTicker(data);
+      } catch(e) {
+        console.warn('Market fetch error:', e);
+      }
+    }
+
+    function fmt(n) {
+      const num = parseFloat(n);
+      if (num >= 1000) return '$' + num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+      if (num >= 1)    return '$' + num.toFixed(4);
+      return '$' + num.toFixed(6);
+    }
+    function fmtVol(v) {
+      const n = parseFloat(v);
+      if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+      if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+      return (n/1e3).toFixed(0) + 'K';
+    }
+
+    function renderMarket(data) {
+      const grid = document.getElementById('market-grid');
+      grid.innerHTML = '';
+      data.forEach((d, i) => {
+        const coin = COINS[i] || {};
+        const chg = parseFloat(d.priceChangePercent);
+        const up = chg >= 0;
+        const card = document.createElement('div');
+        card.className = 'coin-card reveal';
+        card.innerHTML = `
+          <div class="coin-header">
+            <div class="coin-icon">${coin.icon}</div>
+            <div>
+              <div class="coin-name">${coin.name}</div>
+              <div class="coin-sym">${coin.ticker}/USDT</div>
+            </div>
+          </div>
+          <div class="coin-price">${fmt(d.lastPrice)}</div>
+          <span class="coin-change ${up?'up':'dn'}">${up?'▲':'▼'} ${Math.abs(chg).toFixed(2)}%</span>
+          <div class="coin-volume">Vol: $${fmtVol(parseFloat(d.quoteVolume))}</div>
+        `;
+        grid.appendChild(card);
+        setTimeout(() => observer.observe(card), 50);
+      });
+    }
+
+    function updateTicker(data) {
+      const pairs = [];
+      data.forEach((d, i) => {
+        const coin = COINS[i] || {};
+        const chg = parseFloat(d.priceChangePercent);
+        const up = chg >= 0;
+        pairs.push(`
+          <div class="ticker-item">
+            <span class="t-sym">${coin.ticker}/USDT</span>
+            <span class="t-price">${fmt(d.lastPrice)}</span>
+            <span class="t-chg ${up?'up':'dn'}">${up?'+':''}${chg.toFixed(2)}%</span>
+          </div>
+        `);
+      });
+      const html = pairs.join('');
+      // duplicate for seamless loop
+      document.getElementById('ticker').innerHTML = html + html;
+    }
+
+    // ─── SAMPLE SIGNALS ───
+    const SIGNALS = [
+      { pair:'BTC/USDT', dir:'LONG',  entry:'83,200',  tp:'87,500', sl:'81,800', grade:'A+', tf:'4H', time:'2h ago',  rrr:'3.1' },
+      { pair:'ETH/USDT', dir:'LONG',  entry:'1,820',   tp:'1,950',  sl:'1,760',  grade:'A',  tf:'1H', time:'4h ago',  rrr:'2.8' },
+      { pair:'SOL/USDT', dir:'SHORT', entry:'132.5',   tp:'121.0',  sl:'138.0',  grade:'B',  tf:'4H', time:'6h ago',  rrr:'2.2' },
+      { pair:'BNB/USDT', dir:'LONG',  entry:'595',     tp:'635',    sl:'578',    grade:'A',  tf:'1H', time:'9h ago',  rrr:'2.6' },
+      { pair:'XRP/USDT', dir:'SHORT', entry:'2.18',    tp:'1.95',   sl:'2.29',   grade:'B',  tf:'4H', time:'12h ago', rrr:'2.1' },
+    ];
+
+    function renderSignals() {
+      const list = document.getElementById('signals-list');
+      SIGNALS.forEach((s, i) => {
+        const card = document.createElement('div');
+        card.className = 'signal-card reveal';
+        card.style.animationDelay = (i * 0.08) + 's';
+        const isLong = s.dir === 'LONG';
+        const g = s.grade === 'A+' || s.grade === 'A' ? 'grade-a' : s.grade === 'B' ? 'grade-b' : 'grade-c';
+        card.innerHTML = `
+          <div class="signal-dir ${isLong?'long':'short'}">${isLong?'L':'S'}</div>
+          <div class="signal-info">
+            <div class="s-pair">${s.pair} <span style="color:var(--muted);font-size:0.8rem;font-weight:400">${s.tf}</span></div>
+            <div class="s-meta">${s.time} · RRR ${s.rrr}:1 · <span style="color:${isLong?'var(--green)':'var(--red)'}">${s.dir}</span></div>
+          </div>
+          <div class="signal-prices">
+            <div class="sp-entry">Entry $${s.entry}</div>
+            <div class="sp-tp">TP $${s.tp}</div>
+            <div class="sp-sl">SL $${s.sl}</div>
+          </div>
+          <div class="signal-grade ${g}">${s.grade}</div>
+        `;
+        list.appendChild(card);
+        setTimeout(() => observer.observe(card), 50);
+      });
+    }
+
+    // ─── INIT ───
+    renderSignals();
+    fetchMarket();
+    setInterval(fetchMarket, 30000); // refresh every 30s
+  </script>
 </body>
 </html>
