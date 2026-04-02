@@ -23,7 +23,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 #authGuard .guard-logo span{color:var(--cyan);}
 .guard-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* Ticker */
 .ticker-bar{background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden;height:34px;position:sticky;top:0;z-index:300;}
 .ticker-track{display:flex;animation:tickerScroll 30s linear infinite;white-space:nowrap;height:100%;}
 .ticker-track:hover{animation-play-state:paused;}
@@ -31,7 +30,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 20px;height:100%;border-right:1px solid var(--border);font-family:var(--font-n);font-size:.72rem;flex-shrink:0;}
 .t-sym{color:var(--muted);}.t-price{color:var(--text);font-weight:500;}
 .t-chg.up{color:var(--green);}.t-chg.down{color:var(--red);}
-/* Layout */
 .dash-wrap{display:flex;min-height:100vh;}
 .dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:34px;left:0;height:calc(100vh - 34px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;}
 .ds-brand{padding:18px 16px 14px;border-bottom:1px solid var(--border);}
@@ -43,7 +41,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .ds-uemail{font-size:.68rem;color:var(--muted);font-family:var(--font-n);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
 .ds-nav{flex:1;padding:10px 8px;}
 .ds-section{font-size:.62rem;font-weight:600;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;padding:10px 8px 4px;}
-.ds-nav a{display:flex;align-items:center;gap:9px;padding:10px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;min-height:44px;}
+.ds-nav a{display:flex;align-items:center;gap:9px;padding:10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;min-height:44px;}
 .ds-nav a:hover{background:rgba(255,255,255,.04);color:var(--text);}
 .ds-nav a.active{background:rgba(0,212,255,.08);color:var(--cyan);border-left:2px solid var(--cyan);padding-left:8px;}
 .ni{font-size:.95rem;width:18px;text-align:center;}
@@ -62,13 +60,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 }
 .dash-main{margin-left:var(--sidebar-w);flex:1;padding:24px 28px;display:none;}
 @media(max-width:768px){.dash-main{margin-left:0;padding:14px 12px 80px;}}
-/* Page header */
 .pg-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
 .pg-title{font-family:var(--font-h);font-size:1.5rem;font-weight:700;letter-spacing:.02em;}
 @media(max-width:480px){.pg-title{font-size:1.2rem;}}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-/* Balance bar */
 .bal-bar{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:14px;}
 .bal-group{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
 .bal-item{text-align:center;}
@@ -80,21 +76,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .bal-inp:focus{border-color:var(--cyan);}
 .btn-bal{padding:8px 14px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--cyan);border-radius:7px;font-family:var(--font-b);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;min-height:40px;}
 .btn-bal:hover{background:rgba(0,212,255,.18);}
-/* Stats strip */
 .stats-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
 @media(max-width:640px){.stats-strip{grid-template-columns:repeat(2,1fr);}}
 .stat-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;}
 .stat-lbl{font-family:var(--font-n);font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
 .stat-val{font-family:var(--font-n);font-size:1rem;font-weight:700;}
-/* Tabs */
 .tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;}
 .tab-btn{flex:1;padding:9px;background:transparent;border:none;color:var(--muted);font-family:var(--font-b);font-size:.84rem;font-weight:600;cursor:pointer;border-radius:7px;transition:all .2s;min-height:44px;}
 .tab-btn.active{background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.3);}
-/* Trade Cards */
 .trade-list{display:flex;flex-direction:column;gap:12px;}
 .trade-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s;}
 .trade-card.open-long{border-color:rgba(0,255,136,.25);}
 .trade-card.open-short{border-color:rgba(255,61,90,.25);}
+.trade-card.pending-long{border-color:rgba(255,195,51,.3);}
+.trade-card.pending-short{border-color:rgba(255,195,51,.3);}
 .trade-card.closed-win{border-color:rgba(0,255,136,.2);}
 .trade-card.closed-loss{border-color:rgba(255,61,90,.2);}
 .tc-head{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--border);}
@@ -106,11 +101,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .tc-lev{font-family:var(--font-n);font-size:.68rem;color:var(--yellow);background:rgba(255,195,51,.1);border:1px solid rgba(255,195,51,.2);padding:3px 8px;border-radius:5px;}
 .tc-status{font-family:var(--font-n);font-size:.65rem;padding:3px 9px;border-radius:5px;font-weight:600;}
 .tc-status.open{background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.2);}
-.tc-status.tp1{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.25);}
-.tc-status.tp2{background:rgba(0,255,136,.18);color:var(--green);border:1px solid rgba(0,255,136,.35);}
+.tc-status.pending{background:rgba(255,195,51,.12);color:var(--yellow);border:1px solid rgba(255,195,51,.3);}
+.tc-status.tp1,.tc-status.tp2{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.25);}
 .tc-status.sl{background:rgba(255,61,90,.12);color:var(--red);border:1px solid rgba(255,61,90,.25);}
+.tc-status.cancelled{background:rgba(100,116,139,.1);color:var(--muted);border:1px solid var(--border2);}
 .tc-time{font-family:var(--font-n);font-size:.65rem;color:var(--muted);}
-/* PnL row */
 .tc-pnl-row{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(255,255,255,.02);}
 .pnl-big{display:flex;flex-direction:column;}
 .pnl-label{font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px;}
@@ -121,7 +116,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .tc-mark{text-align:right;}
 .mark-lbl{font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;}
 .mark-val{font-family:var(--font-n);font-size:.92rem;font-weight:600;color:var(--cyan);}
-/* Levels grid */
+/* PENDING waiting info box */
+.pending-info{padding:14px 16px;background:linear-gradient(135deg,rgba(255,195,51,.05),rgba(255,195,51,.02));border-bottom:1px solid var(--border);}
+.pending-info-title{font-family:var(--font-n);font-size:.63rem;color:var(--yellow);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;}
+.pending-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+@media(max-width:380px){.pending-grid{grid-template-columns:1fr;}}
+.pending-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;}
+.pending-lbl{font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
+.pending-val{font-family:var(--font-n);font-size:.88rem;font-weight:600;}
 .tc-levels{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);}
 @media(max-width:640px){.tc-levels{grid-template-columns:repeat(3,1fr);}}
 @media(max-width:380px){.tc-levels{grid-template-columns:repeat(2,1fr);}}
@@ -129,65 +131,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .tc-llbl{font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px;}
 .tc-lval{font-family:var(--font-n);font-size:.8rem;font-weight:600;word-break:break-all;}
 .col-entry{color:var(--cyan);}.col-tp1{color:var(--green);}.col-tp2{color:rgba(0,255,136,.65);}.col-sl{color:var(--red);}.col-liq{color:var(--yellow);}
-
-/* ═══════════════════════════════════════
-   PROGRESS SLIDER  — Fixed & Visible
-   Bug: height was 5px and track blended
-   with card background on dark theme.
-   Fix: taller bar, visible track, knob.
-   ═══════════════════════════════════════ */
+/* Progress slider */
 .tc-progress{padding:12px 16px 14px;border-bottom:1px solid var(--border);}
 .prog-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
 .prog-title{font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
 .prog-pct{font-family:var(--font-n);font-size:.72rem;font-weight:600;}
 .prog-labels{display:flex;justify-content:space-between;font-family:var(--font-n);font-size:.62rem;margin-bottom:6px;}
-.prog-lbl-sl{color:var(--red);}
-.prog-lbl-tp{color:var(--green);}
-/* Track: visible grey background */
-.prog-track{
-  position:relative;
-  height:10px;
-  background:rgba(255,255,255,.08);
-  border:1px solid var(--border2);
-  border-radius:6px;
-  overflow:visible;
-}
-/* Fill bar */
-.prog-fill{
-  position:absolute;
-  top:0;left:0;
-  height:100%;
-  border-radius:6px;
-  transition:width .5s ease;
-  min-width:3px;
-}
-/* Knob showing current price position */
-.prog-knob{
-  position:absolute;
-  top:50%;
-  transform:translate(-50%,-50%);
-  width:14px;height:14px;
-  border-radius:50%;
-  background:white;
-  border:2px solid var(--border2);
-  box-shadow:0 0 6px rgba(0,0,0,.5);
-  transition:left .5s ease;
-  z-index:2;
-}
-
+.prog-lbl-sl{color:var(--red);}.prog-lbl-tp{color:var(--green);}
+.prog-track{position:relative;height:10px;background:rgba(255,255,255,.08);border:1px solid var(--border2);border-radius:6px;overflow:visible;}
+.prog-fill{position:absolute;top:0;left:0;height:100%;border-radius:6px;transition:width .5s ease;min-width:3px;}
+.prog-knob{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:white;border:2px solid var(--border2);box-shadow:0 0 6px rgba(0,0,0,.5);transition:left .5s ease;z-index:2;}
 /* Footer */
 .tc-foot{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
 .tc-meta-small{font-family:var(--font-n);font-size:.64rem;color:var(--muted);}
 .btn-close-trade{padding:8px 16px;background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--red);border-radius:7px;font-family:var(--font-b);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;min-height:40px;}
 .btn-close-trade:hover{background:rgba(255,61,90,.16);}
-/* Empty state */
+.btn-cancel-order{padding:8px 16px;background:rgba(100,116,139,.08);border:1px solid rgba(100,116,139,.25);color:var(--muted);border-radius:7px;font-family:var(--font-b);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;min-height:40px;}
+.btn-cancel-order:hover{border-color:var(--red);color:var(--red);}
 .empty-pt{text-align:center;padding:60px 20px;}
 .empty-pt-icon{font-size:3rem;margin-bottom:14px;}
 .empty-pt-title{font-family:var(--font-h);font-size:1.2rem;font-weight:700;margin-bottom:6px;}
 .empty-pt-sub{color:var(--muted);font-size:.85rem;margin-bottom:20px;}
 .btn-go-analysis{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);color:var(--cyan);border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600;transition:all .2s;min-height:44px;}
 .btn-go-analysis:hover{background:rgba(0,212,255,.15);}
-/* Confirm close modal */
 .close-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;padding:16px;}
 .close-overlay.open{display:flex;}
 .close-modal{background:var(--card);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:360px;overflow:hidden;}
@@ -209,7 +175,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
   <div class="guard-spinner"></div>
 </div>
 
-<!-- Ticker -->
 <div class="ticker-bar">
   <div class="ticker-track" id="tickerTrack">
     <div class="ticker-item"><span class="t-sym">BTC</span><span class="t-price" id="tk-BTC-p">—</span><span class="t-chg" id="tk-BTC-c">—</span></div>
@@ -263,10 +228,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
   </aside>
 
   <main class="dash-main" id="dashMain">
-    <!-- Mobile menu button sits inside top section on mobile -->
     <div class="pg-head">
       <div style="display:flex;align-items:center;gap:10px">
-        <button class="mob-menu-btn" onclick="openMobSidebar()" style="display:none" id="mobBtn">☰</button>
+        <button class="mob-menu-btn" id="mobBtn" style="display:none" onclick="openMobSidebar()">☰</button>
         <div>
           <div class="pg-title">📡 Paper Trades</div>
           <div style="color:var(--muted);font-size:.82rem;margin-top:2px">Simulated Binance Futures · Live P&amp;L tracking</div>
@@ -277,23 +241,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       </div>
     </div>
 
-    <!-- Balance -->
     <div class="bal-bar">
       <div class="bal-group">
-        <div class="bal-item">
-          <div class="bal-lbl">Start Balance</div>
-          <div class="bal-val" id="balStart" style="color:var(--cyan)">$1,000.00</div>
-        </div>
+        <div class="bal-item"><div class="bal-lbl">Start Balance</div><div class="bal-val" id="balStart" style="color:var(--cyan)">$1,000.00</div></div>
         <div class="bal-sep"></div>
-        <div class="bal-item">
-          <div class="bal-lbl">Current Balance</div>
-          <div class="bal-val" id="balCurrent" style="color:var(--text)">$1,000.00</div>
-        </div>
+        <div class="bal-item"><div class="bal-lbl">Current Balance</div><div class="bal-val" id="balCurrent" style="color:var(--text)">$1,000.00</div></div>
         <div class="bal-sep"></div>
-        <div class="bal-item">
-          <div class="bal-lbl">Total P&L</div>
-          <div class="bal-val" id="balPnl">$0.00</div>
-        </div>
+        <div class="bal-item"><div class="bal-lbl">Total P&L</div><div class="bal-val" id="balPnl">$0.00</div></div>
       </div>
       <div class="bal-edit-wrap">
         <input class="bal-inp" type="number" id="balInput" placeholder="New balance" min="1">
@@ -301,38 +255,33 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       </div>
     </div>
 
-    <!-- Stats -->
     <div class="stats-strip">
       <div class="stat-box"><div class="stat-lbl">Open Trades</div><div class="stat-val" id="statOpen" style="color:var(--cyan)">0</div></div>
-      <div class="stat-box"><div class="stat-lbl">Closed Trades</div><div class="stat-val" id="statClosed" style="color:var(--muted)">0</div></div>
+      <div class="stat-box"><div class="stat-lbl">Pending</div><div class="stat-val" id="statPending" style="color:var(--yellow)">0</div></div>
       <div class="stat-box"><div class="stat-lbl">Win Rate</div><div class="stat-val" id="statWinRate" style="color:var(--green)">—</div></div>
       <div class="stat-box"><div class="stat-lbl">Best Trade</div><div class="stat-val" id="statBest" style="color:var(--green)">—</div></div>
     </div>
 
-    <!-- Tabs -->
     <div class="tabs">
-      <button class="tab-btn active" id="tabOpen" onclick="switchTab('open')">🟢 Open Positions</button>
-      <button class="tab-btn" id="tabClosed" onclick="switchTab('closed')">📋 Trade History</button>
+      <button class="tab-btn active" id="tabOpen" onclick="switchTab('open')">🟢 Open / Pending</button>
+      <button class="tab-btn" id="tabClosed" onclick="switchTab('closed')">📋 History</button>
     </div>
 
-    <!-- Trade List -->
     <div class="trade-list" id="tradeList"></div>
   </main>
 </div>
 
-<!-- Close Trade Confirm Modal -->
 <div class="close-overlay" id="closeOverlay">
   <div class="close-modal">
-    <div class="cm-head"><div class="cm-title">Close Trade</div></div>
+    <div class="cm-head"><div class="cm-title" id="cmTitle">Close Trade</div></div>
     <div class="cm-body" id="cmBody">Close this position at current market price?</div>
     <div class="cm-foot">
       <button class="btn-cm-cancel" onclick="closeConfirmModal()">Cancel</button>
-      <button class="btn-cm-ok" onclick="doCloseTrade()">Close Position</button>
+      <button class="btn-cm-ok" id="btnCmOk" onclick="doConfirmAction()">Confirm</button>
     </div>
   </div>
 </div>
 
-<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
@@ -350,9 +299,8 @@ onAuthStateChanged(auth, (user) => {
   document.getElementById('authGuard').style.display = 'none';
   if (!user) { window.location.href = 'login.html'; return; }
   document.getElementById('dashMain').style.display = 'block';
-  // Show mobile menu button on small screens
   if (window.innerWidth <= 768) document.getElementById('mobBtn').style.display = 'flex';
-  const name    = user.displayName || user.email?.split('@')[0] || 'Trader';
+  const name     = user.displayName || user.email?.split('@')[0] || 'Trader';
   const initials = name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) || 'U';
   document.getElementById('userAvatar').textContent = initials;
   document.getElementById('userName').textContent   = name;
@@ -383,10 +331,10 @@ function fmtTime(iso) {
 }
 
 /* ── State ── */
-let currentTab     = 'open';
-let pendingCloseId = null;
-let livePrices     = {};
-let pollTimer      = null;
+let currentTab      = 'open';
+let pendingActionId = null;
+let pendingAction   = null;   // 'close' | 'cancel'
+let livePrices      = {};
 
 /* ── localStorage helpers ── */
 function getTrades()   { return JSON.parse(localStorage.getItem('pt_trades') || '[]'); }
@@ -394,16 +342,18 @@ function saveTrades(t) { localStorage.setItem('pt_trades', JSON.stringify(t)); }
 function getBalance()  { return parseFloat(localStorage.getItem('pt_balance') || '1000'); }
 function saveBalance(b){ localStorage.setItem('pt_balance', String(b)); }
 
-/* ── Init ──
-   FIX: fetch prices immediately on load (not just after 5s interval)
-   so sliders show correct position right away.                       */
+/* ── Status helpers ── */
+function isPending(t) { return t.status === 'PENDING_LONG' || t.status === 'PENDING_SHORT'; }
+function isOpen(t)    { return t.status === 'OPEN'; }
+function isActive(t)  { return isPending(t) || isOpen(t); }
+
+/* ── Init ── */
 function initPage() {
   connectWS();
   renderAll();
-  fetchLivePricesNow();      // immediate first fetch
-  startPricePoll();
+  fetchPricesNow();        // immediate — sliders show correctly on first load
+  setInterval(fetchPricesNow, 5000);
 }
-
 function openMobSidebar()  { document.getElementById('dashSidebar').classList.add('open');    document.getElementById('mobOverlay').classList.add('show'); }
 function closeMobSidebar() { document.getElementById('dashSidebar').classList.remove('open'); document.getElementById('mobOverlay').classList.remove('show'); }
 
@@ -411,162 +361,143 @@ function closeMobSidebar() { document.getElementById('dashSidebar').classList.re
 function setBalance() {
   const v = parseFloat(document.getElementById('balInput').value);
   if (!v || v < 1) return;
-  saveBalance(v);
-  document.getElementById('balInput').value = '';
-  renderAll();
+  saveBalance(v); document.getElementById('balInput').value = ''; renderAll();
 }
 function updateBalanceDisplay() {
-  const trades   = getTrades();
+  const closed   = getTrades().filter(t => !isActive(t) && t.status !== 'CANCELLED');
   const start    = getBalance();
-  const closed   = trades.filter(t => t.status !== 'OPEN');
-  const totalPnl = closed.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const current  = start + totalPnl;
+  const totalPnl = closed.reduce((s, t) => s + (t.pnl || 0), 0);
   document.getElementById('balStart').textContent   = '$' + start.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  document.getElementById('balCurrent').textContent = '$' + current.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const pnlEl = document.getElementById('balPnl');
-  pnlEl.textContent = fmtUSD(totalPnl);
-  pnlEl.style.color = totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('balCurrent').textContent = '$' + (start + totalPnl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const el = document.getElementById('balPnl');
+  el.textContent = fmtUSD(totalPnl);
+  el.style.color = totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
 }
-
-/* ── Stats ── */
 function updateStats() {
   const trades  = getTrades();
-  const open    = trades.filter(t => t.status === 'OPEN');
-  const closed  = trades.filter(t => t.status !== 'OPEN');
-  const wins    = closed.filter(t => (t.pnl || 0) > 0);
-  const winRate = closed.length ? Math.round(wins.length / closed.length * 100) : null;
-  const best    = closed.length ? Math.max(...closed.map(t => t.pnl || 0)) : null;
-  document.getElementById('statOpen').textContent   = open.length;
-  document.getElementById('statClosed').textContent = closed.length;
+  const open    = trades.filter(isOpen);
+  const pending = trades.filter(isPending);
+  const closed  = trades.filter(t => !isActive(t) && t.status !== 'CANCELLED');
+  const wins    = closed.filter(t => (t.pnl||0) > 0);
+  const wr      = closed.length ? Math.round(wins.length/closed.length*100) : null;
+  const best    = closed.length ? Math.max(...closed.map(t=>t.pnl||0)) : null;
+  document.getElementById('statOpen').textContent    = open.length;
+  document.getElementById('statPending').textContent = pending.length;
   const wrEl = document.getElementById('statWinRate');
-  wrEl.textContent  = winRate !== null ? winRate + '%' : '—';
-  wrEl.style.color  = winRate !== null ? (winRate >= 50 ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
-  const bestEl = document.getElementById('statBest');
-  if (best !== null && best > 0) { bestEl.textContent = '+$' + best.toFixed(2); bestEl.style.color = 'var(--green)'; }
-  else { bestEl.textContent = '—'; bestEl.style.color = 'var(--muted)'; }
+  wrEl.textContent = wr !== null ? wr+'%' : '—';
+  wrEl.style.color = wr !== null ? (wr>=50?'var(--green)':'var(--red)') : 'var(--muted)';
+  const bEl = document.getElementById('statBest');
+  if (best !== null && best > 0) { bEl.textContent = '+$'+best.toFixed(2); bEl.style.color='var(--green)'; }
+  else { bEl.textContent='—'; bEl.style.color='var(--muted)'; }
 }
-
-/* ── Tab ── */
 function switchTab(tab) {
   currentTab = tab;
-  document.getElementById('tabOpen').classList.toggle('active', tab === 'open');
-  document.getElementById('tabClosed').classList.toggle('active', tab === 'closed');
+  document.getElementById('tabOpen').classList.toggle('active', tab==='open');
+  document.getElementById('tabClosed').classList.toggle('active', tab==='closed');
   renderTradeList();
 }
-
-/* ── Main render ── */
-function renderAll() {
-  updateBalanceDisplay();
-  updateStats();
-  renderTradeList();
-}
+function renderAll() { updateBalanceDisplay(); updateStats(); renderTradeList(); }
 
 function renderTradeList() {
   const trades = getTrades();
-  const list   = currentTab === 'open'
-    ? trades.filter(t => t.status === 'OPEN')
-    : trades.filter(t => t.status !== 'OPEN');
+  /* open tab: OPEN + PENDING | history tab: closed + cancelled */
+  const list = currentTab === 'open'
+    ? trades.filter(isActive)
+    : trades.filter(t => !isActive(t));
+
   const container = document.getElementById('tradeList');
   if (!list.length) {
-    const msg = currentTab === 'open'
-      ? 'No open positions. Go to Analysis → Deep Scan → Paper Trade to open one.'
-      : 'No closed trades yet.';
+    const msg = currentTab==='open'
+      ? 'No open or pending positions. Go to Analysis → Deep Scan → Paper Trade.'
+      : 'No trade history yet.';
     container.innerHTML = `
       <div class="empty-pt">
-        <div class="empty-pt-icon">${currentTab === 'open' ? '📊' : '📋'}</div>
-        <div class="empty-pt-title">${currentTab === 'open' ? 'No Open Positions' : 'No Trade History'}</div>
+        <div class="empty-pt-icon">${currentTab==='open'?'📊':'📋'}</div>
+        <div class="empty-pt-title">${currentTab==='open'?'No Active Positions':'No Trade History'}</div>
         <div class="empty-pt-sub">${msg}</div>
-        ${currentTab === 'open' ? '<a href="analysis.html" class="btn-go-analysis">🔬 Go to Analysis</a>' : ''}
+        ${currentTab==='open'?'<a href="analysis.html" class="btn-go-analysis">🔬 Go to Analysis</a>':''}
       </div>`;
     return;
   }
   container.innerHTML = list.map(t => buildTradeCard(t)).join('');
 }
 
+/* ════════════════════════════════════════════
+   BUILD TRADE CARD
+   ════════════════════════════════════════════ */
 function buildTradeCard(trade) {
-  const isOpen = trade.status === 'OPEN';
-  const price  = livePrices[trade.symbol] || trade.entryPrice;
-  const dir    = trade.direction;
+  const open    = isOpen(trade);
+  const pending = isPending(trade);
+  const price   = livePrices[trade.symbol] || trade.entryPrice;
+  const dir     = trade.direction;
 
-  /* P&L */
-  let pnl, roe;
-  if (isOpen) {
-    pnl = dir === 'LONG'
-      ? (price - trade.entryPrice) * trade.size
-      : (trade.entryPrice - price) * trade.size;
-    roe = (pnl / trade.amount) * 100;
-  } else {
-    pnl = trade.pnl || 0;
-    roe = trade.roe || 0;
-  }
-  const pnlCls  = pnl > 0 ? 'profit' : pnl < 0 ? 'loss' : 'neutral';
-  const cardCls = isOpen
-    ? (dir === 'LONG' ? 'open-long' : 'open-short')
-    : (pnl >= 0 ? 'closed-win' : 'closed-loss');
+  /* Card CSS class */
+  let cardCls;
+  if      (pending) cardCls = dir==='LONG' ? 'pending-long' : 'pending-short';
+  else if (open)    cardCls = dir==='LONG' ? 'open-long'    : 'open-short';
+  else              cardCls = (trade.pnl||0) >= 0 ? 'closed-win' : 'closed-loss';
 
-  /* ─────────────────────────────────────────
-     PROGRESS SLIDER  (Fixed)
-     Shows price position between SL and TP1.
-     FIX: height now 10px, visible track bg,
-     white knob marks current price.
-     ───────────────────────────────────────── */
-  let progPct = 0, progColor = 'var(--cyan)', progBlock = '';
-  if (isOpen && trade.sl && trade.tp1) {
-    const lo    = dir === 'LONG' ? trade.sl   : trade.tp1;
-    const hi    = dir === 'LONG' ? trade.tp1  : trade.sl;
-    const range = Math.abs(hi - lo);
-    const moved = range > 0 ? (price - lo) / range * 100 : 0;
-    progPct     = Math.min(Math.max(moved, 0), 100);
-    progColor   = dir === 'LONG' ? 'var(--green)' : 'var(--red)';
-    const pctLabel = progPct.toFixed(0) + '%';
-    const pctColor = progPct >= 50 ? 'var(--green)' : progPct >= 25 ? 'var(--cyan)' : 'var(--muted)';
+  /* Status badge */
+  let badgeCls, badgeLabel;
+  if      (pending)                   { badgeCls = 'pending';   badgeLabel = '⏳ PENDING'; }
+  else if (open)                      { badgeCls = 'open';      badgeLabel = '● OPEN'; }
+  else if (trade.status === 'TP1')    { badgeCls = 'tp1';       badgeLabel = 'TP1 ✓'; }
+  else if (trade.status === 'TP2')    { badgeCls = 'tp2';       badgeLabel = 'TP2 ✓'; }
+  else if (trade.status === 'SL')     { badgeCls = 'sl';        badgeLabel = 'SL ✗'; }
+  else if (trade.status === 'CLOSED') { badgeCls = (trade.pnl||0)>=0?'tp1':'sl'; badgeLabel = 'CLOSED'; }
+  else                                { badgeCls = 'cancelled'; badgeLabel = 'CANCELLED'; }
 
-    progBlock = `
-    <div class="tc-progress">
-      <div class="prog-header">
-        <span class="prog-title">Price Progress → TP1</span>
-        <span class="prog-pct" style="color:${pctColor}">${pctLabel}</span>
-      </div>
-      <div class="prog-labels">
-        <span class="prog-lbl-sl">SL ${fmtP(trade.sl)}</span>
-        <span style="font-family:var(--font-n);font-size:.62rem;color:var(--cyan)">▼ ${fmtP(price)}</span>
-        <span class="prog-lbl-tp">TP1 ${fmtP(trade.tp1)}</span>
-      </div>
-      <div class="prog-track">
-        <div class="prog-fill" style="width:${progPct}%;background:${progColor};opacity:.7;"></div>
-        <div class="prog-knob" style="left:${progPct}%;border-color:${progColor};box-shadow:0 0 8px ${progColor};"></div>
-      </div>
-    </div>`;
-  }
-
-  const statusBadge = isOpen ? 'open' : (trade.status === 'TP1' ? 'tp1' : trade.status === 'TP2' ? 'tp2' : 'sl');
-  const statusLabel = isOpen ? '● OPEN' : trade.status;
   const openT  = fmtTime(trade.openTime);
   const closeT = trade.closeTime ? fmtTime(trade.closeTime) : null;
+  const fillT  = trade.fillTime  ? fmtTime(trade.fillTime)  : null;
 
-  return `
+  /* ─────────────────────────────────────────────
+     PENDING CARD — shows waiting info, no P&L
+     ───────────────────────────────────────────── */
+  if (pending) {
+    const isLong      = trade.status === 'PENDING_LONG';
+    const entryTarget = trade.entryPrice;
+    const dist        = Math.abs(price - entryTarget);
+    const distPct     = (dist / price * 100).toFixed(2);
+    const distDir     = isLong
+      ? (price > entryTarget ? `needs to fall ${distPct}%` : 'price at/below entry — filling soon')
+      : (price < entryTarget ? `needs to rise ${distPct}%` : 'price at/above entry — filling soon');
+    const waitColor   = isLong ? 'var(--green)' : 'var(--red)';
+
+    return `
   <div class="trade-card ${cardCls}">
     <div class="tc-head">
       <div class="tc-left">
         <span class="tc-pair">${trade.pair}</span>
-        <span class="tc-dir ${dir.toLowerCase()}">${dir === 'LONG' ? '▲ LONG' : '▼ SHORT'}</span>
+        <span class="tc-dir ${dir.toLowerCase()}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</span>
         <span class="tc-lev">${trade.leverage}×</span>
-        <span class="tc-status ${statusBadge}">${statusLabel}</span>
+        <span class="tc-status ${badgeCls}">${badgeLabel}</span>
       </div>
-      <span class="tc-time">${openT}${closeT ? ' → ' + closeT : ''}</span>
+      <span class="tc-time">Placed ${openT}</span>
     </div>
-    <div class="tc-pnl-row">
-      <div class="pnl-big">
-        <div class="pnl-label">${isOpen ? 'Unrealized P&L' : 'Realized P&L'}</div>
-        <div class="pnl-value ${pnlCls}">${fmtUSD(pnl)}</div>
-        <div class="pnl-roe ${pnlCls}">${roe >= 0 ? '+' : ''}${roe.toFixed(2)}% ROE</div>
-      </div>
-      <div class="tc-mark">
-        <div class="mark-lbl">${isOpen ? 'Mark Price' : 'Close Price'}</div>
-        <div class="mark-val" id="mark-${trade.id}">${fmtP(isOpen ? price : (trade.closePrice || price))}</div>
-        <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);margin-top:2px">Margin: $${trade.amount.toFixed(2)}</div>
+
+    <div class="pending-info">
+      <div class="pending-info-title">⏳ Limit Order — Waiting for Entry</div>
+      <div class="pending-grid">
+        <div class="pending-box">
+          <div class="pending-lbl">Entry Target</div>
+          <div class="pending-val" style="color:var(--cyan)">${fmtP(entryTarget)}</div>
+        </div>
+        <div class="pending-box">
+          <div class="pending-lbl">Current Price</div>
+          <div class="pending-val" style="color:var(--text)">${fmtP(price)}</div>
+        </div>
+        <div class="pending-box">
+          <div class="pending-lbl">Distance</div>
+          <div class="pending-val" style="color:${waitColor}">${fmtP(dist)} (${distPct}%)</div>
+        </div>
+        <div class="pending-box">
+          <div class="pending-lbl">Status</div>
+          <div class="pending-val" style="font-size:.75rem;color:var(--muted)">${distDir}</div>
+        </div>
       </div>
     </div>
+
     <div class="tc-levels">
       <div class="tc-lbox"><div class="tc-llbl">Entry</div><div class="tc-lval col-entry">${fmtP(trade.entryPrice)}</div></div>
       <div class="tc-lbox"><div class="tc-llbl">TP 1</div><div class="tc-lval col-tp1">${fmtP(trade.tp1)}</div></div>
@@ -574,109 +505,250 @@ function buildTradeCard(trade) {
       <div class="tc-lbox"><div class="tc-llbl">Stop Loss</div><div class="tc-lval col-sl">${fmtP(trade.sl)}</div></div>
       <div class="tc-lbox"><div class="tc-llbl">Liq. Price</div><div class="tc-lval col-liq">${fmtP(trade.liqPrice)}</div></div>
     </div>
+
+    <div class="tc-foot">
+      <div class="tc-meta-small">Margin: $${trade.amount.toFixed(2)} · ${trade.leverage}× · Notional: $${trade.notional.toFixed(2)}</div>
+      <button class="btn-cancel-order" onclick="promptCancel(${trade.id})">✕ Cancel Order</button>
+    </div>
+  </div>`;
+  }
+
+  /* ─────────────────────────────────────────────
+     OPEN CARD — P&L + progress slider
+     ───────────────────────────────────────────── */
+  let pnl, roe;
+  if (open) {
+    pnl = dir==='LONG' ? (price-trade.entryPrice)*trade.size : (trade.entryPrice-price)*trade.size;
+    roe = (pnl/trade.amount)*100;
+  } else {
+    pnl = trade.pnl||0; roe = trade.roe||0;
+  }
+  const pnlCls = pnl>0?'profit':pnl<0?'loss':'neutral';
+
+  /* Progress slider (only for OPEN trades) */
+  let progBlock = '';
+  if (open && trade.sl && trade.tp1) {
+    const lo     = dir==='LONG' ? trade.sl  : trade.tp1;
+    const hi     = dir==='LONG' ? trade.tp1 : trade.sl;
+    const range  = Math.abs(hi - lo);
+    const progPct   = range > 0 ? Math.min(Math.max((price-lo)/range*100, 0), 100) : 0;
+    const progColor = dir==='LONG' ? 'var(--green)' : 'var(--red)';
+    const pctColor  = progPct>=60?'var(--green)':progPct>=30?'var(--cyan)':'var(--muted)';
+    progBlock = `
+    <div class="tc-progress">
+      <div class="prog-header">
+        <span class="prog-title">Price Progress → TP1</span>
+        <span class="prog-pct" style="color:${pctColor}">${progPct.toFixed(0)}%</span>
+      </div>
+      <div class="prog-labels">
+        <span class="prog-lbl-sl">SL ${fmtP(trade.sl)}</span>
+        <span style="font-family:var(--font-n);font-size:.62rem;color:var(--cyan)">▼ ${fmtP(price)}</span>
+        <span class="prog-lbl-tp">TP1 ${fmtP(trade.tp1)}</span>
+      </div>
+      <div class="prog-track">
+        <div class="prog-fill" style="width:${progPct}%;background:${progColor};opacity:.7"></div>
+        <div class="prog-knob" style="left:${progPct}%;border-color:${progColor};box-shadow:0 0 8px ${progColor}"></div>
+      </div>
+    </div>`;
+  }
+
+  const timeStr = open
+    ? `Filled ${fillT || openT}`
+    : `${openT}${closeT?' → '+closeT:''}`;
+
+  return `
+  <div class="trade-card ${cardCls}">
+    <div class="tc-head">
+      <div class="tc-left">
+        <span class="tc-pair">${trade.pair}</span>
+        <span class="tc-dir ${dir.toLowerCase()}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</span>
+        <span class="tc-lev">${trade.leverage}×</span>
+        <span class="tc-status ${badgeCls}">${badgeLabel}</span>
+      </div>
+      <span class="tc-time">${timeStr}</span>
+    </div>
+
+    <div class="tc-pnl-row">
+      <div class="pnl-big">
+        <div class="pnl-label">${open?'Unrealized P&L':'Realized P&L'}</div>
+        <div class="pnl-value ${pnlCls}">${fmtUSD(pnl)}</div>
+        <div class="pnl-roe ${pnlCls}">${roe>=0?'+':''}${roe.toFixed(2)}% ROE</div>
+      </div>
+      <div class="tc-mark">
+        <div class="mark-lbl">${open?'Mark Price':'Close Price'}</div>
+        <div class="mark-val">${fmtP(open?price:(trade.closePrice||price))}</div>
+        <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);margin-top:2px">Margin: $${trade.amount.toFixed(2)}</div>
+      </div>
+    </div>
+
+    <div class="tc-levels">
+      <div class="tc-lbox"><div class="tc-llbl">Entry</div><div class="tc-lval col-entry">${fmtP(trade.entryPrice)}</div></div>
+      <div class="tc-lbox"><div class="tc-llbl">TP 1</div><div class="tc-lval col-tp1">${fmtP(trade.tp1)}</div></div>
+      <div class="tc-lbox"><div class="tc-llbl">TP 2</div><div class="tc-lval col-tp2">${fmtP(trade.tp2)}</div></div>
+      <div class="tc-lbox"><div class="tc-llbl">Stop Loss</div><div class="tc-lval col-sl">${fmtP(trade.sl)}</div></div>
+      <div class="tc-lbox"><div class="tc-llbl">Liq. Price</div><div class="tc-lval col-liq">${fmtP(trade.liqPrice)}</div></div>
+    </div>
+
     ${progBlock}
+
     <div class="tc-foot">
       <div class="tc-meta-small">
-        Size: ${trade.size >= 1 ? trade.size.toFixed(4) : trade.size.toFixed(6)} ${trade.symbol.replace('USDT','')}
+        Size: ${trade.size>=1?trade.size.toFixed(4):trade.size.toFixed(6)} ${trade.symbol.replace('USDT','')}
         &nbsp;·&nbsp; Notional: $${trade.notional.toFixed(2)}
       </div>
-      ${isOpen ? `<button class="btn-close-trade" onclick="promptClose(${trade.id})">Close Position</button>` : ''}
+      ${open ? `<button class="btn-close-trade" onclick="promptClose(${trade.id})">Close Position</button>` : ''}
     </div>
   </div>`;
 }
 
-/* ── Close trade flow ── */
-function promptClose(id) {
-  pendingCloseId = id;
-  const trades = getTrades();
-  const t = trades.find(x => x.id === id);
-  if (!t) return;
-  const price = livePrices[t.symbol] || t.entryPrice;
-  const pnl = t.direction === 'LONG'
-    ? (price - t.entryPrice) * t.size
-    : (t.entryPrice - price) * t.size;
-  document.getElementById('cmBody').innerHTML = `
-    Close <strong>${t.pair}</strong> ${t.direction} position?<br><br>
-    Mark price: <strong>${fmtP(price)}</strong><br>
-    Realized P&L: <strong style="color:${pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtUSD(pnl)}</strong>`;
-  document.getElementById('closeOverlay').classList.add('open');
+/* ════════════════════════════════════════════
+   PRICE POLLING & TRADE LOGIC
+   ════════════════════════════════════════════ */
+
+async function fetchPricesNow() {
+  const trades  = getTrades().filter(isActive);
+  const symbols = [...new Set(trades.map(t => t.symbol))];
+  if (!symbols.length) return;
+  try {
+    const qs   = symbols.map(s => `"${s}"`).join(',');
+    const res  = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbols=[${qs}]`);
+    const data = await res.json();
+    data.forEach(d => { livePrices[d.symbol] = parseFloat(d.price); });
+    checkPendingFills();   // step 1: fill any waiting limit orders
+    checkTpSl();           // step 2: check TP/SL on OPEN trades
+    if (currentTab === 'open') renderTradeList();
+  } catch(_) {}
 }
 
-function closeConfirmModal() {
-  document.getElementById('closeOverlay').classList.remove('open');
-  pendingCloseId = null;
-}
-
-function doCloseTrade() {
-  if (!pendingCloseId) return;
-  const trades = getTrades();
-  const idx    = trades.findIndex(x => x.id === pendingCloseId);
-  if (idx === -1) { closeConfirmModal(); return; }
-  const t     = trades[idx];
-  const price = livePrices[t.symbol] || t.entryPrice;
-  const pnl   = t.direction === 'LONG'
-    ? (price - t.entryPrice) * t.size
-    : (t.entryPrice - price) * t.size;
-  const roe   = (pnl / t.amount) * 100;
-  trades[idx] = { ...t, status: pnl >= 0 ? 'TP1' : 'SL', closePrice: price, closeTime: new Date().toISOString(), pnl, roe };
-  saveTrades(trades);
-  closeConfirmModal();
-  renderAll();
-}
-
-/* ── Auto-close at TP/SL ── */
-function checkAutoClose() {
+/*
+ * checkPendingFills
+ * ─────────────────
+ * Limit orders are saved as PENDING_LONG / PENDING_SHORT.
+ * They only become OPEN once the live price actually reaches
+ * the entry price — exactly like a real limit order fill.
+ *
+ * PENDING_LONG  fills when price drops to <= entryPrice
+ * PENDING_SHORT fills when price rises to >= entryPrice
+ *
+ * After fill, TP/SL tracking starts from the NEXT poll.
+ */
+function checkPendingFills() {
   const trades = getTrades();
   let changed  = false;
   trades.forEach((t, i) => {
-    if (t.status !== 'OPEN') return;
+    if (!isPending(t)) return;
     const price = livePrices[t.symbol];
-    if (!price) return;
+    if (price == null) return;
+    const shouldFill =
+      (t.status === 'PENDING_LONG'  && price <= t.entryPrice) ||
+      (t.status === 'PENDING_SHORT' && price >= t.entryPrice);
+    if (shouldFill) {
+      trades[i] = { ...t, status: 'OPEN', fillTime: new Date().toISOString() };
+      changed = true;
+    }
+  });
+  if (changed) { saveTrades(trades); updateStats(); }
+}
+
+/*
+ * checkTpSl
+ * ─────────
+ * Only runs on OPEN trades (not PENDING).
+ * This prevents the instant-TP/SL bug: a PENDING trade
+ * will not be checked here — it must first fill.
+ */
+function checkTpSl() {
+  const trades = getTrades();
+  let changed  = false;
+  trades.forEach((t, i) => {
+    if (!isOpen(t)) return;          // ← skip PENDING
+    const price = livePrices[t.symbol];
+    if (price == null) return;
     const dir = t.direction;
     let hit = null;
     if (dir === 'LONG') {
-      if (price >= t.tp2)      hit = 'TP2';
+      if      (price >= t.tp2) hit = 'TP2';
       else if (price >= t.tp1) hit = 'TP1';
       else if (price <= t.sl)  hit = 'SL';
     } else {
-      if (price <= t.tp2)      hit = 'TP2';
+      if      (price <= t.tp2) hit = 'TP2';
       else if (price <= t.tp1) hit = 'TP1';
       else if (price >= t.sl)  hit = 'SL';
     }
     if (hit) {
-      const pnl = dir === 'LONG'
-        ? (price - t.entryPrice) * t.size
-        : (t.entryPrice - price) * t.size;
-      const roe = (pnl / t.amount) * 100;
-      trades[i] = { ...t, status: hit, closePrice: price, closeTime: new Date().toISOString(), pnl, roe };
+      const pnl = dir==='LONG'
+        ? (price-t.entryPrice)*t.size
+        : (t.entryPrice-price)*t.size;
+      const roe = (pnl/t.amount)*100;
+      trades[i] = { ...t, status:hit, closePrice:price, closeTime:new Date().toISOString(), pnl, roe };
       changed = true;
     }
   });
   if (changed) { saveTrades(trades); renderAll(); }
 }
 
-/* ── Immediate price fetch (fixes slider showing 0% on load) ── */
-async function fetchLivePricesNow() {
-  const trades  = getTrades().filter(t => t.status === 'OPEN');
-  const symbols = [...new Set(trades.map(t => t.symbol))];
-  if (!symbols.length) return;
-  try {
-    const qs  = symbols.map(s => `"${s}"`).join(',');
-    const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbols=[${qs}]`);
-    const data = await res.json();
-    data.forEach(d => { livePrices[d.symbol] = parseFloat(d.price); });
-    checkAutoClose();
-    if (currentTab === 'open') renderTradeList();
-  } catch(_) {}
+/* ── Close / Cancel flow ── */
+function promptClose(id) {
+  pendingActionId = id; pendingAction = 'close';
+  const t = getTrades().find(x => x.id === id); if (!t) return;
+  const price = livePrices[t.symbol] || t.entryPrice;
+  const pnl   = t.direction==='LONG'
+    ? (price-t.entryPrice)*t.size : (t.entryPrice-price)*t.size;
+  document.getElementById('cmTitle').textContent = 'Close Position';
+  document.getElementById('cmBody').innerHTML = `
+    Close <strong>${t.pair}</strong> ${t.direction}?<br><br>
+    Mark price: <strong>${fmtP(price)}</strong><br>
+    Realized P&L: <strong style="color:${pnl>=0?'var(--green)':'var(--red)'}">${fmtUSD(pnl)}</strong>`;
+  document.getElementById('btnCmOk').textContent = 'Close Position';
+  document.getElementById('closeOverlay').classList.add('open');
 }
 
-/* ── Live price poll every 5s ── */
-function startPricePoll() {
-  pollTimer = setInterval(fetchLivePricesNow, 5000);
+function promptCancel(id) {
+  pendingActionId = id; pendingAction = 'cancel';
+  const t = getTrades().find(x => x.id === id); if (!t) return;
+  document.getElementById('cmTitle').textContent = 'Cancel Limit Order';
+  document.getElementById('cmBody').innerHTML = `
+    Cancel the pending <strong>${t.direction}</strong> limit order for <strong>${t.pair}</strong>?<br><br>
+    Entry target: <strong>${fmtP(t.entryPrice)}</strong><br>
+    This order has not been filled yet.`;
+  document.getElementById('btnCmOk').textContent = 'Cancel Order';
+  document.getElementById('closeOverlay').classList.add('open');
+}
+
+function closeConfirmModal() {
+  document.getElementById('closeOverlay').classList.remove('open');
+  pendingActionId = null; pendingAction = null;
+}
+
+function doConfirmAction() {
+  if (!pendingActionId) return;
+  if (pendingAction === 'close')  doCloseTrade();
+  if (pendingAction === 'cancel') doCancelOrder();
+}
+
+function doCloseTrade() {
+  const trades = getTrades();
+  const idx    = trades.findIndex(x => x.id === pendingActionId);
+  if (idx === -1) { closeConfirmModal(); return; }
+  const t     = trades[idx];
+  const price = livePrices[t.symbol] || t.entryPrice;
+  const pnl   = t.direction==='LONG'
+    ? (price-t.entryPrice)*t.size : (t.entryPrice-price)*t.size;
+  const roe   = (pnl/t.amount)*100;
+  trades[idx] = { ...t, status:'CLOSED', closePrice:price, closeTime:new Date().toISOString(), pnl, roe };
+  saveTrades(trades); closeConfirmModal(); renderAll();
+}
+
+function doCancelOrder() {
+  const trades = getTrades();
+  const idx    = trades.findIndex(x => x.id === pendingActionId);
+  if (idx === -1) { closeConfirmModal(); return; }
+  trades[idx] = { ...trades[idx], status:'CANCELLED', closeTime:new Date().toISOString() };
+  saveTrades(trades); closeConfirmModal(); renderAll();
 }
 
 /* ── WebSocket (ticker bar) ── */
-const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsProto = location.protocol==='https:'?'wss:':'ws:';
 let ws, wsRetry = 1000;
 function connectWS() {
   try {
@@ -685,32 +757,29 @@ function connectWS() {
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'market_update' && data.ticker) {
+        if (data.type==='market_update' && data.ticker) {
           data.ticker.forEach(c => { livePrices[c.symbol] = c.price; });
           updateTicker(data.ticker);
         }
       } catch(_) {}
     };
-    ws.onclose = () => setTimeout(connectWS, wsRetry = Math.min(wsRetry * 1.5, 15000));
+    ws.onclose = () => setTimeout(connectWS, wsRetry = Math.min(wsRetry*1.5, 15000));
   } catch(_) {}
 }
-
 function updateTicker(coins) {
   if (!coins) return;
-  const symMap = { BTCUSDT:'BTC', ETHUSDT:'ETH', BNBUSDT:'BNB', SOLUSDT:'SOL', XRPUSDT:'XRP' };
+  const symMap = {BTCUSDT:'BTC',ETHUSDT:'ETH',BNBUSDT:'BNB',SOLUSDT:'SOL',XRPUSDT:'XRP'};
   coins.forEach(c => {
-    const sym = symMap[c.symbol];
-    if (!sym) return;
+    const sym = symMap[c.symbol]; if (!sym) return;
     const up  = c.change >= 0;
-    const chg = (up ? '+' : '') + c.change.toFixed(2) + '%';
-    const pr  = c.price >= 1000 ? '$' + c.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
-              : c.price >= 1    ? '$' + c.price.toFixed(4)
-              : '$' + c.price.toFixed(6);
-    ['', '2'].forEach(sfx => {
+    const chg = (up?'+':'')+c.change.toFixed(2)+'%';
+    const pr  = c.price>=1000?'$'+c.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
+              : c.price>=1   ?'$'+c.price.toFixed(4):'$'+c.price.toFixed(6);
+    ['','2'].forEach(sfx => {
       const pe = document.getElementById(`tk-${sym}-p${sfx}`);
       const ce = document.getElementById(`tk-${sym}-c${sfx}`);
       if (pe) pe.textContent = pr;
-      if (ce) { ce.textContent = chg; ce.className = `t-chg ${up ? 'up' : 'down'}`; }
+      if (ce) { ce.textContent=chg; ce.className=`t-chg ${up?'up':'down'}`; }
     });
   });
 }
