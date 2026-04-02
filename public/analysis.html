@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Analysis — InvestySignals</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -21,15 +21,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .auth-guard{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;}
 .auth-spinner{width:40px;height:40px;border:3px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.top-bar{position:fixed;top:0;left:0;right:0;height:34px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;}
+/* Top bar */
+.top-bar{position:fixed;top:0;left:0;right:0;height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;}
 .tb-left{display:flex;align-items:center;gap:10px;}
 .tb-brand{font-family:var(--font-h);font-weight:700;font-size:.88rem;letter-spacing:.04em;color:var(--text);}
 .tb-brand span{color:var(--cyan);}
-.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite;}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.2rem;cursor:pointer;padding:4px;}
-@media(max-width:768px){.mob-menu-btn{display:block}}
-.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:34px;left:0;height:calc(100vh - 34px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;}
+.mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
+@media(max-width:768px){.mob-menu-btn{display:flex}}
+/* Sidebar */
+.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:48px;left:0;height:calc(100vh - 48px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;}
 .ds-brand{padding:18px 16px 14px;border-bottom:1px solid var(--border);}
 .ds-logo{font-family:var(--font-h);font-size:1.15rem;font-weight:700;letter-spacing:.06em;display:flex;align-items:center;gap:8px;}
 .ds-logo span{color:var(--cyan);}
@@ -39,60 +41,67 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .ds-uemail{font-size:.68rem;color:var(--muted);font-family:var(--font-n);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
 .ds-nav{flex:1;padding:10px 8px;}
 .ds-section{font-size:.62rem;font-weight:600;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;padding:10px 8px 4px;}
-.ds-nav a{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;}
+.ds-nav a{display:flex;align-items:center;gap:9px;padding:10px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;min-height:44px;}
 .ds-nav a:hover{background:rgba(255,255,255,.04);color:var(--text);}
 .ds-nav a.active{background:rgba(0,212,255,.08);color:var(--cyan);border-left:2px solid var(--cyan);padding-left:8px;}
 .ni{font-size:.95rem;width:18px;text-align:center;}
 .ds-badge{font-family:var(--font-n);font-size:.6rem;padding:2px 6px;border-radius:4px;font-weight:600;margin-left:auto;}
 .ds-badge.green{background:rgba(0,255,136,.12);color:var(--green);}
 .ds-footer{padding:12px 16px;border-top:1px solid var(--border);}
-.btn-signout{width:100%;padding:8px;background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);color:var(--red);border-radius:8px;font-size:.8rem;cursor:pointer;transition:all .2s;font-family:var(--font-b);}
+.btn-signout{width:100%;padding:10px;background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);color:var(--red);border-radius:8px;font-size:.8rem;cursor:pointer;transition:all .2s;font-family:var(--font-b);min-height:44px;}
 .btn-signout:hover{background:rgba(255,61,90,.12);}
 .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;}
 .mob-overlay.show{display:block;}
-@media(max-width:768px){.dash-sidebar{transform:translateX(-100%);top:0;height:100vh;}.dash-sidebar.open{transform:translateX(0);}}
-.dash-layout{display:flex;padding-top:34px;}
-.dash-main{margin-left:var(--sidebar-w);flex:1;padding:24px 28px;max-width:1200px;}
-@media(max-width:768px){.dash-main{margin-left:0;padding:14px 14px 24px;}}
-.welcome-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px;}
+@media(max-width:768px){
+  .dash-sidebar{transform:translateX(-100%);top:0;height:100vh;}
+  .dash-sidebar.open{transform:translateX(0);}
+}
+/* Main layout */
+.dash-layout{display:flex;padding-top:48px;}
+.dash-main{margin-left:var(--sidebar-w);flex:1;padding:20px 24px;max-width:1200px;}
+@media(max-width:768px){.dash-main{margin-left:0;padding:14px 12px 32px;}}
+/* Welcome bar */
+.welcome-bar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px;}
 .welcome-bar h1{font-family:var(--font-h);font-size:1.5rem;font-weight:700;letter-spacing:.02em;}
 @media(max-width:480px){.welcome-bar h1{font-size:1.2rem;}}
-.welcome-time{font-family:var(--font-n);font-size:.72rem;color:var(--muted);}
+.welcome-time{font-family:var(--font-n);font-size:.7rem;color:var(--muted);white-space:nowrap;}
+/* Panels */
 .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
-.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;}
 .panel-title{font-family:var(--font-h);font-size:1rem;font-weight:600;letter-spacing:.03em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.panel-body{padding:16px 18px;}
-@media(max-width:480px){.panel-body{padding:12px 14px;}}
+.panel-body{padding:14px 16px;}
+@media(max-width:480px){.panel-body{padding:12px;}}
 .panel-tag{font-family:var(--font-n);font-size:.6rem;padding:2px 7px;border-radius:4px;font-weight:600;}
 .pt-live{background:rgba(0,255,136,.1);color:var(--green);}
-.scanner-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
-.btn-scan{display:inline-flex;align-items:center;gap:8px;padding:9px 20px;background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.08));border:1px solid rgba(0,212,255,.35);color:var(--cyan);border-radius:10px;font-family:var(--font-b);font-size:.86rem;font-weight:600;cursor:pointer;transition:all .25s;white-space:nowrap;}
+/* Scanner controls */
+.scanner-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.btn-scan{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.08));border:1px solid rgba(0,212,255,.35);color:var(--cyan);border-radius:10px;font-family:var(--font-b);font-size:.86rem;font-weight:600;cursor:pointer;transition:all .25s;white-space:nowrap;min-height:44px;}
 .btn-scan:hover:not(:disabled){background:linear-gradient(135deg,rgba(0,212,255,.25),rgba(0,212,255,.14));border-color:var(--cyan);box-shadow:0 0 16px rgba(0,212,255,.2);}
 .btn-scan:disabled{opacity:.5;cursor:not-allowed;}
 .btn-scan.scanning{animation:scanPulse 1.2s ease-in-out infinite;}
 @keyframes scanPulse{0%,100%{box-shadow:0 0 0 rgba(0,212,255,0)}50%{box-shadow:0 0 18px rgba(0,212,255,.35)}}
-.manual-input-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:220px;}
+.manual-input-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
 @media(min-width:769px){.manual-input-wrap{margin-left:auto;flex:0 0 auto;}}
-.manual-input{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 12px;font-family:var(--font-n);font-size:.82rem;width:140px;flex:1;outline:none;transition:border .2s;text-transform:uppercase;}
-@media(max-width:380px){.manual-input{width:100px;}}
+.manual-input{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 12px;font-family:var(--font-n);font-size:.82rem;width:130px;flex:1;outline:none;transition:border .2s;text-transform:uppercase;min-height:44px;}
 .manual-input::placeholder{color:var(--muted);text-transform:none;}
 .manual-input:focus{border-color:var(--cyan);}
-.btn-deep{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:linear-gradient(135deg,rgba(0,255,136,.12),rgba(0,255,136,.06));border:1px solid rgba(0,255,136,.3);color:var(--green);border-radius:8px;font-family:var(--font-b);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .25s;white-space:nowrap;}
+.btn-deep{display:inline-flex;align-items:center;gap:6px;padding:10px 14px;background:linear-gradient(135deg,rgba(0,255,136,.12),rgba(0,255,136,.06));border:1px solid rgba(0,255,136,.3);color:var(--green);border-radius:8px;font-family:var(--font-b);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .25s;white-space:nowrap;min-height:44px;}
 .btn-deep:hover:not(:disabled){background:linear-gradient(135deg,rgba(0,255,136,.22),rgba(0,255,136,.12));border-color:var(--green);}
 .btn-deep:disabled{opacity:.5;cursor:not-allowed;}
+/* Scan table */
 .scan-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;}
-.scan-table{width:100%;border-collapse:collapse;font-size:.83rem;min-width:460px;}
-.scan-table th{font-family:var(--font-n);font-size:.63rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+.scan-table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:420px;}
+.scan-table th{font-family:var(--font-n);font-size:.62rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
 .scan-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle;}
 .scan-table tr:last-child td{border-bottom:none;}
 .scan-table tr:hover td{background:rgba(255,255,255,.025);}
-.sym-cell{font-family:var(--font-n);font-weight:600;font-size:.87rem;}
-.price-cell{font-family:var(--font-n);font-size:.84rem;color:var(--cyan);}
-.chg-cell{font-family:var(--font-n);font-size:.81rem;font-weight:600;}
+.sym-cell{font-family:var(--font-n);font-weight:600;font-size:.86rem;}
+.price-cell{font-family:var(--font-n);font-size:.83rem;color:var(--cyan);}
+.chg-cell{font-family:var(--font-n);font-size:.8rem;font-weight:600;}
 .chg-cell.up{color:var(--green);}.chg-cell.dn{color:var(--red);}
-.vol-cell{font-family:var(--font-n);font-size:.77rem;color:var(--muted);}
-.rank-cell{font-family:var(--font-n);font-size:.72rem;color:var(--dim);}
-.btn-row-deep{padding:5px 11px;background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);color:var(--green);border-radius:6px;font-size:.73rem;font-weight:600;cursor:pointer;font-family:var(--font-b);transition:all .2s;white-space:nowrap;}
+.vol-cell{font-family:var(--font-n);font-size:.76rem;color:var(--muted);}
+.rank-cell{font-family:var(--font-n);font-size:.71rem;color:var(--dim);}
+.btn-row-deep{padding:7px 11px;background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);color:var(--green);border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;font-family:var(--font-b);transition:all .2s;white-space:nowrap;min-height:36px;}
 .btn-row-deep:hover{background:rgba(0,255,136,.16);border-color:var(--green);}
 .btn-row-deep:disabled{opacity:.4;cursor:not-allowed;}
 .empty-state{text-align:center;padding:36px 16px;color:var(--muted);}
@@ -102,13 +111,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .loading-row td{text-align:center;padding:28px;color:var(--muted);font-size:.84rem;}
 .scan-meta{font-family:var(--font-n);font-size:.7rem;color:var(--muted);}
 .coin-count{color:var(--cyan);font-weight:600;}
-/* Deep Scan */
-.deep-result{margin-top:22px;}
+/* Deep Scan Result */
+.deep-result{margin-top:20px;}
 .deep-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
 .deep-card.long-card{border-color:rgba(0,255,136,.3);}
 .deep-card.short-card{border-color:rgba(255,61,90,.3);}
 .deep-card.neutral-card{border-color:rgba(255,195,51,.3);}
-.deep-header{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.deep-header{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
 .deep-header.long-bg{background:linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02));}
 .deep-header.short-bg{background:linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02));}
 .deep-header.neutral-bg{background:linear-gradient(135deg,rgba(255,195,51,.07),rgba(255,195,51,.02));}
@@ -122,66 +131,70 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .entry-badge{font-family:var(--font-n);font-size:.68rem;padding:3px 9px;border-radius:4px;font-weight:600;letter-spacing:.05em;}
 .entry-badge.market{background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.25);}
 .entry-badge.limit{background:rgba(255,195,51,.12);color:var(--yellow);border:1px solid rgba(255,195,51,.25);}
-.deep-levels{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);}
+/* Price levels grid */
+.deep-levels{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);}
 @media(max-width:860px){.deep-levels{grid-template-columns:repeat(3,1fr);}}
-@media(max-width:480px){.deep-levels{grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 14px;}}
-.level-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 13px;}
-.level-lbl{font-family:var(--font-n);font-size:.6rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;}
-.level-val{font-family:var(--font-n);font-size:.94rem;font-weight:600;word-break:break-all;}
-@media(max-width:480px){.level-val{font-size:.82rem;}}
+@media(max-width:420px){.deep-levels{grid-template-columns:repeat(2,1fr);gap:7px;padding:10px 12px;}}
+.level-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+.level-lbl{font-family:var(--font-n);font-size:.58rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;}
+.level-val{font-family:var(--font-n);font-size:.9rem;font-weight:600;word-break:break-all;}
+@media(max-width:480px){.level-val{font-size:.8rem;}}
 .level-val.entry-val{color:var(--cyan);}.level-val.tp1-val{color:var(--green);}.level-val.tp2-val{color:rgba(0,255,136,.6);}.level-val.sl-val{color:var(--red);}
-.level-sub{font-size:.67rem;color:var(--muted);margin-top:2px;}
-.deep-indicators{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);}
-@media(max-width:420px){.deep-indicators{grid-template-columns:1fr;padding:12px 14px;}}
+.level-sub{font-size:.64rem;color:var(--muted);margin-top:2px;}
+/* Indicators grid - supports 2 or 3 columns */
+.deep-indicators{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);}
+@media(max-width:600px){.deep-indicators{grid-template-columns:1fr 1fr;padding:10px 12px;}}
+@media(max-width:360px){.deep-indicators{grid-template-columns:1fr;}}
 .ind-box{display:flex;flex-direction:column;gap:4px;}
-.ind-lbl{font-family:var(--font-n);font-size:.61rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
-.ind-val{font-family:var(--font-n);font-size:.93rem;font-weight:600;}
-.ind-bar-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px;}
+.ind-lbl{font-family:var(--font-n);font-size:.6rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+.ind-val{font-family:var(--font-n);font-size:.9rem;font-weight:600;}
+.ind-bar-track{height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-top:4px;}
 .ind-bar-fill{height:100%;border-radius:3px;transition:width .6s ease;}
-.rsi-zone-labels{display:flex;justify-content:space-between;font-family:var(--font-n);font-size:.58rem;color:var(--dim);margin-top:2px;}
-.deep-reasoning{padding:14px 18px;}
-@media(max-width:480px){.deep-reasoning{padding:12px 14px;}}
-.reasoning-title{font-family:var(--font-n);font-size:.63rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
+.rsi-zone-labels{display:flex;justify-content:space-between;font-family:var(--font-n);font-size:.57rem;color:var(--dim);margin-top:2px;}
+/* Reasoning */
+.deep-reasoning{padding:12px 16px;}
+@media(max-width:480px){.deep-reasoning{padding:10px 12px;}}
+.reasoning-title{font-family:var(--font-n);font-size:.62rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
 .reasoning-list{display:flex;flex-direction:column;gap:8px;}
 .reason-item{display:flex;align-items:flex-start;gap:8px;font-size:.82rem;line-height:1.55;}
 .reason-icon{font-size:.85rem;flex-shrink:0;margin-top:1px;}
 .reason-txt{color:var(--text);}
 .reason-txt strong{color:var(--cyan);}
-.deep-disclaimer{margin:10px 18px 16px;padding:10px 13px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-size:.74rem;color:var(--muted);line-height:1.6;}
-@media(max-width:480px){.deep-disclaimer{margin:8px 14px 14px;}}
+.deep-disclaimer{margin:8px 16px 14px;padding:10px 13px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-size:.74rem;color:var(--muted);line-height:1.6;}
+@media(max-width:480px){.deep-disclaimer{margin:6px 12px 12px;}}
 .deep-disclaimer strong{color:var(--yellow);}
-/* Paper Trade Button */
-.btn-paper-trade{display:inline-flex;align-items:center;gap:8px;padding:11px 24px;background:linear-gradient(135deg,rgba(255,195,51,.18),rgba(255,195,51,.07));border:1px solid rgba(255,195,51,.45);color:var(--yellow);border-radius:10px;font-family:var(--font-b);font-size:.9rem;font-weight:700;cursor:pointer;transition:all .25s;}
+/* Paper Trade button */
+.btn-paper-trade{display:inline-flex;align-items:center;gap:8px;padding:11px 24px;background:linear-gradient(135deg,rgba(255,195,51,.18),rgba(255,195,51,.07));border:1px solid rgba(255,195,51,.45);color:var(--yellow);border-radius:10px;font-family:var(--font-b);font-size:.9rem;font-weight:700;cursor:pointer;transition:all .25s;min-height:44px;}
 .btn-paper-trade:hover{background:linear-gradient(135deg,rgba(255,195,51,.28),rgba(255,195,51,.14));border-color:var(--yellow);box-shadow:0 0 18px rgba(255,195,51,.25);}
-/* Modal */
+/* Paper Trade Modal */
 .pt-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9000;align-items:center;justify-content:center;padding:16px;}
 .pt-overlay.open{display:flex;}
-.pt-modal{background:var(--card);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:440px;overflow:hidden;animation:ptIn .2s ease;}
+.pt-modal{background:var(--card);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:440px;overflow:hidden;animation:ptIn .2s ease;max-height:90vh;overflow-y:auto;}
 @keyframes ptIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-.pt-mhead{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.pt-mhead{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card);z-index:1;}
 .pt-mtitle{font-family:var(--font-h);font-size:1.1rem;font-weight:700;letter-spacing:.04em;}
-.pt-mclose{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:2px 7px;border-radius:5px;transition:color .2s;}
+.pt-mclose{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:4px 8px;border-radius:5px;transition:color .2s;min-width:36px;min-height:36px;}
 .pt-mclose:hover{color:var(--text);}
-.pt-mbody{padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
+.pt-mbody{padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
 .pt-summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
 .pt-sbox{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 11px;text-align:center;}
 .pt-slbl{font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;}
 .pt-sval{font-family:var(--font-n);font-size:.84rem;font-weight:600;}
 .pt-frow{display:flex;flex-direction:column;gap:5px;}
 .pt-frow label{font-family:var(--font-n);font-size:.64rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
-.pt-inp{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:9px 13px;font-family:var(--font-n);font-size:.88rem;outline:none;transition:border .2s;width:100%;}
+.pt-inp{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 13px;font-family:var(--font-n);font-size:.88rem;outline:none;transition:border .2s;width:100%;min-height:44px;}
 .pt-inp:focus{border-color:var(--cyan);}
 .pt-levs{display:flex;gap:7px;flex-wrap:wrap;}
-.pt-lbtn{padding:6px 13px;background:var(--surface);border:1px solid var(--border2);color:var(--muted);border-radius:6px;font-family:var(--font-n);font-size:.76rem;cursor:pointer;transition:all .2s;}
+.pt-lbtn{padding:8px 13px;background:var(--surface);border:1px solid var(--border2);color:var(--muted);border-radius:6px;font-family:var(--font-n);font-size:.76rem;cursor:pointer;transition:all .2s;min-height:40px;}
 .pt-lbtn.sel,.pt-lbtn:hover{background:rgba(0,212,255,.1);border-color:var(--cyan);color:var(--cyan);}
 .pt-calc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
 .pt-citem{text-align:center;}
 .pt-clbl{font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
 .pt-cval{font-family:var(--font-n);font-size:.82rem;font-weight:600;color:var(--cyan);}
 .pt-mfoot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;}
-.btn-ptok{flex:1;padding:11px;background:linear-gradient(135deg,rgba(0,255,136,.18),rgba(0,255,136,.08));border:1px solid rgba(0,255,136,.4);color:var(--green);border-radius:9px;font-family:var(--font-b);font-size:.9rem;font-weight:700;cursor:pointer;transition:all .25s;}
+.btn-ptok{flex:1;padding:11px;background:linear-gradient(135deg,rgba(0,255,136,.18),rgba(0,255,136,.08));border:1px solid rgba(0,255,136,.4);color:var(--green);border-radius:9px;font-family:var(--font-b);font-size:.9rem;font-weight:700;cursor:pointer;transition:all .25s;min-height:44px;}
 .btn-ptok:hover{background:linear-gradient(135deg,rgba(0,255,136,.28),rgba(0,255,136,.14));box-shadow:0 0 14px rgba(0,255,136,.2);}
-.btn-ptcancel{padding:11px 18px;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:9px;font-family:var(--font-b);font-size:.88rem;cursor:pointer;transition:all .2s;}
+.btn-ptcancel{padding:11px 18px;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:9px;font-family:var(--font-b);font-size:.88rem;cursor:pointer;transition:all .2s;min-height:44px;}
 .btn-ptcancel:hover{border-color:var(--dim);color:var(--text);}
 </style>
 </head>
@@ -240,12 +253,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
     <div class="welcome-bar">
       <div>
         <h1>🔬 Market Analysis</h1>
-        <p style="color:var(--muted);font-size:.86rem;margin-top:3px">Scan Binance Futures by volume · Deep scan with RSI &amp; Volume</p>
+        <p style="color:var(--muted);font-size:.84rem;margin-top:2px">Scan Binance Futures · Deep RSI, EMA &amp; Volume analysis</p>
       </div>
       <div class="welcome-time" id="clockDisplay">—</div>
     </div>
 
-    <div class="panel" style="margin-bottom:22px">
+    <div class="panel" style="margin-bottom:20px">
       <div class="panel-head">
         <div class="panel-title">📡 Market Scanner <span class="panel-tag pt-live">BINANCE FUTURES</span></div>
         <span class="scan-meta" id="scanMeta">Not scanned yet</span>
@@ -256,7 +269,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
             <span id="btnScanIcon">📡</span> Scan Market
           </button>
           <div class="manual-input-wrap">
-            <input class="manual-input" id="manualCoin" type="text" placeholder="e.g. BTCUSDT" maxlength="12">
+            <input class="manual-input" id="manualCoin" type="text" placeholder="e.g. BTC" maxlength="12"
+              onkeydown="if(event.key==='Enter') runManualDeepScan()">
             <button class="btn-deep" id="btnManualDeep" onclick="runManualDeepScan()">🔬 Deep Scan</button>
           </div>
         </div>
@@ -343,20 +357,130 @@ onAuthStateChanged(auth, (user) => {
 window.handleSignOut = async function() { await signOut(auth); window.location.href = 'index.html'; };
 </script>
 
-<script src="analysis/indicator.js"></script>
-
 <script>
-/* ── Constants (fixes BINANCE_FAPI is not defined bug) ── */
+/* ════════════════════════════════════════════════
+   INDICATOR FUNCTIONS  (inlined — no external file)
+   Fixes: "calcRSI is not defined" crash because
+   analysis/indicator.js lived outside /public/
+   and could never be served by the web server.
+   ════════════════════════════════════════════════ */
 const BINANCE_FAPI = 'https://fapi.binance.com';
 const SCAN_LIMIT   = 50;
 const KLINE_TF     = '1h';
 const KLINE_LIMIT  = 100;
 const RSI_PERIOD   = 14;
 
-/* ── Paper Trade state ── */
-let ptData = {};
-let ptLev  = 5;
+function calcRSI(closes, period) {
+  if (closes.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  let avgGain = gains / period, avgLoss = losses / period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return 100 - (100 / (1 + avgGain / avgLoss));
+}
 
+function calcEMA(closes, period) {
+  if (closes.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
+  return ema;
+}
+
+function analyzeVolume(klines) {
+  const vols  = klines.map(k => parseFloat(k[5]));
+  const avg20 = vols.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+  const last3 = vols.slice(-4,  -1).reduce((a, b) => a + b, 0) / 3;
+  const ratio = avg20 > 0 ? last3 / avg20 : 1;
+  return {
+    avg20, last3, ratio,
+    surge: ratio >= 1.5,
+    label: ratio >= 2.0 ? 'Very High' : ratio >= 1.5 ? 'High' : ratio >= 1.0 ? 'Normal' : 'Low'
+  };
+}
+
+function decideEntry(rsi, volInfo, closes, highs, lows, currentPrice) {
+  let direction = 'NEUTRAL';
+  if      (rsi <= 45) direction = 'LONG';
+  else if (rsi >= 55) direction = 'SHORT';
+  let entryType = 'LIMIT';
+  if ((direction === 'LONG'  && rsi <= 35 && volInfo.surge) ||
+      (direction === 'SHORT' && rsi >= 65 && volInfo.surge)) entryType = 'MARKET';
+  const recent10H  = Math.max(...highs.slice(-10));
+  const recent10L  = Math.min(...lows.slice(-10));
+  const recent5H   = Math.max(...highs.slice(-5));
+  const recent5L   = Math.min(...lows.slice(-5));
+  const swingRange = recent10H - recent10L;
+  let entryPrice, slPrice, tp1Price, tp2Price;
+  if (direction === 'LONG') {
+    entryPrice = entryType === 'MARKET' ? currentPrice : recent5L;
+    slPrice    = recent10L - swingRange * 0.05;
+    const risk = entryPrice - slPrice;
+    tp1Price   = entryPrice + risk * 1.5;
+    tp2Price   = entryPrice + risk * 2.5;
+  } else if (direction === 'SHORT') {
+    entryPrice = entryType === 'MARKET' ? currentPrice : recent5H;
+    slPrice    = recent10H + swingRange * 0.05;
+    const risk = slPrice - entryPrice;
+    tp1Price   = entryPrice - risk * 1.5;
+    tp2Price   = entryPrice - risk * 2.5;
+  } else {
+    entryPrice = slPrice = tp1Price = tp2Price = currentPrice;
+  }
+  return { direction, entryType, entryPrice, slPrice, tp1Price, tp2Price };
+}
+
+function buildReasons(rsi, volInfo, direction, entryType, ema20, ema50) {
+  const reasons = [];
+  const r = rsi.toFixed(1);
+  const emaTrend = (ema20 && ema50) ? (ema20 > ema50 ? 'bullish' : 'bearish') : null;
+  if (direction === 'LONG') {
+    if (rsi <= 30)
+      reasons.push({ icon: '🟢', text: `RSI at <strong>${r}</strong> — deeply oversold. Strong mean-reversion long signal.` });
+    else
+      reasons.push({ icon: '🟢', text: `RSI at <strong>${r}</strong> — below 45, bearish weakness that often precedes a long reversal.` });
+    if (emaTrend === 'bullish')
+      reasons.push({ icon: '📈', text: `EMA20 is <strong>above EMA50</strong> — 1H uptrend confirmed. Trade aligns with trend.` });
+    else if (emaTrend === 'bearish')
+      reasons.push({ icon: '⚠️', text: `EMA20 is <strong>below EMA50</strong> — counter-trend long. Use smaller size.` });
+    if (volInfo.surge)
+      reasons.push({ icon: '📈', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Buying interest confirmed.` });
+    else
+      reasons.push({ icon: '📊', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Limit entry preferred for better fill.` });
+    reasons.push(entryType === 'MARKET'
+      ? { icon: '⚡', text: `<strong>Market entry</strong> — RSI oversold extreme with volume surge. Enter immediately.` }
+      : { icon: '⏳', text: `<strong>Limit entry</strong> — wait for price to retrace to the recent 5-candle low.` });
+  } else if (direction === 'SHORT') {
+    if (rsi >= 70)
+      reasons.push({ icon: '🔴', text: `RSI at <strong>${r}</strong> — deeply overbought. Strong mean-reversion short signal.` });
+    else
+      reasons.push({ icon: '🔴', text: `RSI at <strong>${r}</strong> — above 55, bullish exhaustion that often precedes a short.` });
+    if (emaTrend === 'bearish')
+      reasons.push({ icon: '📉', text: `EMA20 is <strong>below EMA50</strong> — 1H downtrend confirmed. Trade aligns with trend.` });
+    else if (emaTrend === 'bullish')
+      reasons.push({ icon: '⚠️', text: `EMA20 is <strong>above EMA50</strong> — counter-trend short. Use smaller size.` });
+    if (volInfo.surge)
+      reasons.push({ icon: '📉', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Selling pressure confirmed.` });
+    else
+      reasons.push({ icon: '📊', text: `Volume is <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Limit entry at recent high zone.` });
+    reasons.push(entryType === 'MARKET'
+      ? { icon: '⚡', text: `<strong>Market entry</strong> — RSI overbought with volume surge. Enter short immediately.` }
+      : { icon: '⏳', text: `<strong>Limit entry</strong> — wait for a bounce to the recent 5-candle high.` });
+  }
+  reasons.push({ icon: '🎯', text: `TP1 = 1.5× risk, TP2 = 2.5× risk. Stop beyond the 10-candle swing extreme + 5% buffer.` });
+  return reasons;
+}
+/* ════════════════════════════════════════════════ */
+
+/* ── Helpers ── */
 function fmtPrice(p) {
   const n = parseFloat(p);
   if (n >= 1000) return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -371,6 +495,10 @@ function fmtVol(v) {
   return '$' + (n/1e3).toFixed(0) + 'K';
 }
 
+/* ── Paper Trade state ── */
+let ptData = {}, ptLev = 5;
+
+/* ── Clock ── */
 function updateClock() {
   const now = new Date(), pad = n => String(n).padStart(2,'0');
   const el = document.getElementById('clockDisplay');
@@ -378,9 +506,11 @@ function updateClock() {
 }
 setInterval(updateClock, 1000); updateClock();
 
+/* ── Sidebar ── */
 function openMobSidebar()  { document.getElementById('dashSidebar').classList.add('open');    document.getElementById('mobOverlay').classList.add('show'); }
 function closeMobSidebar() { document.getElementById('dashSidebar').classList.remove('open'); document.getElementById('mobOverlay').classList.remove('show'); }
 
+/* ── Market Scan ── */
 async function runMarketScan() {
   const btn = document.getElementById('btnScan'), body = document.getElementById('scanTableBody'), meta = document.getElementById('scanMeta');
   btn.disabled = true; btn.classList.add('scanning');
@@ -389,11 +519,13 @@ async function runMarketScan() {
   meta.textContent = 'Scanning…';
   try {
     const res  = await fetch(`${BINANCE_FAPI}/fapi/v1/ticker/24hr`);
+    if (!res.ok) throw new Error('Binance API error: ' + res.status);
     const data = await res.json();
-    const coins = data.filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 0)
-                      .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-                      .slice(0, SCAN_LIMIT);
-    meta.innerHTML = `Showing top <span class="coin-count">${coins.length}</span> by 24h volume · ${new Date().toLocaleTimeString()}`;
+    const coins = data
+      .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 0)
+      .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, SCAN_LIMIT);
+    meta.innerHTML = `Top <span class="coin-count">${coins.length}</span> by 24h volume · ${new Date().toLocaleTimeString()}`;
     body.innerHTML = '';
     coins.forEach((coin, i) => {
       const chg = parseFloat(coin.priceChangePercent);
@@ -415,6 +547,7 @@ async function runMarketScan() {
   document.getElementById('btnScanIcon').textContent = '📡';
 }
 
+/* ── Manual Deep Scan ── */
 async function runManualDeepScan() {
   let sym = document.getElementById('manualCoin').value.trim().toUpperCase();
   if (!sym) return;
@@ -422,15 +555,16 @@ async function runManualDeepScan() {
   await runDeepScan(sym);
 }
 
+/* ── Deep Scan ── */
 async function runDeepScan(symbol) {
   const container = document.getElementById('deepResult');
   container.style.display = 'block';
-  container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">🔬</div><div class="empty-text">Deep scanning ${symbol}…</div><div class="empty-sub">Fetching ${KLINE_TF} candles · RSI(${RSI_PERIOD}) · Volume…</div></div></div></div>`;
+  container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">🔬</div><div class="empty-text">Deep scanning ${symbol}…</div><div class="empty-sub">Fetching ${KLINE_TF} candles · RSI(${RSI_PERIOD}) · EMA · Volume…</div></div></div></div>`;
   container.scrollIntoView({ behavior:'smooth', block:'start' });
   document.querySelectorAll('.btn-row-deep, #btnManualDeep').forEach(b => b.disabled = true);
   try {
     const klRes = await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${KLINE_TF}&limit=${KLINE_LIMIT}`);
-    if (!klRes.ok) throw new Error(`Symbol ${symbol} not found`);
+    if (!klRes.ok) throw new Error(`Symbol "${symbol}" not found on Binance Futures`);
     const klines = await klRes.json();
     if (!klines || klines.length < RSI_PERIOD + 2) throw new Error('Not enough candle data');
     const tkData = await (await fetch(`${BINANCE_FAPI}/fapi/v1/ticker/price?symbol=${symbol}`)).json();
@@ -438,17 +572,20 @@ async function runDeepScan(symbol) {
     const closes = klines.map(k => parseFloat(k[4]));
     const highs  = klines.map(k => parseFloat(k[2]));
     const lows   = klines.map(k => parseFloat(k[3]));
-    const rsi     = calcRSI(closes, RSI_PERIOD);
+    const rsi    = calcRSI(closes, RSI_PERIOD);
+    const ema20  = calcEMA(closes, 20);
+    const ema50  = calcEMA(closes, 50);
     const volInfo = analyzeVolume(klines);
     const entry   = decideEntry(rsi, volInfo, closes, highs, lows, currentPrice);
-    renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice);
+    renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice, ema20, ema50);
   } catch(err) {
     container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text" style="color:var(--red)">Scan failed</div><div class="empty-sub">${err.message}</div></div></div></div>`;
   }
   document.querySelectorAll('.btn-row-deep, #btnManualDeep').forEach(b => b.disabled = false);
 }
 
-function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice) {
+/* ── Render Deep Result ── */
+function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice, ema20, ema50) {
   const { direction, entryType, entryPrice, slPrice, tp1Price, tp2Price } = entry;
   const pair     = symbol.replace('USDT', '/USDT');
   const cardCls  = direction==='LONG'?'long-card':direction==='SHORT'?'short-card':'neutral-card';
@@ -456,13 +593,15 @@ function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice) 
   const dirCls   = direction==='LONG'?'long':direction==='SHORT'?'short':'neutral';
   const dirLabel = direction==='LONG'?'▲ LONG':direction==='SHORT'?'▼ SHORT':'— NEUTRAL';
   const entBadge = entryType==='MARKET'?'market':'limit';
-  const rsiColor = rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.7)':rsi>=55?'rgba(255,61,90,.7)':'var(--yellow)';
+  const rsiColor = rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
   const rsiLabel = rsi<=30?'Oversold':rsi>=70?'Overbought':rsi<=45?'Bearish territory':rsi>=55?'Bullish territory':'Neutral zone';
   const volColor = volInfo.surge?'var(--green)':volInfo.ratio>=1?'var(--cyan)':'var(--muted)';
-  const reasons  = buildReasons(rsi, volInfo, direction, entryType);
+  const emaColor = (ema20 && ema50) ? (ema20>ema50?'var(--green)':'var(--red)') : 'var(--muted)';
+  const emaLabel = (ema20 && ema50) ? (ema20>ema50?'▲ Bullish':'▼ Bearish') : '—';
+  const reasons  = buildReasons(rsi, volInfo, direction, entryType, ema20, ema50);
 
   const paperBtn = direction !== 'NEUTRAL'
-    ? `<div style="padding:0 18px 18px;display:flex;justify-content:flex-end">
+    ? `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end">
         <button class="btn-paper-trade" onclick="openPTModal('${symbol}','${direction}',${entryPrice},${tp1Price},${tp2Price},${slPrice})">📝 Paper Trade</button>
        </div>`
     : '';
@@ -477,7 +616,7 @@ function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice) 
         </div>
         <div class="deep-entry-type">
           <span class="entry-badge ${entBadge}">${entryType} ENTRY</span>
-          <span style="font-family:var(--font-n);font-size:.71rem;color:var(--muted)">1H · RSI(${RSI_PERIOD})</span>
+          <span style="font-family:var(--font-n);font-size:.7rem;color:var(--muted)">1H · RSI(${RSI_PERIOD}) · EMA</span>
         </div>
       </div>
       ${direction==='NEUTRAL' ? `
@@ -485,14 +624,14 @@ function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice) 
         <div class="empty-state" style="padding:26px 0">
           <div class="empty-icon">🟡</div>
           <div class="empty-text">No clear entry signal</div>
-          <div class="empty-sub">RSI is in neutral zone (${rsi.toFixed(1)}). Wait for RSI below 45 or above 55 with volume surge.</div>
+          <div class="empty-sub">RSI is in neutral zone (${rsi.toFixed(1)}). Wait for RSI below 45 or above 55 with volume confirmation.</div>
         </div>
       </div>` : `
       <div class="deep-levels">
         <div class="level-box"><div class="level-lbl">Entry</div><div class="level-val entry-val">${fmtPrice(entryPrice)}</div><div class="level-sub">${entryType==='MARKET'?'Current price':'Limit zone'}</div></div>
         <div class="level-box"><div class="level-lbl">TP 1</div><div class="level-val tp1-val">${fmtPrice(tp1Price)}</div><div class="level-sub">Risk × 1.5</div></div>
         <div class="level-box"><div class="level-lbl">TP 2</div><div class="level-val tp2-val">${fmtPrice(tp2Price)}</div><div class="level-sub">Risk × 2.5</div></div>
-        <div class="level-box"><div class="level-lbl">Stop Loss</div><div class="level-val sl-val">${fmtPrice(slPrice)}</div><div class="level-sub">10-candle swing</div></div>
+        <div class="level-box"><div class="level-lbl">Stop Loss</div><div class="level-val sl-val">${fmtPrice(slPrice)}</div><div class="level-sub">Swing extreme</div></div>
         <div class="level-box"><div class="level-lbl">Current</div><div class="level-val" style="color:var(--text)">${fmtPrice(currentPrice)}</div><div class="level-sub">Live price</div></div>
       </div>
       <div class="deep-indicators">
@@ -501,28 +640,35 @@ function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice) 
           <div class="ind-val" style="color:${rsiColor}">${rsi.toFixed(1)}</div>
           <div class="ind-bar-track"><div class="ind-bar-fill" style="width:${rsi.toFixed(0)}%;background:${rsiColor}"></div></div>
           <div class="rsi-zone-labels"><span>0</span><span>30</span><span>50</span><span>70</span><span>100</span></div>
-          <div style="font-size:.71rem;color:${rsiColor};margin-top:4px">${rsiLabel}</div>
+          <div style="font-size:.7rem;color:${rsiColor};margin-top:3px">${rsiLabel}</div>
         </div>
         <div class="ind-box">
           <div class="ind-lbl">Volume (3-bar avg)</div>
           <div class="ind-val" style="color:${volColor}">${volInfo.label}</div>
           <div class="ind-bar-track"><div class="ind-bar-fill" style="width:${Math.min(volInfo.ratio*50,100)}%;background:${volColor}"></div></div>
-          <div style="font-size:.71rem;color:${volColor};margin-top:4px">${volInfo.ratio.toFixed(2)}× avg20</div>
+          <div style="font-size:.7rem;color:${volColor};margin-top:3px">${volInfo.ratio.toFixed(2)}× avg20</div>
+        </div>
+        <div class="ind-box">
+          <div class="ind-lbl">EMA Trend · 1H</div>
+          <div class="ind-val" style="color:${emaColor}">${emaLabel}</div>
+          ${ema20&&ema50 ? `
+          <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);margin-top:4px">EMA20: ${fmtPrice(ema20)}</div>
+          <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">EMA50: ${fmtPrice(ema50)}</div>` : ''}
         </div>
       </div>
       <div class="deep-reasoning">
-        <div class="reasoning-title">🧠 Analysis</div>
+        <div class="reasoning-title">🧠 Signal Analysis</div>
         <div class="reasoning-list">
           ${reasons.map(r=>`<div class="reason-item"><span class="reason-icon">${r.icon}</span><span class="reason-txt">${r.text}</span></div>`).join('')}
         </div>
       </div>`}
-      <div class="deep-disclaimer"><strong>⚠ Note:</strong> Based on RSI(14) and volume on 1H candles only. Always do your own research. Never risk more than you can afford to lose.</div>
+      <div class="deep-disclaimer"><strong>⚠ Risk Warning:</strong> Analysis uses RSI(14), EMA20/50, and 1H volume only. This is <strong>not financial advice</strong>. Always do your own research. Never risk more than you can afford to lose.</div>
       ${paperBtn}
     </div>
   </div>`;
 }
 
-/* ── Paper Trade Modal Logic ── */
+/* ── Paper Trade Modal ── */
 function openPTModal(symbol, direction, entryPrice, tp1, tp2, sl) {
   ptData = { symbol, direction, entryPrice, tp1, tp2, sl };
   ptLev  = 5;
@@ -574,25 +720,13 @@ function confirmPaperTrade() {
     ? entry * (1 - 1 / ptLev)
     : entry * (1 + 1 / ptLev);
   const trade = {
-    id:         Date.now(),
-    symbol:     ptData.symbol,
-    pair:       ptData.symbol.replace('USDT', '/USDT'),
-    direction:  ptData.direction,
-    entryPrice: entry,
-    tp1:        ptData.tp1,
-    tp2:        ptData.tp2,
-    sl:         ptData.sl,
-    amount,
-    leverage:   ptLev,
-    size,
-    notional,
-    liqPrice,
-    status:     'OPEN',
-    openTime:   new Date().toISOString(),
-    closeTime:  null,
-    closePrice: null,
-    pnl:        null,
-    roe:        null,
+    id: Date.now(), symbol: ptData.symbol,
+    pair: ptData.symbol.replace('USDT', '/USDT'),
+    direction: ptData.direction, entryPrice: entry,
+    tp1: ptData.tp1, tp2: ptData.tp2, sl: ptData.sl,
+    amount, leverage: ptLev, size, notional, liqPrice,
+    status: 'OPEN', openTime: new Date().toISOString(),
+    closeTime: null, closePrice: null, pnl: null, roe: null,
   };
   const trades = JSON.parse(localStorage.getItem('pt_trades') || '[]');
   trades.unshift(trade);
