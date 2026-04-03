@@ -188,6 +188,23 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
   .summary-bar  { gap:8px; }
   .sum-card     { min-width:calc(50% - 4px); }
 }
+
+/* ── Announcement Banner ── */
+#annBanner{display:none;padding:10px 20px;font-size:.82rem;line-height:1.5;position:relative;border-bottom:1px solid;}
+#annBanner.info   {background:rgba(0,212,255,.07);border-color:rgba(0,212,255,.2);color:var(--cyan);}
+#annBanner.success{background:rgba(0,255,136,.07);border-color:rgba(0,255,136,.2);color:var(--green);}
+#annBanner.warning{background:rgba(255,195,51,.07);border-color:rgba(255,195,51,.2);color:var(--yellow);}
+#annBanner.danger {background:rgba(255,61,90,.07); border-color:rgba(255,61,90,.2); color:var(--red);}
+#annBanner .ann-close{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:inherit;font-size:1.1rem;cursor:pointer;opacity:.7;}
+#annBanner .ann-close:hover{opacity:1;}
+/* ── Toast ── */
+#toastContainer{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px 16px;min-width:240px;max-width:300px;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:toastIn .3s ease;pointer-events:all;cursor:pointer;}
+.toast.new-signal{border-color:rgba(0,255,136,.3);}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(20px)}}
+.toast-title{font-family:var(--font-h);font-size:.95rem;font-weight:700;margin-bottom:2px;}
+.toast-body{font-size:.78rem;color:var(--muted);}
 </style>
 </head>
 <body>
@@ -240,6 +257,14 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
   </div>
 </div>
 
+
+<!-- Announcement Banner -->
+<div id="annBanner">
+  <span id="annTitle" style="font-weight:700;margin-right:6px"></span>
+  <span id="annMsg"></span>
+  <button class="ann-close" onclick="document.getElementById('annBanner').style.display='none'">✕</button>
+</div>
+
 <!-- Topbar -->
 <header class="topbar">
   <div class="topbar-left">
@@ -277,7 +302,7 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
   <div class="sum-card"><div class="sum-val" id="cnt-active" style="color:var(--green)">4</div><div class="sum-lbl">Active</div></div>
   <div class="sum-card"><div class="sum-val" id="cnt-waiting" style="color:var(--yellow)">1</div><div class="sum-lbl">Waiting</div></div>
   <div class="sum-card"><div class="sum-val" id="cnt-closed" style="color:var(--muted)">1</div><div class="sum-lbl">Closed</div></div>
-  <div class="sum-card"><div class="sum-val" style="color:var(--text)">78%</div><div class="sum-lbl">Win Rate</div></div>
+  <div class="sum-card"><div class="sum-val" id="cnt-winrate" style="color:var(--text)">—</div><div class="sum-lbl">Win Rate</div></div>
 </div>
 
 <!-- Filters -->
@@ -348,7 +373,7 @@ function sortSignals(signals) {
     if (by === 'grade') return (GRADE_ORDER[a.grade]??9) - (GRADE_ORDER[b.grade]??9);
     if (by === 'conf')  return b.confidence - a.confidence;
     if (by === 'rrr')   return parseFloat(b.rrr) - parseFloat(a.rrr);
-    if (by === 'newest') return new Date(b.posted) - new Date(a.posted);
+    if (by === 'newest') return new Date(b.postedAt||b.posted) - new Date(a.postedAt||a.posted);
     return 0;
   });
 }
@@ -431,6 +456,9 @@ function renderSignals() {
   document.getElementById('cnt-active').textContent  = allSignals.filter(s=>s.status==='ACTIVE').length;
   document.getElementById('cnt-waiting').textContent = allSignals.filter(s=>s.status==='WAITING').length;
   document.getElementById('cnt-closed').textContent  = allSignals.filter(s=>s.status==='CLOSED').length;
+  const wins=allSignals.filter(s=>s.result==='WIN').length, losses=allSignals.filter(s=>s.result==='LOSS').length;
+  const wrEl=document.getElementById('cnt-winrate');
+  if(wrEl){wrEl.textContent=(wins+losses)>0?Math.round(wins/(wins+losses)*100)+'%':'—';}
 }
 
 /* ── Filter buttons ── */
@@ -441,6 +469,31 @@ function setFilter(f, btn) {
   if (f === 'LONG')  btn.classList.add('long');
   if (f === 'SHORT') btn.classList.add('short');
   renderSignals();
+}
+
+
+/* ── Toast ── */
+function showToast(type, title, body) {
+  const tc=document.getElementById('toastContainer');
+  const t=document.createElement('div');
+  t.className='toast '+type;
+  t.innerHTML=`<div class="toast-title">${title}</div><div class="toast-body">${body}</div>`;
+  tc.appendChild(t);
+  setTimeout(()=>{t.style.animation='toastOut .3s ease forwards';setTimeout(()=>t.remove(),300);},5000);
+}
+
+/* ── Announcement banner ── */
+async function loadAnnouncement() {
+  try {
+    const res=await fetch('/api/announcement');
+    const json=await res.json();
+    if(!json.success||!json.data)return;
+    const a=json.data;
+    document.getElementById('annBanner').className=a.type;
+    document.getElementById('annBanner').style.display='block';
+    document.getElementById('annTitle').textContent=a.title;
+    document.getElementById('annMsg').textContent=a.message;
+  } catch(_){}
 }
 
 /* ── Load signals from API ── */
@@ -464,8 +517,24 @@ function connectWS() {
   ws = new WebSocket(`${wsProto}//${location.host}`);
   ws.onopen = () => { wsRetry = 1000; };
   ws.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.type === 'market_update') updateTicker(data.ticker);
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'market_update') updateTicker(data.ticker);
+      /* Real-time signal update */
+      if (data.type === 'signal_update') {
+        loadSignals();
+        showToast('new-signal', '📡 New Signal!', 'A new trading signal was just published.');
+      }
+      /* Real-time announcement */
+      if (data.type === 'announcement' && data.data) {
+        const a = data.data;
+        document.getElementById('annBanner').className = a.type;
+        document.getElementById('annBanner').style.display = 'block';
+        document.getElementById('annTitle').textContent = a.title;
+        document.getElementById('annMsg').textContent   = a.message;
+        showToast('announcement', '📢 '+a.title, a.message);
+      }
+    } catch(_) {}
   };
   ws.onclose = () => setTimeout(connectWS, wsRetry = Math.min(wsRetry * 1.5, 15000));
 }
@@ -491,10 +560,13 @@ function updateTicker(coins) {
 }
 
 /* ── Init ── */
+loadAnnouncement();
 loadSignals();
 connectWS();
 // Refresh signals every 60s
 setInterval(loadSignals, 60000);
 </script>
+
+<div id="toastContainer"></div>
 </body>
 </html>
