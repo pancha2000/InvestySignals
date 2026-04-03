@@ -1,0 +1,25 @@
+# InvestySignals — Environment Variables
+# Copy this to .env and fill in your values
+# NEVER commit .env to git
+
+# ── Server ──────────────────────────────────
+PORT=2000
+HOST=0.0.0.0
+
+# ── MongoDB (VPS local install) ──────────────
+MONGO_URI=mongodb://127.0.0.1:27017/investysignals
+
+# ── Admin Auth ───────────────────────────────
+# Generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+ADMIN_JWT_SECRET=27ca73c9d4154c856ff1193b8ed5e4ac225b235ff0e76a06db8f10d5e0d51ef4f8d37bc10c1ef9a548da592d6b937766d2a6072f6649ed3aeb2e729613d07be8
+
+# Admin credentials (change these!)
+ADMIN_USERNAME=shehan
+ADMIN_PASSWORD=2006.Shehan
+
+# ── Firebase Admin SDK ───────────────────────
+# Download service account JSON from Firebase Console →
+# Project Settings → Service Accounts → Generate new private key
+# Then paste values here OR set FIREBASE_SERVICE_ACCOUNT_PATH
+FIREBASE_PROJECT_ID=crypto-98b33
+FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
