@@ -349,14 +349,130 @@ onAuthStateChanged(auth, (user) => {
 window.handleSignOut = async function() { await signOut(auth); window.location.href = 'index.html'; };
 </script>
 
-<!-- Indicators (all calc functions live here) -->
-<script src="analysis/indicator.js"></script>
-
 <script>
 /* ════════════════════════════════════════════
+   INDICATOR FUNCTIONS  (inlined)
+   ★ When adding new indicators, also update
+     public/analysis/indicator.js to keep them
+     in sync for reference.
+   ════════════════════════════════════════════ */
+
+const BINANCE_FAPI = 'https://fapi.binance.com';
+const SCAN_LIMIT   = 50;
+const RSI_PERIOD   = 14;
+const KLINE_LIMIT  = 100;
+const KLINE_TF     = '1h';
+
+function fmtPrice(p) {
+  const n = parseFloat(p);
+  if (n >= 1000) return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (n >= 1)    return '$' + n.toFixed(4);
+  if (n >= 0.01) return '$' + n.toFixed(5);
+  return '$' + n.toFixed(6);
+}
+function fmtVol(v) {
+  const n = parseFloat(v);
+  if (n >= 1e9) return '$' + (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  return '$' + (n/1e3).toFixed(0) + 'K';
+}
+
+/* EMA — added first per convention */
+function calcEMA(closes, period) {
+  if (!closes || closes.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((a,b) => a+b, 0) / period;
+  for (let i = period; i < closes.length; i++) ema = closes[i]*k + ema*(1-k);
+  return ema;
+}
+
+/* RSI — Wilder smoothing */
+function calcRSI(closes, period) {
+  if (!closes || closes.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i-1];
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  let avgGain = gains/period, avgLoss = losses/period;
+  for (let i = period+1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    avgGain = (avgGain*(period-1) + (diff>0?diff:0)) / period;
+    avgLoss = (avgLoss*(period-1) + (diff<0?-diff:0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return 100 - (100 / (1 + avgGain/avgLoss));
+}
+
+function analyzeVolume(klines) {
+  const vols  = klines.map(k => parseFloat(k[5]));
+  const avg20 = vols.slice(-21,-1).reduce((a,b)=>a+b,0) / 20;
+  const last3 = vols.slice(-4,-1).reduce((a,b)=>a+b,0) / 3;
+  const ratio = avg20 > 0 ? last3/avg20 : 1;
+  return { avg20, last3, ratio, surge: ratio>=1.5,
+    label: ratio>=2?'Very High':ratio>=1.5?'High':ratio>=1?'Normal':'Low' };
+}
+
+function decideEntry(rsi, volInfo, closes, highs, lows, currentPrice) {
+  let direction = 'NEUTRAL';
+  if      (rsi <= 45) direction = 'LONG';
+  else if (rsi >= 55) direction = 'SHORT';
+  let entryType = 'LIMIT';
+  if ((direction==='LONG'&&rsi<=35&&volInfo.surge)||(direction==='SHORT'&&rsi>=65&&volInfo.surge))
+    entryType = 'MARKET';
+  const recent10H=Math.max(...highs.slice(-10)), recent10L=Math.min(...lows.slice(-10));
+  const recent5H =Math.max(...highs.slice(-5)),  recent5L =Math.min(...lows.slice(-5));
+  const swingRange = recent10H - recent10L;
+  let entryPrice, slPrice, tp1Price, tp2Price;
+  if (direction==='LONG') {
+    entryPrice = entryType==='MARKET' ? currentPrice : recent5L;
+    slPrice    = recent10L - swingRange*0.05;
+    const risk = entryPrice - slPrice;
+    tp1Price = entryPrice + risk*1.5; tp2Price = entryPrice + risk*2.5;
+  } else if (direction==='SHORT') {
+    entryPrice = entryType==='MARKET' ? currentPrice : recent5H;
+    slPrice    = recent10H + swingRange*0.05;
+    const risk = slPrice - entryPrice;
+    tp1Price = entryPrice - risk*1.5; tp2Price = entryPrice - risk*2.5;
+  } else { entryPrice=slPrice=tp1Price=tp2Price=currentPrice; }
+  return { direction, entryType, entryPrice, slPrice, tp1Price, tp2Price };
+}
+
+function buildReasons(rsi, volInfo, direction, entryType, ema20, ema50) {
+  const reasons  = [];
+  const r        = rsi.toFixed(1);
+  const emaTrend = (ema20&&ema50) ? (ema20>ema50?'bullish':'bearish') : null;
+  if (direction==='LONG') {
+    reasons.push(rsi<=30
+      ? {icon:'🟢',text:`RSI at <strong>${r}</strong> — deeply oversold. Strong long signal.`}
+      : {icon:'🟢',text:`RSI at <strong>${r}</strong> — below 45, bearish weakness that often precedes a long reversal.`});
+    if (emaTrend==='bullish') reasons.push({icon:'📈',text:`EMA20 (${fmtPrice(ema20)}) <strong>above EMA50</strong> (${fmtPrice(ema50)}) — 1H uptrend confirmed.`});
+    else if (emaTrend==='bearish') reasons.push({icon:'⚠️',text:`EMA20 <strong>below EMA50</strong> — counter-trend long. Use smaller size.`});
+    reasons.push(volInfo.surge
+      ? {icon:'📈',text:`Volume <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Buying interest confirmed.`}
+      : {icon:'📊',text:`Volume <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Moderate — limit entry preferred.`});
+    reasons.push(entryType==='MARKET'
+      ? {icon:'⚡',text:`<strong>Market entry</strong> — RSI oversold extreme with volume surge. Enter now.`}
+      : {icon:'⏳',text:`<strong>Limit entry</strong> — order waits at the recent 5-candle low. Fills only when price pulls back there.`});
+  } else if (direction==='SHORT') {
+    reasons.push(rsi>=70
+      ? {icon:'🔴',text:`RSI at <strong>${r}</strong> — deeply overbought. Strong short signal.`}
+      : {icon:'🔴',text:`RSI at <strong>${r}</strong> — above 55, bullish exhaustion that often precedes a short.`});
+    if (emaTrend==='bearish') reasons.push({icon:'📉',text:`EMA20 (${fmtPrice(ema20)}) <strong>below EMA50</strong> (${fmtPrice(ema50)}) — 1H downtrend confirmed.`});
+    else if (emaTrend==='bullish') reasons.push({icon:'⚠️',text:`EMA20 <strong>above EMA50</strong> — counter-trend short. Use smaller size.`});
+    reasons.push(volInfo.surge
+      ? {icon:'📉',text:`Volume <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Selling pressure confirmed.`}
+      : {icon:'📊',text:`Volume <strong>${volInfo.label}</strong> (${volInfo.ratio.toFixed(2)}× avg). Moderate — limit at recent high zone.`});
+    reasons.push(entryType==='MARKET'
+      ? {icon:'⚡',text:`<strong>Market entry</strong> — RSI overbought with volume surge. Enter short now.`}
+      : {icon:'⏳',text:`<strong>Limit entry</strong> — order waits at the recent 5-candle high. Fills only when price bounces there.`});
+  }
+  reasons.push({icon:'🎯',text:`TP1 = 1.5× risk, TP2 = 2.5× risk. Stop beyond 10-candle swing extreme + 5% buffer.`});
+  return reasons;
+}
+
+/* ════════════════════════════════════════════
    MAIN SCRIPT
-   fmtPrice / fmtVol / calcRSI / calcEMA etc.
-   are all provided by analysis/indicator.js
    ════════════════════════════════════════════ */
 
 let ptData = {}, ptLev = 5;
