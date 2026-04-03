@@ -29,7 +29,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
 @media(max-width:768px){.mob-menu-btn{display:flex}}
-.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:48px;left:0;height:calc(100vh - 48px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;}
+.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:48px;left:0;height:calc(100vh - 48px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow:hidden;}
 .ds-brand{padding:18px 16px 14px;border-bottom:1px solid var(--border);}
 .ds-logo{font-family:var(--font-h);font-size:1.15rem;font-weight:700;letter-spacing:.06em;display:flex;align-items:center;gap:8px;}
 .ds-logo span{color:var(--cyan);}
@@ -37,7 +37,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .ds-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--green));display:flex;align-items:center;justify-content:center;font-family:var(--font-h);font-weight:700;font-size:.85rem;color:#000;flex-shrink:0;}
 .ds-uname{font-size:.82rem;font-weight:600;line-height:1.2;}
 .ds-uemail{font-size:.68rem;color:var(--muted);font-family:var(--font-n);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
-.ds-nav{flex:1;padding:10px 8px;}
+.ds-nav{flex:1;padding:10px 8px;overflow-y:auto;}
 .ds-section{font-size:.62rem;font-weight:600;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;padding:10px 8px 4px;}
 .ds-nav a{display:flex;align-items:center;gap:9px;padding:10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;min-height:44px;}
 .ds-nav a:hover{background:rgba(255,255,255,.04);color:var(--text);}
@@ -66,6 +66,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .panel-tag{font-family:var(--font-n);font-size:.6rem;padding:2px 7px;border-radius:4px;font-weight:600;}
 .pt-live{background:rgba(0,255,136,.1);color:var(--green);}
 .scanner-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+@media(max-width:480px){.scanner-controls{flex-direction:column;align-items:stretch;}.btn-scan{width:100%;justify-content:center;}.manual-input-wrap{width:100%;}.manual-input{min-width:0;flex:1;}}
 .btn-scan{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.08));border:1px solid rgba(0,212,255,.35);color:var(--cyan);border-radius:10px;font-family:var(--font-b);font-size:.86rem;font-weight:600;cursor:pointer;transition:all .25s;white-space:nowrap;min-height:44px;}
 .btn-scan:hover:not(:disabled){background:linear-gradient(135deg,rgba(0,212,255,.25),rgba(0,212,255,.14));border-color:var(--cyan);box-shadow:0 0 16px rgba(0,212,255,.2);}
 .btn-scan:disabled{opacity:.5;cursor:not-allowed;}
@@ -216,19 +217,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
     <nav class="ds-nav">
       <div class="ds-section">Main</div>
       <a href="dashboard.html"><span class="ni">📊</span> Dashboard</a>
-      <a href="live-signals.html"><span class="ni">📡</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
+      <a href="signals.html"><span class="ni">📡</span> Signals</a>
+      <a href="live-signals.html"><span class="ni">📝</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
       <a href="analysis.html" class="active"><span class="ni">🔬</span> Analysis</a>
       <div class="ds-section">Market</div>
       <a href="#"><span class="ni">📈</span> Top Gainers</a>
-      <a href="#"><span class="ni">🔥</span> Watchlist</a>
       <a href="#"><span class="ni">📰</span> Market News</a>
       <div class="ds-section">Account</div>
       <a href="#"><span class="ni">👤</span> My Profile</a>
-      <a href="#"><span class="ni">🔔</span> Alerts</a>
       <a href="#"><span class="ni">⚙️</span> Settings</a>
       <div class="ds-section">Support</div>
       <a href="index.html"><span class="ni">🏠</span> Home</a>
-      <a href="#"><span class="ni">💬</span> Community</a>
     </nav>
     <div class="ds-footer">
       <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
