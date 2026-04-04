@@ -251,6 +251,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
       <div class="sb-section">Content</div>
       <button class="sb-link" onclick="showPage('announcements')"><span class="sb-icon">📢</span> Announcements</button>
       <button class="sb-link" onclick="showPage('settings')"><span class="sb-icon">⚙️</span> Site Settings</button>
+      <button class="sb-link" onclick="showPage('adsense')"><span class="sb-icon">💰</span> AdSense &amp; SEO</button>
 
       <div class="sb-section">System</div>
       <button class="sb-link" onclick="showPage('server')"><span class="sb-icon">🖥️</span> Server Status</button>
@@ -443,10 +444,100 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
     <!-- ── SETTINGS ── -->
     <div class="page-section" id="page-settings">
       <div class="page-title">⚙️ Site Settings</div>
-      <div class="page-sub">Analysis thresholds, scan limits, and feature flags</div>
-
+      <div class="page-sub">General, analysis thresholds, signals, and social links</div>
       <div id="settingsAlert" class="alert"></div>
       <div id="settingsBody" class="loading">Loading settings…</div>
+    </div>
+
+    <!-- ── ADSENSE & SEO ── -->
+    <div class="page-section" id="page-adsense">
+      <div class="page-title">💰 AdSense &amp; SEO</div>
+      <div class="page-sub">Configure Google AdSense monetization and SEO meta tags</div>
+
+      <div id="adsenseAlert" class="alert"></div>
+
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><div class="panel-title">🔍 SEO Settings</div></div>
+        <div class="panel-body">
+          <div class="form-grid" style="margin-bottom:14px">
+            <div class="f-row full">
+              <label>SEO Meta Title</label>
+              <input type="text" class="f-inp" id="seo-title" placeholder="InvestySignals — Free Crypto Trading Signals">
+            </div>
+            <div class="f-row full">
+              <label>SEO Meta Description</label>
+              <textarea class="f-ta" id="seo-desc" rows="2" placeholder="Get free professional crypto trading signals..."></textarea>
+            </div>
+            <div class="f-row full">
+              <label>SEO Keywords</label>
+              <input type="text" class="f-inp" id="seo-keywords" placeholder="crypto signals, binance futures signals...">
+            </div>
+            <div class="f-row">
+              <label>Google Analytics ID</label>
+              <input type="text" class="f-inp" id="ga-id" placeholder="G-XXXXXXXXXX">
+              <span style="font-size:.7rem;color:var(--muted);margin-top:3px">Paste your GA4 Measurement ID</span>
+            </div>
+            <div class="f-row">
+              <label>OG Share Image URL</label>
+              <input type="text" class="f-inp" id="og-image" placeholder="https://yourdomain.com/og.png">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveSeoSettings()">💾 Save SEO Settings</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">💰 Google AdSense</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.74rem;color:var(--muted)">Enabled:</span>
+            <label class="toggle" style="width:38px;height:20px">
+              <input type="checkbox" id="adsense-enabled" onchange="toggleAdsense(this)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="alert info show" style="margin-bottom:16px">
+            ℹ️ To get AdSense approved: submit your site to <strong>admob.google.com</strong> or <strong>adsense.google.com</strong>. 
+            Once approved, paste your Publisher ID and slot IDs below. Enable the toggle to activate ads.
+          </div>
+          <div class="form-grid" style="margin-bottom:14px">
+            <div class="f-row full">
+              <label>Publisher ID <span style="color:var(--yellow)">*</span></label>
+              <input type="text" class="f-inp" id="adsense-pubid" placeholder="ca-pub-1234567890123456">
+              <span style="font-size:.7rem;color:var(--muted);margin-top:3px">Find this in AdSense → Account → Account information</span>
+            </div>
+            <div class="f-row">
+              <label>Header Ad Slot ID</label>
+              <input type="text" class="f-inp" id="adsense-header" placeholder="1234567890">
+            </div>
+            <div class="f-row">
+              <label>Sidebar Ad Slot ID</label>
+              <input type="text" class="f-inp" id="adsense-sidebar" placeholder="1234567890">
+            </div>
+            <div class="f-row">
+              <label>Inline Content Ad Slot ID</label>
+              <input type="text" class="f-inp" id="adsense-inline" placeholder="1234567890">
+            </div>
+            <div class="f-row">
+              <label>Footer Ad Slot ID</label>
+              <input type="text" class="f-inp" id="adsense-footer" placeholder="1234567890">
+            </div>
+            <div class="f-row full">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="adsense-auto" style="width:16px;height:16px">
+                Enable Auto Ads (Google automatically places ads across site)
+              </label>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveAdsenseSettings()">💾 Save AdSense Settings</button>
+          <div style="margin-top:12px;padding:10px 13px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-size:.78rem;color:var(--muted)">
+            <strong style="color:var(--yellow)">ads.txt</strong> — Add this line to your public folder root:<br>
+            <code id="adsTextLine" style="font-family:var(--font-n);font-size:.72rem;color:var(--cyan);display:block;margin-top:6px;word-break:break-all">google.com, pub-XXXXXXXXXX, DIRECT, f08c47fec0942fa0</code>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── SERVER ── -->
@@ -1044,6 +1135,74 @@ async function loadServerStats() {
     document.getElementById('srv-mongo').innerHTML='<span style="color:var(--red)">Server unreachable</span>';
   }
 }
+
+/* ── AdSense & SEO ── */
+async function loadAdsenseSettings(){
+  try{
+    const r=await fetch('/api/admin/settings',{headers:{Authorization:'Bearer '+token}});
+    const j=await r.json();
+    if(!j.success)return;
+    const s={};j.data.forEach(item=>s[item.key]=item.value);
+    if(s.seo_title)document.getElementById('seo-title').value=s.seo_title;
+    if(s.seo_description)document.getElementById('seo-desc').value=s.seo_description;
+    if(s.seo_keywords)document.getElementById('seo-keywords').value=s.seo_keywords;
+    if(s.google_analytics_id)document.getElementById('ga-id').value=s.google_analytics_id;
+    if(s.og_image)document.getElementById('og-image').value=s.og_image;
+    document.getElementById('adsense-enabled').checked=!!s.adsense_enabled;
+    if(s.adsense_publisher_id){
+      document.getElementById('adsense-pubid').value=s.adsense_publisher_id;
+      document.getElementById('adsTextLine').textContent='google.com, '+s.adsense_publisher_id+', DIRECT, f08c47fec0942fa0';
+    }
+    if(s.adsense_slot_header)document.getElementById('adsense-header').value=s.adsense_slot_header;
+    if(s.adsense_slot_sidebar)document.getElementById('adsense-sidebar').value=s.adsense_slot_sidebar;
+    if(s.adsense_slot_inline)document.getElementById('adsense-inline').value=s.adsense_slot_inline;
+    if(s.adsense_slot_footer)document.getElementById('adsense-footer').value=s.adsense_slot_footer;
+    document.getElementById('adsense-auto').checked=!!s.adsense_auto_ads;
+  }catch(e){console.error('loadAdsenseSettings:',e);}
+}
+async function saveSeoSettings(){
+  const updates={
+    seo_title:document.getElementById('seo-title').value.trim(),
+    seo_description:document.getElementById('seo-desc').value.trim(),
+    seo_keywords:document.getElementById('seo-keywords').value.trim(),
+    google_analytics_id:document.getElementById('ga-id').value.trim(),
+    og_image:document.getElementById('og-image').value.trim(),
+  };
+  try{
+    const r=await fetch('/api/admin/settings/bulk',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({updates})});
+    const j=await r.json();
+    showAdsenseAlert(j.success?'success':'danger',j.success?'✅ SEO settings saved!':'Error: '+(j.error||'Unknown'));
+  }catch(e){showAdsenseAlert('danger','Error: '+e.message);}
+}
+async function saveAdsenseSettings(){
+  const pubId=document.getElementById('adsense-pubid').value.trim();
+  const updates={
+    adsense_enabled:document.getElementById('adsense-enabled').checked,
+    adsense_publisher_id:pubId,
+    adsense_auto_ads:document.getElementById('adsense-auto').checked,
+    adsense_slot_header:document.getElementById('adsense-header').value.trim(),
+    adsense_slot_sidebar:document.getElementById('adsense-sidebar').value.trim(),
+    adsense_slot_inline:document.getElementById('adsense-inline').value.trim(),
+    adsense_slot_footer:document.getElementById('adsense-footer').value.trim(),
+  };
+  if(pubId)document.getElementById('adsTextLine').textContent='google.com, '+pubId+', DIRECT, f08c47fec0942fa0';
+  try{
+    const r=await fetch('/api/admin/settings/bulk',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({updates})});
+    const j=await r.json();
+    showAdsenseAlert(j.success?'success':'danger',j.success?'✅ AdSense settings saved!':'Error: '+(j.error||'Unknown'));
+  }catch(e){showAdsenseAlert('danger','Error: '+e.message);}
+}
+function toggleAdsense(el){
+  if(el.checked&&!document.getElementById('adsense-pubid').value.trim()){
+    alert('Please enter your AdSense Publisher ID first.');el.checked=false;
+  }
+}
+function showAdsenseAlert(type,msg){
+  const el=document.getElementById('adsenseAlert');
+  el.className='alert '+type+' show';el.textContent=msg;
+  setTimeout(()=>el.classList.remove('show'),4000);
+}
+
 </script>
 </body>
 </html>

@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Dashboard — InvestySignals</title>
+<title>Dashboard — InvestySignals | Crypto Trading Signals</title>
+<meta name="description" content="Your InvestySignals trading dashboard — live market prices, crypto signals, paper trading stats and market analysis.">
+<meta property="og:title" content="Dashboard — InvestySignals">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://investysignals.store/dashboard.html">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -220,11 +224,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       <a href="live-signals.html"><span class="ni">📝</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
       <a href="analysis.html"><span class="ni">🔬</span> Analysis</a>
       <div class="ds-section">Market</div>
-      <a href="#"><span class="ni">📈</span> Top Gainers</a>
-      <a href="#"><span class="ni">📰</span> Market News</a>
+      <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
+      <a href="dashboard.html#news"><span class="ni">📰</span> Market News</a>
       <div class="ds-section">Account</div>
-      <a href="#"><span class="ni">👤</span> My Profile</a>
-      <a href="#"><span class="ni">⚙️</span> Settings</a>
+      <a href="profile.html"><span class="ni">👤</span> My Profile</a>
+      <a href="profile.html#settings" onclick="location.href='profile.html';return false"><span class="ni">⚙️</span> Settings</a>
       <div class="ds-section">Support</div>
       <a href="index.html"><span class="ni">🏠</span> Home</a>
     </nav>
@@ -326,14 +330,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
           <div class="panel-head"><div class="panel-title">⚡ Quick Actions</div></div>
           <div class="panel-body">
             <div class="qa-list">
-              <a href="signals.html" class="qa-item qc">
-                <span class="qa-icon">📡</span>
-                <div class="qa-text"><div class="qa-label">Live Signals</div><div class="qa-sub">View all active signals</div></div>
+              <a href="analysis.html" class="qa-item qc">
+                <span class="qa-icon">🔬</span>
+                <div class="qa-text"><div class="qa-label">Deep Analysis</div><div class="qa-sub">8-factor confluence scanner</div></div>
                 <span class="qa-arr">›</span>
               </a>
-              <a href="analysis.html" class="qa-item qg">
-                <span class="qa-icon">🔬</span>
-                <div class="qa-text"><div class="qa-label">Market Analysis</div><div class="qa-sub">RSI · EMA · Volume scan</div></div>
+              <a href="profile.html" class="qa-item qg">
+                <span class="qa-icon">👤</span>
+                <div class="qa-text"><div class="qa-label">My Profile</div><div class="qa-sub">Settings · Watchlist · Stats</div></div>
                 <span class="qa-arr">›</span>
               </a>
               <a href="live-signals.html" class="qa-item qy">
@@ -535,5 +539,38 @@ function initDash(){
   setInterval(loadSignals,60000);setInterval(loadPaperStats,8000);
 }
 </script>
+
+<script>
+/* AdSense loader — reads config from /api/settings/public */
+(async function loadAdSense(){
+  try{
+    const r = await fetch('/api/settings/public');
+    const j = await r.json();
+    const cfg = j.data || {};
+    if(!cfg.adsense_enabled || !cfg.adsense_publisher_id) return;
+    // Inject AdSense script
+    const s = document.createElement('script');
+    s.async = true;
+    s.crossOrigin = 'anonymous';
+    s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + cfg.adsense_publisher_id;
+    document.head.appendChild(s);
+    // Auto ads
+    if(cfg.adsense_auto_ads){
+      s.onload = function(){ (window.adsbygoogle=window.adsbygoogle||[]).push({}); };
+    }
+    // Inject Google Analytics if configured
+    if(cfg.google_analytics_id){
+      const ga = document.createElement('script');
+      ga.async = true;
+      ga.src = 'https://www.googletagmanager.com/gtag/js?id=' + cfg.google_analytics_id;
+      document.head.appendChild(ga);
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date()); gtag('config', cfg.google_analytics_id);
+    }
+  }catch(_){}
+})();
+</script>
+
 </body>
 </html>

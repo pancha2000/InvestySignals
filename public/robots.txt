@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /index.html
+Allow: /signals.html
+Disallow: /admin.html
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://investysignals.store/sitemap.xml

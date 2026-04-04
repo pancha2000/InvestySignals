@@ -117,20 +117,53 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/investysign
 /* Seed default settings if not present */
 async function seedDefaultSettings() {
   const defaults = [
-    { key: 'site_name',       value: 'InvestySignals',    label: 'Site Name',            group: 'general' },
-    { key: 'maintenance_mode',value: false,                label: 'Maintenance Mode',     group: 'general' },
-    { key: 'scan_limit',      value: 50,                  label: 'Market Scan Limit',    group: 'analysis' },
-    { key: 'rsi_period',      value: 14,                  label: 'RSI Period',           group: 'analysis' },
-    { key: 'rsi_long_threshold', value: 45,               label: 'RSI Long Threshold',   group: 'analysis' },
-    { key: 'rsi_short_threshold',value: 55,               label: 'RSI Short Threshold',  group: 'analysis' },
-    { key: 'kline_timeframe', value: '1h',                label: 'Kline Timeframe',      group: 'analysis' },
-    { key: 'max_signals_shown',value: 20,                 label: 'Max Signals on Page',  group: 'signals' },
-    { key: 'auto_close_signals',value: true,              label: 'Auto-close Signals',   group: 'signals' },
+    // General
+    { key: 'site_name',            value: 'InvestySignals',         label: 'Site Name',                   group: 'general' },
+    { key: 'site_tagline',         value: 'Professional Crypto Signals', label: 'Site Tagline',           group: 'general' },
+    { key: 'site_url',             value: 'https://investysignals.store', label: 'Site URL',              group: 'general' },
+    { key: 'maintenance_mode',     value: false,                    label: 'Maintenance Mode',            group: 'general' },
+    { key: 'register_open',        value: true,                     label: 'Allow New Registrations',     group: 'general' },
+    { key: 'footer_text',          value: '© 2026 InvestySignals. For educational purposes only.',
+                                                                     label: 'Footer Text',                group: 'general' },
+    // SEO
+    { key: 'seo_title',            value: 'InvestySignals — Free Crypto Trading Signals',
+                                                                     label: 'SEO Meta Title',             group: 'seo' },
+    { key: 'seo_description',      value: 'Get free professional crypto trading signals for Binance Futures. RSI, EMA, MACD analysis with precise entry, TP and SL levels.',
+                                                                     label: 'SEO Meta Description',       group: 'seo' },
+    { key: 'seo_keywords',         value: 'crypto signals, binance futures signals, bitcoin trading signals, free crypto signals, BTC ETH signals',
+                                                                     label: 'SEO Keywords',               group: 'seo' },
+    { key: 'og_image',             value: '',                        label: 'OG Share Image URL',         group: 'seo' },
+    { key: 'google_analytics_id',  value: '',                        label: 'Google Analytics ID (G-xxx)',group: 'seo' },
+    // AdSense
+    { key: 'adsense_enabled',      value: false,                    label: 'Enable Google AdSense',       group: 'adsense' },
+    { key: 'adsense_publisher_id', value: '',                        label: 'AdSense Publisher ID (ca-pub-xxxxx)',  group: 'adsense' },
+    { key: 'adsense_auto_ads',     value: false,                    label: 'Auto Ads (auto insert ads)',  group: 'adsense' },
+    { key: 'adsense_slot_header',  value: '',                        label: 'Header Ad Slot ID',          group: 'adsense' },
+    { key: 'adsense_slot_sidebar', value: '',                        label: 'Sidebar Ad Slot ID',         group: 'adsense' },
+    { key: 'adsense_slot_inline',  value: '',                        label: 'Inline Content Ad Slot ID',  group: 'adsense' },
+    { key: 'adsense_slot_footer',  value: '',                        label: 'Footer Ad Slot ID',          group: 'adsense' },
+    // Analysis
+    { key: 'scan_limit',           value: 50,                       label: 'Market Scan Limit',           group: 'analysis' },
+    { key: 'rsi_period',           value: 14,                       label: 'RSI Period',                  group: 'analysis' },
+    { key: 'rsi_long_threshold',   value: 45,                       label: 'RSI Long Threshold',          group: 'analysis' },
+    { key: 'rsi_short_threshold',  value: 55,                       label: 'RSI Short Threshold',         group: 'analysis' },
+    { key: 'kline_timeframe',      value: '1h',                     label: 'Kline Timeframe',             group: 'analysis' },
+    { key: 'kline_limit',          value: 150,                      label: 'Kline History Limit',         group: 'analysis' },
+    // Signals
+    { key: 'max_signals_shown',    value: 20,                       label: 'Max Signals on Page',         group: 'signals' },
+    { key: 'auto_close_signals',   value: true,                     label: 'Auto-close Signals',          group: 'signals' },
+    { key: 'signals_disclaimer',   value: 'These signals are for educational purposes only. Not financial advice.',
+                                                                     label: 'Signals Disclaimer',         group: 'signals' },
+    // Social
+    { key: 'social_telegram',      value: '',                        label: 'Telegram Channel URL',       group: 'social' },
+    { key: 'social_twitter',       value: '',                        label: 'Twitter / X URL',            group: 'social' },
+    { key: 'social_discord',       value: '',                        label: 'Discord Server URL',         group: 'social' },
+    { key: 'social_youtube',       value: '',                        label: 'YouTube Channel URL',        group: 'social' },
   ];
   for (const d of defaults) {
     await Settings.findOneAndUpdate({ key: d.key }, d, { upsert: true, new: true });
   }
-  console.log('[MongoDB] Default settings seeded');
+  console.log('[MongoDB] Default settings seeded (' + defaults.length + ' keys)');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -356,6 +389,68 @@ app.get('/api/announcement', async (req, res) => {
     res.json({ success: true, data: ann });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
+
+/* ═══════════════════════════════════════════════════════
+   PUBLIC API — Site Settings (public subset)
+═══════════════════════════════════════════════════════ */
+
+/* GET /api/settings/public — returns only safe public settings */
+app.get('/api/settings/public', async (req, res) => {
+  if (!mongoConnected) {
+    return res.json({ success: true, data: {} });
+  }
+  try {
+    const PUBLIC_KEYS = [
+      'site_name', 'site_tagline', 'site_url', 'footer_text',
+      'adsense_enabled', 'adsense_publisher_id', 'adsense_auto_ads',
+      'adsense_slot_header', 'adsense_slot_sidebar', 'adsense_slot_inline', 'adsense_slot_footer',
+      'seo_title', 'seo_description', 'seo_keywords', 'og_image', 'google_analytics_id',
+      'signals_disclaimer', 'social_telegram', 'social_twitter', 'social_discord', 'social_youtube',
+      'maintenance_mode', 'register_open',
+    ];
+    const rows = await Settings.find({ key: { $in: PUBLIC_KEYS } });
+    const data = {};
+    rows.forEach(r => { data[r.key] = r.value; });
+    res.json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* ═══════════════════════════════════════════════════════
+   PUBLIC API — Bulk settings update (admin only via key)
+   POST /api/admin/settings/bulk
+═══════════════════════════════════════════════════════ */
+app.post('/api/admin/settings/bulk', adminAuth, async (req, res) => {
+  try {
+    const { updates } = req.body; // { key: value, key2: value2, ... }
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ success: false, error: 'updates object required' });
+    }
+    const results = [];
+    for (const [key, value] of Object.entries(updates)) {
+      const s = await Settings.findOneAndUpdate({ key }, { value }, { new: true, upsert: true });
+      results.push(s);
+    }
+    res.json({ success: true, updated: results.length, data: results });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* ═══════════════════════════════════════════════════════
+   PUBLIC API — Admin overview stats (for stats dashboard widget)
+═══════════════════════════════════════════════════════ */
+app.get('/api/stats/public', async (req, res) => {
+  if (!mongoConnected) return res.json({ success: true, data: null });
+  try {
+    const [total, active, wins, losses] = await Promise.all([
+      Signal.countDocuments(),
+      Signal.countDocuments({ status: 'ACTIVE' }),
+      Signal.countDocuments({ result: 'WIN' }),
+      Signal.countDocuments({ result: 'LOSS' }),
+    ]);
+    const winRate = (wins + losses) > 0 ? Math.round(wins / (wins + losses) * 100) : null;
+    res.json({ success: true, data: { total, active, wins, losses, winRate } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 
 /* ═══════════════════════════════════════════════════════
    Market Data Store (PRESERVED FROM ORIGINAL)
