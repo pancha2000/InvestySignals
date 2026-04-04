@@ -135,8 +135,8 @@ async function seedDefaultSettings() {
     { key: 'og_image',             value: '',                        label: 'OG Share Image URL',         group: 'seo' },
     { key: 'google_analytics_id',  value: '',                        label: 'Google Analytics ID (G-xxx)',group: 'seo' },
     // AdSense
-    { key: 'adsense_enabled',      value: false,                    label: 'Enable Google AdSense',       group: 'adsense' },
-    { key: 'adsense_publisher_id', value: '',                        label: 'AdSense Publisher ID (ca-pub-xxxxx)',  group: 'adsense' },
+    { key: 'adsense_enabled',      value: true,                    label: 'Enable Google AdSense',       group: 'adsense' },
+    { key: 'adsense_publisher_id', value: 'ca-pub-5034247623532581',    label: 'AdSense Publisher ID (ca-pub-xxxxx)',  group: 'adsense' },
     { key: 'adsense_auto_ads',     value: false,                    label: 'Auto Ads (auto insert ads)',  group: 'adsense' },
     { key: 'adsense_slot_header',  value: '',                        label: 'Header Ad Slot ID',          group: 'adsense' },
     { key: 'adsense_slot_sidebar', value: '',                        label: 'Sidebar Ad Slot ID',         group: 'adsense' },
