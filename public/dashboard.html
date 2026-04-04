@@ -505,7 +505,7 @@ function connectWS(){
       try{
         const d=JSON.parse(e.data);
         if(d.type==='market_update'){if(d.ticker)updatePrices(d.ticker);if(d.topGainers)updateGainers(d.topGainers);}
-        if(d.type==='signal_update'){loadSignals();addAct('sig','📡 New signal published! <a href="signals.html" style="color:var(--cyan)">View →</a>');showToast('sig','📡 New Signal!','A new signal was just published.',()=>location.href='signals.html');}
+        if(d.type==='signal_update'){loadSignals();addAct('sig','📡 New signal published!');showToast('sig','📡 New Signal!','A new signal was just published.',()=>location.href='analysis.html');}
         if(d.type==='announcement'&&d.data){const a=d.data,el=document.getElementById('annBanner');el.className=a.type;el.style.display='block';document.getElementById('annTitle').textContent=a.title;document.getElementById('annMsg').textContent=a.message;addAct('ann',`📢 <strong>${a.title}</strong>`);showToast('ann','📢 '+a.title,a.message);}
       }catch(_){}
     };
