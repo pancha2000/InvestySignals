@@ -178,7 +178,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .toast-bdy{font-size:.74rem;color:var(--muted);}
 </style>
 
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5034247623532581" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -222,7 +221,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
     <nav class="ds-nav">
       <div class="ds-section">Main</div>
       <a href="dashboard.html" class="active"><span class="ni">📊</span> Dashboard</a>
-      <a href="signals.html"><span class="ni">📡</span> Signals <span class="ds-badge green" id="navSigCount">—</span></a>
       <a href="live-signals.html"><span class="ni">📝</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
       <a href="analysis.html"><span class="ni">🔬</span> Analysis</a>
       <div class="ds-section">Market</div>
@@ -436,14 +434,14 @@ async function loadSignals(){
       document.getElementById('stat-active-sub').textContent='No signals published yet';
       document.getElementById('stat-wr').textContent='—';
       document.getElementById('stat-wr-sub').textContent='Waiting for first signal';
-      document.getElementById('navSigCount').textContent='0';
+      /* navSigCount removed */
       return;
     }
     const all=j.data,active=all.filter(s=>s.status==='ACTIVE'),waiting=all.filter(s=>s.status==='WAITING');
     const closed=all.filter(s=>s.result==='WIN'||s.result==='LOSS'),wins=all.filter(s=>s.result==='WIN');
     document.getElementById('stat-active').textContent=active.length;
     document.getElementById('stat-active-sub').textContent=waiting.length?`+${waiting.length} waiting`:`${all.length} total`;
-    document.getElementById('navSigCount').textContent=active.length;
+    /* navSigCount removed */
     if(closed.length){
       const wr=Math.round(wins.length/closed.length*100);
       document.getElementById('stat-wr').textContent=wr+'%';

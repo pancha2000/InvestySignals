@@ -190,7 +190,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .btn-ptcancel:hover{border-color:var(--dim);color:var(--text);}
 </style>
 
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5034247623532581" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -522,10 +521,26 @@ function decideEntry(rsi,volInfo,closes,highs,lows,currentPrice,macd,bb,stochRsi
   const r5H=Math.max(...highs.slice(-5)),r5L=Math.min(...lows.slice(-5));
   let ep,sl,tp1,tp2;
   if(direction==='LONG'){
-    ep=entryType==='MARKET'?currentPrice:r5L;sl=Math.min(r10L,ep-atrVal*1.5);
+    if(entryType==='MARKET'){
+      ep=currentPrice;
+    }else{
+      // Limit: target a pullback below current price (0.5 ATR or 0.5% min)
+      const pullback=Math.max(atrVal*0.5,currentPrice*0.005);
+      ep=currentPrice-pullback;
+    }
+    sl=Math.min(r10L,ep-atrVal*1.5);
+    if(sl>=ep)sl=ep-atrVal*1.5; // safety — SL must be below entry
     const rk=ep-sl;tp1=ep+rk*1.5;tp2=ep+rk*2.8;
   }else if(direction==='SHORT'){
-    ep=entryType==='MARKET'?currentPrice:r5H;sl=Math.max(r10H,ep+atrVal*1.5);
+    if(entryType==='MARKET'){
+      ep=currentPrice;
+    }else{
+      // Limit: target a rally above current price (0.5 ATR or 0.5% min)
+      const pullback=Math.max(atrVal*0.5,currentPrice*0.005);
+      ep=currentPrice+pullback;
+    }
+    sl=Math.max(r10H,ep+atrVal*1.5);
+    if(sl<=ep)sl=ep+atrVal*1.5; // safety — SL must be above entry
     const rk=sl-ep;tp1=ep-rk*1.5;tp2=ep-rk*2.8;
   }else{ep=sl=tp1=tp2=currentPrice;}
   const rk=direction==='LONG'?ep-sl:sl-ep;
@@ -734,9 +749,9 @@ function renderDeepResult(container, symbol, rsi, volInfo, entry, currentPrice) 
         </div>
       </div>` : `
       <div class="deep-levels">
-        <div class="level-box"><div class="level-lbl">Entry</div><div class="level-val entry-val">${fmtPrice(entryPrice)}</div><div class="level-sub">${entryType==='MARKET'?'Current price':'Limit — waits for fill'}</div></div>
+        <div class="level-box"><div class="level-lbl">Entry</div><div class="level-val entry-val">${fmtPrice(entryPrice)}</div><div class="level-sub">${entryType==='MARKET'?'At market price':(direction==='LONG'?'↓ ':'↑ ')+((Math.abs(currentPrice-entryPrice)/currentPrice)*100).toFixed(2)+'% from market'}</div></div>
         <div class="level-box"><div class="level-lbl">TP 1</div><div class="level-val tp1-val">${fmtPrice(tp1Price)}</div><div class="level-sub">Risk × 1.5  RR:${rrr1}</div></div>
-        <div class="level-box"><div class="level-lbl">TP 2</div><div class="level-val tp2-val">${fmtPrice(tp2Price)}</div><div class="level-sub">Risk × 2.8</div></div>
+        <div class="level-box"><div class="level-lbl">TP 2</div><div class="level-val tp2-val">${fmtPrice(tp2Price)}</div><div class="level-sub">Risk × 2.8  RR:${rrr2}</div></div>
         <div class="level-box"><div class="level-lbl">Stop Loss</div><div class="level-val sl-val">${fmtPrice(slPrice)}</div><div class="level-sub">ATR-based stop</div></div>
         <div class="level-box"><div class="level-lbl">Current</div><div class="level-val" style="color:var(--text)">${fmtPrice(currentPrice)}</div><div class="level-sub">Live price</div></div>
       </div>

@@ -148,7 +148,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .toast-bdy{font-size:.74rem;color:var(--muted);}
 </style>
 
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5034247623532581" crossorigin="anonymous"></script>
+
 </head>
 <body>
 
@@ -810,6 +810,27 @@ function connectTicker(){
   }catch(_){setTimeout(connectTicker,5000);}
 }
 connectTicker();
+</script>
+
+<script>
+(async function(){
+  try{
+    const r=await fetch('/api/settings/public');
+    const j=await r.json();const cfg=j.data||{};
+    if(!cfg.adsense_enabled||!cfg.adsense_publisher_id)return;
+    const s=document.createElement('script');s.async=true;s.crossOrigin='anonymous';
+    s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+cfg.adsense_publisher_id;
+    document.head.appendChild(s);
+    if(cfg.adsense_auto_ads){s.onload=function(){(window.adsbygoogle=window.adsbygoogle||[]).push({});}}
+    if(cfg.google_analytics_id){
+      const ga=document.createElement('script');ga.async=true;
+      ga.src='https://www.googletagmanager.com/gtag/js?id='+cfg.google_analytics_id;
+      document.head.appendChild(ga);
+      window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
+      gtag('js',new Date());gtag('config',cfg.google_analytics_id);
+    }
+  }catch(_){}
+})();
 </script>
 </body>
 </html>
