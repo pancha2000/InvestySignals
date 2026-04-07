@@ -255,6 +255,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 
       <div class="sb-section">System</div>
       <button class="sb-link" onclick="showPage('server')"><span class="sb-icon">🖥️</span> Server Status</button>
+
+      <div class="sb-section">Users</div>
+      <button class="sb-link" onclick="showPage('users')"><span class="sb-icon">👥</span> User Management <span class="sb-count" id="countUsers">—</span></button>
+      <button class="sb-link" onclick="showPage('indicators')"><span class="sb-icon">📐</span> Indicator Defaults</button>
     </div>
   </aside>
 
@@ -572,6 +576,71 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
           <a href="/api/signals" target="_blank" class="btn btn-primary btn-sm">📡 /api/signals</a>
           <a href="/api/market/ticker" target="_blank" class="btn btn-primary btn-sm">📈 /api/market/ticker</a>
           <a href="/api/market/top-gainers" target="_blank" class="btn btn-primary btn-sm">🔥 /api/market/top-gainers</a>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════ USERS ══════════ -->
+    <div class="page-section" id="page-users">
+      <div class="page-title">👥 User Management</div>
+      <div class="page-sub">Manage registered users — suspend, restore, delete, change roles</div>
+
+      <div class="stat-grid" style="margin-bottom:16px">
+        <div class="stat-card"><div class="sc-label">Total Users</div><div class="sc-value" id="usr-total">—</div></div>
+        <div class="stat-card"><div class="sc-label">Active (7 days)</div><div class="sc-value" id="usr-active">—</div></div>
+        <div class="stat-card"><div class="sc-label">Suspended</div><div class="sc-value" id="usr-suspended" style="color:var(--red)">—</div></div>
+        <div class="stat-card"><div class="sc-label">Premium</div><div class="sc-value" id="usr-premium" style="color:var(--yellow)">—</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">👤 All Users</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select class="f-sel" id="usrFilter" onchange="loadUsers()" style="font-size:.78rem;padding:6px 10px">
+              <option value="">All Users</option>
+              <option value="false">Active Only</option>
+              <option value="true">Suspended Only</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="loadUsers()">🔄 Refresh</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;overflow-x:auto">
+          <table class="tbl" style="min-width:700px">
+            <thead><tr>
+              <th>User</th><th>Email</th><th>Role</th><th>Last Seen</th>
+              <th>Joined</th><th>Status</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="usersTbl"><tr class="empty-row"><td colspan="7" class="loading">Loading users…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ INDICATORS ══════════ -->
+    <div class="page-section" id="page-indicators">
+      <div class="page-title">📐 Indicator Defaults</div>
+      <div class="page-sub">Set default indicator parameters for all users. Users can override these in their profile settings.</div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">📊 Analysis Engine</div>
+          <button class="btn btn-success btn-sm" onclick="saveIndicators()">💾 Save All Defaults</button>
+        </div>
+        <div class="panel-body">
+          <div class="alert" id="indAlert" style="display:none;margin-bottom:12px"></div>
+          <div class="form-grid" id="indFormGrid">
+            <div style="color:var(--muted);font-size:.82rem;padding:12px">Loading indicator settings…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">📝 Paper Trading Defaults</div></div>
+        <div class="panel-body">
+          <div class="form-grid" id="ptFormGrid">
+            <div style="color:var(--muted);font-size:.82rem;padding:12px">Loading…</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1201,6 +1270,262 @@ function showAdsenseAlert(type,msg){
   const el=document.getElementById('adsenseAlert');
   el.className='alert '+type+' show';el.textContent=msg;
   setTimeout(()=>el.classList.remove('show'),4000);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   USER MANAGEMENT
+   ═══════════════════════════════════════════════════ */
+
+async function loadUsers() {
+  const filter = document.getElementById('usrFilter')?.value || '';
+  const tbl = document.getElementById('usersTbl');
+  if (!tbl) return;
+  tbl.innerHTML = '<tr class="empty-row"><td colspan="7" class="loading">Loading…</td></tr>';
+  try {
+    const url = '/api/admin/users' + (filter !== '' ? `?suspended=${filter}` : '');
+    const data = await api('GET', url);
+    if (!data.success) throw new Error(data.error);
+    document.getElementById('countUsers').textContent = data.total;
+    if (!data.data.length) {
+      tbl.innerHTML = '<tr class="empty-row"><td colspan="7" class="loading">No users found</td></tr>';
+      return;
+    }
+    tbl.innerHTML = data.data.map(u => {
+      const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+      const joined   = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+      const email    = u.firebaseEmail || u.email || '—';
+      const name     = u.firebaseDisplayName || u.displayName || email.split('@')[0];
+      const isSusp   = u.suspended;
+      const roleCls  = u.role === 'premium' ? 'color:var(--yellow)' : u.role === 'admin' ? 'color:var(--cyan)' : 'color:var(--muted)';
+      return `<tr style="${isSusp ? 'opacity:.6;background:rgba(255,61,90,.04)' : ''}">
+        <td style="font-weight:600">${name}</td>
+        <td style="font-family:var(--font-n);font-size:.78rem;color:var(--muted)">${email}</td>
+        <td>
+          <select onchange="changeRole('${u.firebaseUid}',this.value)" style="font-size:.72rem;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:3px 6px">
+            <option value="user"    ${u.role==='user'?'selected':''}>user</option>
+            <option value="premium" ${u.role==='premium'?'selected':''}>premium</option>
+            <option value="admin"   ${u.role==='admin'?'selected':''}>admin</option>
+          </select>
+        </td>
+        <td style="font-size:.78rem;color:var(--muted)">${lastSeen}</td>
+        <td style="font-size:.78rem;color:var(--muted)">${joined}</td>
+        <td><span style="font-family:var(--font-n);font-size:.65rem;padding:2px 8px;border-radius:4px;${isSusp?'background:rgba(255,61,90,.12);color:var(--red)':'background:rgba(0,255,136,.1);color:var(--green)'}">${isSusp ? '⛔ Suspended' : '✓ Active'}</span>
+          ${u.suspendReason ? `<div style="font-size:.67rem;color:var(--red);margin-top:2px">${u.suspendReason}</div>` : ''}
+        </td>
+        <td>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${isSusp
+              ? `<button class="btn btn-sm btn-success" onclick="unsuspendUser('${u.firebaseUid}','${name}')">✅ Restore</button>`
+              : `<button class="btn btn-sm btn-warning" onclick="suspendUser('${u.firebaseUid}','${name}')">⛔ Suspend</button>`}
+            <button class="btn btn-sm btn-danger" onclick="deleteUser('${u.firebaseUid}','${name}','${email}')">🗑 Delete</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbl.innerHTML = `<tr class="empty-row"><td colspan="7" style="color:var(--red)">Error: ${e.message}</td></tr>`;
+  }
+}
+
+async function loadUserStats() {
+  try {
+    const d = await api('GET', '/api/admin/users/stats');
+    if (!d.success) return;
+    document.getElementById('usr-total').textContent     = d.data.total;
+    document.getElementById('usr-active').textContent    = d.data.activeLastWeek;
+    document.getElementById('usr-suspended').textContent = d.data.suspended;
+    document.getElementById('usr-premium').textContent   = d.data.premium;
+    document.getElementById('countUsers').textContent    = d.data.total;
+  } catch (_) {}
+}
+
+function suspendUser(uid, name) {
+  const reason = prompt(`Suspend reason for ${name} (shown to user):`);
+  if (reason === null) return;
+  confirm2(`Suspend ${name}?`, `Reason: "${reason || 'No reason given'}"`, async () => {
+    try {
+      const r = await api('POST', `/api/admin/users/${uid}/suspend`, { reason: reason || 'Suspended by admin' });
+      if (!r.success) throw new Error(r.error);
+      showToast(`✅ ${name} suspended`);
+      loadUsers();
+    } catch (e) { showToast('Error: ' + e.message, 'danger'); }
+  });
+}
+
+function unsuspendUser(uid, name) {
+  confirm2(`Restore ${name}?`, 'This will re-enable their account.', async () => {
+    try {
+      const r = await api('POST', `/api/admin/users/${uid}/unsuspend`);
+      if (!r.success) throw new Error(r.error);
+      showToast(`✅ ${name} restored`);
+      loadUsers();
+    } catch (e) { showToast('Error: ' + e.message, 'danger'); }
+  });
+}
+
+function deleteUser(uid, name, email) {
+  confirm2(`DELETE ${name} permanently?`, `Email: ${email}\n\n⚠️ This removes them from Firebase and the database. Cannot be undone.`, async () => {
+    try {
+      const r = await api('DELETE', `/api/admin/users/${uid}`);
+      if (!r.success) throw new Error(r.error);
+      showToast(`🗑 ${name} deleted`);
+      loadUsers(); loadUserStats();
+    } catch (e) { showToast('Error: ' + e.message, 'danger'); }
+  });
+}
+
+async function changeRole(uid, role) {
+  try {
+    const r = await api('PUT', `/api/admin/users/${uid}/role`, { role });
+    if (!r.success) throw new Error(r.error);
+    showToast(`✅ Role changed to ${role}`);
+  } catch (e) { showToast('Error: ' + e.message, 'danger'); }
+}
+
+/* ═══════════════════════════════════════════════════
+   INDICATOR DEFAULTS
+   ═══════════════════════════════════════════════════ */
+
+const IND_LABELS = {
+  ind_rsi_period:        { label:'RSI Period', group:'Analysis Engine', type:'number', min:5, max:30 },
+  ind_ema_fast:          { label:'EMA Fast (default: 20)', group:'Analysis Engine', type:'number', min:5, max:50 },
+  ind_ema_slow:          { label:'EMA Slow (default: 50)', group:'Analysis Engine', type:'number', min:10, max:100 },
+  ind_ema_long:          { label:'EMA Long / EMA200', group:'Analysis Engine', type:'number', min:50, max:500 },
+  ind_macd_fast:         { label:'MACD Fast (12)', group:'MACD', type:'number', min:3, max:30 },
+  ind_macd_slow:         { label:'MACD Slow (26)', group:'MACD', type:'number', min:10, max:60 },
+  ind_macd_signal:       { label:'MACD Signal (9)', group:'MACD', type:'number', min:3, max:20 },
+  ind_bb_period:         { label:'Bollinger Bands Period (20)', group:'Bollinger Bands', type:'number', min:5, max:50 },
+  ind_bb_mult:           { label:'BB Multiplier (2.0)', group:'Bollinger Bands', type:'number', min:1, max:4, step:0.1 },
+  ind_stoch_rsi_period:  { label:'Stoch RSI Period (14)', group:'Stochastic RSI', type:'number', min:5, max:30 },
+  ind_stoch_k:           { label:'Stoch K Smooth (3)', group:'Stochastic RSI', type:'number', min:1, max:10 },
+  ind_stoch_d:           { label:'Stoch D Smooth (3)', group:'Stochastic RSI', type:'number', min:1, max:10 },
+  ind_adx_period:        { label:'ADX Period (14)', group:'ADX', type:'number', min:5, max:30 },
+  ind_adx_choppy_gate:   { label:'ADX Choppy Market Gate (18)', group:'ADX', type:'number', min:10, max:30 },
+  ind_atr_period:        { label:'ATR Period (14)', group:'ATR / Supertrend', type:'number', min:5, max:30 },
+  ind_supertrend_period: { label:'Supertrend Period (10)', group:'ATR / Supertrend', type:'number', min:3, max:30 },
+  ind_supertrend_mult:   { label:'Supertrend Multiplier (3.0)', group:'ATR / Supertrend', type:'number', min:1, max:6, step:0.1 },
+  ind_vwap_lookback:     { label:'VWAP Lookback candles (24)', group:'VWAP', type:'number', min:6, max:72 },
+  ind_kline_limit:       { label:'Kline History bars (200)', group:'Data', type:'number', min:100, max:500 },
+  ind_kline_tf:          { label:'Primary Timeframe', group:'Data', type:'select', options:['1m','5m','15m','30m','1h','4h','1d'] },
+  ind_min_confidence:    { label:'Min Confidence % to show signal (38)', group:'Scoring Gates', type:'number', min:20, max:60 },
+  ind_market_entry_conf: { label:'Market Entry min confidence (65)', group:'Scoring Gates', type:'number', min:40, max:90 },
+  ind_funding_gate:      { label:'Funding Rate Hard Gate % (0.25)', group:'Scoring Gates', type:'number', min:0.05, max:1, step:0.01 },
+};
+
+const PT_LABELS = {
+  pt_tp1_trail_mult:   { label:'TP1 Trail Offset Multiplier (0.5)', type:'number', min:0.1, max:1, step:0.05 },
+  pt_default_leverage: { label:'Default Leverage (5×)', type:'number', min:1, max:100 },
+  pt_default_amount:   { label:'Default Trade Amount USDT (100)', type:'number', min:1, max:10000 },
+};
+
+let currentIndValues = {};
+
+async function loadIndicators() {
+  try {
+    const d = await api('GET', '/api/admin/indicators');
+    if (!d.success) return;
+    currentIndValues = {};
+    Object.entries(d.data).forEach(([k,v]) => { currentIndValues[k] = v.value; });
+    renderIndForm();
+  } catch (e) {
+    document.getElementById('indFormGrid').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+function renderIndForm() {
+  const grid = document.getElementById('indFormGrid');
+  const ptGrid = document.getElementById('ptFormGrid');
+
+  // Group indicator fields
+  const groups = {};
+  Object.entries(IND_LABELS).forEach(([key, cfg]) => {
+    if (!groups[cfg.group]) groups[cfg.group] = [];
+    groups[cfg.group].push({ key, cfg, val: currentIndValues[key] ?? '' });
+  });
+
+  grid.innerHTML = Object.entries(groups).map(([grp, fields]) => `
+    <div style="grid-column:1/-1;margin-top:8px;margin-bottom:4px">
+      <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:4px">${grp}</div>
+    </div>
+    ${fields.map(({key,cfg,val}) => `
+      <div class="f-row">
+        <label>${cfg.label}</label>
+        ${cfg.type === 'select'
+          ? `<select class="f-sel" id="ind-${key}">${cfg.options.map(o=>`<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}</select>`
+          : `<input class="f-inp" type="number" id="ind-${key}" value="${val}" min="${cfg.min??''}" max="${cfg.max??''}" step="${cfg.step??1}">`
+        }
+      </div>
+    `).join('')}
+  `).join('');
+
+  ptGrid.innerHTML = Object.entries(PT_LABELS).map(([key,cfg]) => `
+    <div class="f-row">
+      <label>${cfg.label}</label>
+      <input class="f-inp" type="number" id="ind-${key}" value="${currentIndValues[key]??''}" min="${cfg.min??''}" max="${cfg.max??''}" step="${cfg.step??1}">
+    </div>
+  `).join('');
+}
+
+async function saveIndicators() {
+  const all = { ...IND_LABELS, ...PT_LABELS };
+  const updates = {};
+  Object.entries(all).forEach(([key, cfg]) => {
+    const el = document.getElementById(`ind-${key}`);
+    if (!el) return;
+    updates[key] = cfg.type === 'select' ? el.value : parseFloat(el.value);
+  });
+  const al = document.getElementById('indAlert');
+  try {
+    const r = await api('PUT', '/api/admin/indicators', updates);
+    if (!r.success) throw new Error(r.error);
+    al.style.display='block'; al.className='alert success'; al.textContent=`✅ ${r.updated} indicator defaults saved. New users will get these values.`;
+    showToast('✅ Indicator defaults saved');
+    setTimeout(() => { al.style.display='none'; }, 4000);
+  } catch (e) {
+    al.style.display='block'; al.className='alert danger'; al.textContent='Error: ' + e.message;
+  }
+}
+
+/* ── Helper: confirm2 (non-blocking confirm dialog) ── */
+function confirm2(title, body, cb) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmBody').innerHTML = body.replace(/\n/g,'<br>');
+  confirmCb = cb;
+  document.getElementById('confirmOverlay').style.display = 'flex';
+}
+
+/* ── Helper: showToast ── */
+function showToast(msg, type = 'success') {
+  let toast = document.getElementById('_adminToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = '_adminToast';
+    toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 18px;border-radius:8px;font-family:var(--font-n);font-size:.82rem;font-weight:600;transition:all .3s';
+    document.body.appendChild(toast);
+  }
+  toast.style.background = type === 'danger' ? 'rgba(255,61,90,.9)' : 'rgba(0,255,136,.9)';
+  toast.style.color = '#000';
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+}
+
+/* ── Hook into showPage to lazy-load users + indicators ── */
+const _origShowPage = typeof showPage === 'function' ? showPage : null;
+function showPage(name) {
+  document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+  const pg = document.getElementById('page-' + name);
+  if (pg) pg.classList.add('active');
+  document.querySelectorAll('.sb-link').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.sb-link[onclick="showPage('${name}')"]`)?.classList.add('active');
+  if (name === 'users')      { loadUserStats(); loadUsers(); }
+  if (name === 'indicators') { loadIndicators(); }
+  // Forward to original handlers for other pages
+  if (_origShowPage && name !== 'users' && name !== 'indicators') {
+    // already handled above, page sections shown
+  }
 }
 
 </script>

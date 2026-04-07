@@ -330,457 +330,538 @@ function fmtTime(iso) {
 
 /* ── State ── */
 let currentTab      = 'open';
-let pendingActionId = null;
-let pendingAction   = null;   // 'close' | 'cancel'
-let livePrices      = {};
+<!-- Additional CSS for new trade states -->
+<style>
+.tc-status.tp1-hit{background:rgba(255,195,51,.12);color:var(--yellow);border:1px solid rgba(255,195,51,.3);}
+.tc-status.be-close{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3);}
+.tc-status.trail{background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3);}
+.trailing-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-n);font-size:.62rem;padding:2px 8px;border-radius:4px;background:rgba(167,139,250,.1);color:#a78bfa;border:1px solid rgba(167,139,250,.2);margin-left:6px;}
+.be-notice{background:rgba(255,195,51,.06);border:1px solid rgba(255,195,51,.2);border-radius:8px;padding:8px 12px;margin:8px 16px 0;font-size:.78rem;color:var(--yellow);line-height:1.6;}
+.partial-tag{font-family:var(--font-n);font-size:.62rem;padding:2px 7px;border-radius:4px;background:rgba(0,255,136,.08);color:var(--green);border:1px solid rgba(0,255,136,.18);}
+.sl-moved{color:var(--yellow)!important;position:relative;}
+.sl-moved::after{content:'BE';font-size:.55rem;margin-left:3px;opacity:.8;}
+.tc-tp1-row{padding:8px 16px;background:rgba(0,255,136,.04);border-top:1px solid rgba(0,255,136,.12);display:flex;justify-content:space-between;align-items:center;font-size:.78rem;flex-wrap:wrap;gap:6px;}
+.tp1-locked{color:var(--green);font-family:var(--font-n);font-weight:600;}
+</style>
 
-/* ── localStorage helpers ── */
-function getTrades()   { return JSON.parse(localStorage.getItem('pt_trades') || '[]'); }
-function saveTrades(t) { localStorage.setItem('pt_trades', JSON.stringify(t)); }
-function getBalance()  { return parseFloat(localStorage.getItem('pt_balance') || '1000'); }
-function saveBalance(b){ localStorage.setItem('pt_balance', String(b)); }
+<!-- Firebase auth -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
+  authDomain: "crypto-98b33.firebaseapp.com",
+  projectId: "crypto-98b33",
+  storageBucket: "crypto-98b33.firebasestorage.app",
+  messagingSenderId: "619954501803",
+  appId: "1:619954501803:web:559d48b801f072abd71fee"
+};
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+onAuthStateChanged(auth, (user) => {
+  document.getElementById('authGuard').style.display = 'none';
+  if (!user) { window.location.href = 'login.html'; return; }
+  document.getElementById('dashMain').style.display = 'block';
+  if (window.innerWidth <= 768) document.getElementById('mobBtn').style.display = 'flex';
+  const name     = user.displayName || user.email?.split('@')[0] || 'Trader';
+  const initials = name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) || 'U';
+  document.getElementById('userAvatar').textContent = initials;
+  document.getElementById('userName').textContent   = name;
+  document.getElementById('userEmail').textContent  = user.email || '';
+  initPage();
+});
+window.handleSignOut = async function() { await signOut(auth); window.location.href = 'index.html'; };
+</script>
 
-/* ── Status helpers ── */
-function isPending(t) { return t.status === 'PENDING_LONG' || t.status === 'PENDING_SHORT'; }
-function isOpen(t)    { return t.status === 'OPEN'; }
-function isActive(t)  { return isPending(t) || isOpen(t); }
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   LIVE-SIGNALS v2  —  Trailing SL + Partial Close + BE = WIN
+   ═══════════════════════════════════════════════════════════════
 
-/* ── Init ── */
-function initPage() {
-  connectWS();
-  renderAll();
-  fetchPricesNow();        // immediate — sliders show correctly on first load
-  setInterval(fetchPricesNow, 5000);
-}
-function openMobSidebar()  { document.getElementById('dashSidebar').classList.add('open');    document.getElementById('mobOverlay').classList.add('show'); }
-function closeMobSidebar() { document.getElementById('dashSidebar').classList.remove('open'); document.getElementById('mobOverlay').classList.remove('show'); }
+   Trade Status Flow:
+   ─────────────────
+   PENDING_LONG/SHORT  →  OPEN  →  TP1_HIT  →  TP2     (full WIN)
+                                              →  BE_CLOSE (WIN — TP1 banked)
+                                              →  TRAIL_WIN (WIN — trailing above entry)
+                                   (before TP1)→  SL      (LOSS)
 
-/* ── Balance ── */
-function setBalance() {
-  const v = parseFloat(document.getElementById('balInput').value);
-  if (!v || v < 1) return;
-  saveBalance(v); document.getElementById('balInput').value = ''; renderAll();
-}
-function updateBalanceDisplay() {
-  const closed   = getTrades().filter(t => !isActive(t) && t.status !== 'CANCELLED');
-  const start    = getBalance();
-  const totalPnl = closed.reduce((s, t) => s + (t.pnl || 0), 0);
-  document.getElementById('balStart').textContent   = '$' + start.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  document.getElementById('balCurrent').textContent = '$' + (start + totalPnl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const el = document.getElementById('balPnl');
-  el.textContent = fmtUSD(totalPnl);
-  el.style.color = totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
-}
+   After TP1 hit:
+   ─ 50% position closed at TP1 price (tp1Pnl locked in)
+   ─ SL moved to entry price (break-even protection)
+   ─ Trailing SL activates: trails at (currentPrice - trailOffset)
+     where trailOffset = (tp1 - entry) * 0.5
+   ─ If price returns to entry → BE_CLOSE → counted as WIN
+     (because tp1Pnl > 0 was already banked)
+   ─ If trailing SL hit above entry → TRAIL_WIN (still WIN)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Formatters ─────────────────────────────────────────────── */
+function fmtP(p){const n=parseFloat(p);if(n>=1000)return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});if(n>=1)return'$'+n.toFixed(4);if(n>=0.01)return'$'+n.toFixed(5);return'$'+n.toFixed(6);}
+function fmtUSD(n){const abs=Math.abs(n),str=abs>=1000?abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):abs.toFixed(2);return(n>=0?'+$':'-$')+str;}
+function fmtTime(iso){const d=new Date(iso);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});}
+
+/* ── State ──────────────────────────────────────────────────── */
+let currentTab='open', pendingActionId=null, pendingAction=null, livePrices={};
+
+/* ── localStorage ───────────────────────────────────────────── */
+function getTrades()   { return JSON.parse(localStorage.getItem('pt_trades')||'[]'); }
+function saveTrades(t) { localStorage.setItem('pt_trades',JSON.stringify(t)); }
+function getBalance()  { return parseFloat(localStorage.getItem('pt_balance')||'1000'); }
+function saveBalance(b){ localStorage.setItem('pt_balance',String(b)); }
+
+/* ── Status helpers ─────────────────────────────────────────── */
+function isPending(t) { return t.status==='PENDING_LONG'||t.status==='PENDING_SHORT'; }
+function isOpen(t)    { return t.status==='OPEN'; }
+function isTP1Hit(t)  { return t.status==='TP1_HIT'; }
+function isActive(t)  { return isPending(t)||isOpen(t)||isTP1Hit(t); }
+function isClosed(t)  { return !isActive(t); }
+// WIN = TP2, BE_CLOSE (after TP1), TRAIL_WIN, or manual close with pnl>0
+function isWin(t)     { return t.status==='TP2'||t.status==='BE_CLOSE'||t.status==='TRAIL_WIN'||(t.status==='CLOSED'&&(t.totalPnl||t.pnl||0)>0); }
+function isLoss(t)    { return t.status==='SL'||(t.status==='CLOSED'&&(t.totalPnl||t.pnl||0)<0); }
+
+/* ── Stats ──────────────────────────────────────────────────── */
 function updateStats() {
-  const trades  = getTrades();
-  const open    = trades.filter(isOpen);
-  const pending = trades.filter(isPending);
-  const closed  = trades.filter(t => !isActive(t) && t.status !== 'CANCELLED');
-  const wins    = closed.filter(t => (t.pnl||0) > 0);
-  const wr      = closed.length ? Math.round(wins.length/closed.length*100) : null;
-  const best    = closed.length ? Math.max(...closed.map(t=>t.pnl||0)) : null;
-  document.getElementById('statOpen').textContent    = open.length;
-  document.getElementById('statPending').textContent = pending.length;
-  const wrEl = document.getElementById('statWinRate');
-  wrEl.textContent = wr !== null ? wr+'%' : '—';
-  wrEl.style.color = wr !== null ? (wr>=50?'var(--green)':'var(--red)') : 'var(--muted)';
-  const bEl = document.getElementById('statBest');
-  if (best !== null && best > 0) { bEl.textContent = '+$'+best.toFixed(2); bEl.style.color='var(--green)'; }
-  else { bEl.textContent='—'; bEl.style.color='var(--muted)'; }
+  const all    = getTrades();
+  const open   = all.filter(isOpen);
+  const pending= all.filter(isPending);
+  const tp1    = all.filter(isTP1Hit);
+  const closed = all.filter(isClosed);
+  const wins   = all.filter(isWin);
+  const losses = all.filter(isLoss);
+  const totalPnl=closed.reduce((s,t)=>s+(t.totalPnl||t.pnl||0),0);
+  const curBal = getBalance()+totalPnl;
+  const wr     = (wins.length+losses.length)>0?Math.round(wins.length/(wins.length+losses.length)*100):null;
+  const best   = closed.length?Math.max(...closed.map(t=>t.totalPnl||t.pnl||0)):null;
+  document.getElementById('statOpen').textContent  = open.length+tp1.length;
+  document.getElementById('statPending').textContent=pending.length;
+  document.getElementById('statWinRate').textContent=wr!==null?wr+'%':'—';
+  document.getElementById('statBest').textContent  =best!==null?fmtUSD(best):'—';
+  document.getElementById('balStart').textContent  ='$'+getBalance().toFixed(2);
+  document.getElementById('balCurrent').textContent='$'+curBal.toFixed(2);
+  const pnlEl=document.getElementById('balPnl');
+  pnlEl.textContent=fmtUSD(totalPnl);
+  pnlEl.style.color=totalPnl>0?'var(--green)':totalPnl<0?'var(--red)':'var(--muted)';
 }
+
+function setBalance() {
+  const v=parseFloat(document.getElementById('balInput').value);
+  if(!v||v<1)return;
+  saveBalance(v);updateStats();
+  document.getElementById('balInput').value='';
+}
+
+/* ── Tabs ───────────────────────────────────────────────────── */
 function switchTab(tab) {
-  currentTab = tab;
-  document.getElementById('tabOpen').classList.toggle('active', tab==='open');
-  document.getElementById('tabClosed').classList.toggle('active', tab==='closed');
+  currentTab=tab;
+  document.getElementById('tabOpen').classList.toggle('active',tab==='open');
+  document.getElementById('tabClosed').classList.toggle('active',tab==='closed');
   renderTradeList();
 }
-function renderAll() { updateBalanceDisplay(); updateStats(); renderTradeList(); }
 
+/* ── Init ───────────────────────────────────────────────────── */
+function initPage() {
+  renderAll();
+  setInterval(fetchPricesNow,5000);
+  connectWS();
+}
+function renderAll() { updateStats(); renderTradeList(); }
+
+/* ═══════════════════════════════════════════════════════════════
+   TRADE CARD RENDERING
+   ═══════════════════════════════════════════════════════════════ */
 function renderTradeList() {
-  const trades = getTrades();
-  /* open tab: OPEN + PENDING | history tab: closed + cancelled */
-  const list = currentTab === 'open'
-    ? trades.filter(isActive)
-    : trades.filter(t => !isActive(t));
-
-  const container = document.getElementById('tradeList');
-  if (!list.length) {
-    const msg = currentTab==='open'
-      ? 'No open or pending positions. Go to Analysis → Deep Scan → Paper Trade.'
-      : 'No trade history yet.';
-    container.innerHTML = `
-      <div class="empty-pt">
-        <div class="empty-pt-icon">${currentTab==='open'?'📊':'📋'}</div>
-        <div class="empty-pt-title">${currentTab==='open'?'No Active Positions':'No Trade History'}</div>
-        <div class="empty-pt-sub">${msg}</div>
-        ${currentTab==='open'?'<a href="analysis.html" class="btn-go-analysis">🔬 Go to Analysis</a>':''}
-      </div>`;
-    return;
-  }
-  container.innerHTML = list.map(t => buildTradeCard(t)).join('');
+  const all  = getTrades();
+  const list = currentTab==='open'
+    ? all.filter(isActive).sort((a,b)=>new Date(b.openTime)-new Date(a.openTime))
+    : all.filter(isClosed).sort((a,b)=>new Date(b.closeTime||b.openTime)-new Date(a.closeTime||a.openTime));
+  const el=document.getElementById('tradeList');
+  if(!list.length){el.innerHTML=`<div style="text-align:center;padding:48px 16px;color:var(--muted)"><div style="font-size:2.5rem;margin-bottom:10px">${currentTab==='open'?'📭':'📋'}</div><div style="font-size:.93rem;font-weight:500;color:var(--text);margin-bottom:5px">${currentTab==='open'?'No active trades':'No trade history'}</div><div style="font-size:.81rem">${currentTab==='open'?'Run a Deep Scan in Analysis to open a paper trade.':'Completed trades will appear here.'}</div></div>`;return;}
+  el.innerHTML=list.map(t=>buildTradeCard(t)).join('');
 }
 
-/* ════════════════════════════════════════════
-   BUILD TRADE CARD
-   ════════════════════════════════════════════ */
 function buildTradeCard(trade) {
-  const open    = isOpen(trade);
-  const pending = isPending(trade);
-  const price   = livePrices[trade.symbol] || trade.entryPrice;
-  const dir     = trade.direction;
+  const pending=isPending(trade), open=isOpen(trade), tp1hit=isTP1Hit(trade);
+  const dir=trade.direction;
+  const price=livePrices[trade.symbol]||null;
 
-  /* Card CSS class */
-  let cardCls;
-  if      (pending) cardCls = dir==='LONG' ? 'pending-long' : 'pending-short';
-  else if (open)    cardCls = dir==='LONG' ? 'open-long'    : 'open-short';
-  else              cardCls = (trade.pnl||0) >= 0 ? 'closed-win' : 'closed-loss';
+  // Status badge
+  let badgeCls,badgeLabel;
+  if(pending)          {badgeCls='pending';  badgeLabel='⏳ PENDING';}
+  else if(open)        {badgeCls='open';     badgeLabel='● OPEN';}
+  else if(tp1hit)      {badgeCls='tp1-hit';  badgeLabel='🎯 TP1 HIT — Trailing';}
+  else if(trade.status==='TP2')         {badgeCls='tp2';      badgeLabel='✅ TP2 — FULL WIN';}
+  else if(trade.status==='BE_CLOSE')    {badgeCls='be-close'; badgeLabel='✅ BE CLOSE — WIN';}
+  else if(trade.status==='TRAIL_WIN')   {badgeCls='tp1';      badgeLabel='✅ TRAIL WIN';}
+  else if(trade.status==='SL')          {badgeCls='sl';       badgeLabel='❌ STOP LOSS';}
+  else if(trade.status==='CLOSED')      {badgeCls=(trade.totalPnl||trade.pnl||0)>=0?'tp1':'sl';badgeLabel='CLOSED';}
+  else if(trade.status==='CANCELLED')   {badgeCls='sl';       badgeLabel='CANCELLED';}
+  else {badgeCls='open';badgeLabel=trade.status;}
 
-  /* Status badge */
-  let badgeCls, badgeLabel;
-  if      (pending)                   { badgeCls = 'pending';   badgeLabel = '⏳ PENDING'; }
-  else if (open)                      { badgeCls = 'open';      badgeLabel = '● OPEN'; }
-  else if (trade.status === 'TP1')    { badgeCls = 'tp1';       badgeLabel = 'TP1 ✓'; }
-  else if (trade.status === 'TP2')    { badgeCls = 'tp2';       badgeLabel = 'TP2 ✓'; }
-  else if (trade.status === 'SL')     { badgeCls = 'sl';        badgeLabel = 'SL ✗'; }
-  else if (trade.status === 'CLOSED') { badgeCls = (trade.pnl||0)>=0?'tp1':'sl'; badgeLabel = 'CLOSED'; }
-  else                                { badgeCls = 'cancelled'; badgeLabel = 'CANCELLED'; }
+  const cardCls=pending?'':'';
 
-  const openT  = fmtTime(trade.openTime);
-  const closeT = trade.closeTime ? fmtTime(trade.closeTime) : null;
-  const fillT  = trade.fillTime  ? fmtTime(trade.fillTime)  : null;
-
-  /* ─────────────────────────────────────────────
-     PENDING CARD — shows waiting info, no P&L
-     ───────────────────────────────────────────── */
-  if (pending) {
-    const isLong      = trade.status === 'PENDING_LONG';
-    const entryTarget = trade.entryPrice;
-    const dist        = Math.abs(price - entryTarget);
-    const distPct     = (dist / price * 100).toFixed(2);
-    const distDir     = isLong
-      ? (price > entryTarget ? `needs to fall ${distPct}%` : 'price at/below entry — filling soon')
-      : (price < entryTarget ? `needs to rise ${distPct}%` : 'price at/above entry — filling soon');
-    const waitColor   = isLong ? 'var(--green)' : 'var(--red)';
-
-    return `
-  <div class="trade-card ${cardCls}">
-    <div class="tc-head">
-      <div class="tc-left">
-        <span class="tc-pair">${trade.pair}</span>
-        <span class="tc-dir ${dir.toLowerCase()}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</span>
-        <span class="tc-lev">${trade.leverage}×</span>
-        <span class="tc-status ${badgeCls}">${badgeLabel}</span>
-      </div>
-      <span class="tc-time">Placed ${openT}</span>
-    </div>
-
-    <div class="pending-info">
-      <div class="pending-info-title">⏳ Limit Order — Waiting for Entry</div>
-      <div class="pending-grid">
-        <div class="pending-box">
-          <div class="pending-lbl">Entry Target</div>
-          <div class="pending-val" style="color:var(--cyan)">${fmtP(entryTarget)}</div>
+  // ── PENDING card ────────────────────────────────────────────
+  if(pending){
+    const isLong=trade.status==='PENDING_LONG';
+    const curStr=price?fmtP(price):'—';
+    const diff=price?(isLong?(price-trade.entryPrice)/trade.entryPrice*100:(trade.entryPrice-price)/trade.entryPrice*100).toFixed(2):null;
+    return `<div class="trade-card">
+      <div class="tc-head">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="tc-pair">${trade.pair}</div>
+          <span class="tc-dir ${dir==='LONG'?'long':'short'}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</span>
+          <span class="tc-status ${badgeCls}">${badgeLabel}</span>
         </div>
-        <div class="pending-box">
-          <div class="pending-lbl">Current Price</div>
-          <div class="pending-val" style="color:var(--text)">${fmtP(price)}</div>
-        </div>
-        <div class="pending-box">
-          <div class="pending-lbl">Distance</div>
-          <div class="pending-val" style="color:${waitColor}">${fmtP(dist)} (${distPct}%)</div>
-        </div>
-        <div class="pending-box">
-          <div class="pending-lbl">Status</div>
-          <div class="pending-val" style="font-size:.75rem;color:var(--muted)">${distDir}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-tc-action cancel" onclick="promptCancel(${trade.id})">✕ Cancel</button>
         </div>
       </div>
-    </div>
-
-    <div class="tc-levels">
-      <div class="tc-lbox"><div class="tc-llbl">Entry</div><div class="tc-lval col-entry">${fmtP(trade.entryPrice)}</div></div>
-      <div class="tc-lbox"><div class="tc-llbl">TP 1</div><div class="tc-lval col-tp1">${fmtP(trade.tp1)}</div></div>
-      <div class="tc-lbox"><div class="tc-llbl">TP 2</div><div class="tc-lval col-tp2">${fmtP(trade.tp2)}</div></div>
-      <div class="tc-lbox"><div class="tc-llbl">Stop Loss</div><div class="tc-lval col-sl">${fmtP(trade.sl)}</div></div>
-      <div class="tc-lbox"><div class="tc-llbl">Liq. Price</div><div class="tc-lval col-liq">${fmtP(trade.liqPrice)}</div></div>
-    </div>
-
-    <div class="tc-foot">
-      <div class="tc-meta-small">Margin: $${trade.amount.toFixed(2)} · ${trade.leverage}× · Notional: $${trade.notional.toFixed(2)}</div>
-      <button class="btn-cancel-order" onclick="promptCancel(${trade.id})">✕ Cancel Order</button>
-    </div>
-  </div>`;
-  }
-
-  /* ─────────────────────────────────────────────
-     OPEN CARD — P&L + progress slider
-     ───────────────────────────────────────────── */
-  let pnl, roe;
-  if (open) {
-    pnl = dir==='LONG' ? (price-trade.entryPrice)*trade.size : (trade.entryPrice-price)*trade.size;
-    roe = (pnl/trade.amount)*100;
-  } else {
-    pnl = trade.pnl||0; roe = trade.roe||0;
-  }
-  const pnlCls = pnl>0?'profit':pnl<0?'loss':'neutral';
-
-  /* Progress slider (only for OPEN trades) */
-  let progBlock = '';
-  if (open && trade.sl && trade.tp1) {
-    const lo     = dir==='LONG' ? trade.sl  : trade.tp1;
-    const hi     = dir==='LONG' ? trade.tp1 : trade.sl;
-    const range  = Math.abs(hi - lo);
-    const progPct   = range > 0 ? Math.min(Math.max((price-lo)/range*100, 0), 100) : 0;
-    const progColor = dir==='LONG' ? 'var(--green)' : 'var(--red)';
-    const pctColor  = progPct>=60?'var(--green)':progPct>=30?'var(--cyan)':'var(--muted)';
-    progBlock = `
-    <div class="tc-progress">
-      <div class="prog-header">
-        <span class="prog-title">Price Progress → TP1</span>
-        <span class="prog-pct" style="color:${pctColor}">${progPct.toFixed(0)}%</span>
+      <div class="pending-info">
+        <div>⏳ Waiting for price to reach <strong>${fmtP(trade.entryPrice)}</strong></div>
+        <div style="margin-top:4px;font-size:.77rem;color:var(--muted)">Current: ${curStr}${diff?' · '+diff+'% away':''} · ${isLong?'Fills when price drops to entry':'Fills when price rises to entry'}</div>
       </div>
-      <div class="prog-labels">
-        <span class="prog-lbl-sl">SL ${fmtP(trade.sl)}</span>
-        <span style="font-family:var(--font-n);font-size:.62rem;color:var(--cyan)">▼ ${fmtP(price)}</span>
-        <span class="prog-lbl-tp">TP1 ${fmtP(trade.tp1)}</span>
+      <div class="tc-levels">
+        <div class="tc-lbox"><div class="tc-llbl">Entry Target</div><div class="tc-lval col-entry">${fmtP(trade.entryPrice)}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">TP 1</div><div class="tc-lval col-tp1">${fmtP(trade.tp1)}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">TP 2</div><div class="tc-lval col-tp2">${fmtP(trade.tp2)}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">Stop Loss</div><div class="tc-lval col-sl">${fmtP(trade.sl)}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">Leverage</div><div class="tc-lval" style="color:var(--text)">${trade.leverage}×</div></div>
       </div>
-      <div class="prog-track">
-        <div class="prog-fill" style="width:${progPct}%;background:${progColor};opacity:.7"></div>
-        <div class="prog-knob" style="left:${progPct}%;border-color:${progColor};box-shadow:0 0 8px ${progColor}"></div>
+      <div style="padding:8px 16px;font-family:var(--font-n);font-size:.68rem;color:var(--muted)">
+        💰 ${fmtP(trade.amount)} USDT · ${fmtP(trade.notional)} notional · Opened ${fmtTime(trade.openTime)}
       </div>
     </div>`;
   }
 
-  const timeStr = open
-    ? `Filled ${fillT || openT}`
-    : `${openT}${closeT?' → '+closeT:''}`;
+  // ── OPEN / TP1_HIT card ─────────────────────────────────────
+  if(open||tp1hit){
+    let pnl=0,roe=0;
+    const currentSL = tp1hit?(trade.currentSl||trade.entryPrice):trade.sl;
+    if(price){
+      // Live P&L on remaining position
+      const rem = tp1hit ? 0.5 : 1.0; // after TP1: 50% remains
+      const livePnl = dir==='LONG'?(price-trade.entryPrice)*trade.size*rem:(trade.entryPrice-price)*trade.size*rem;
+      const tp1PnlBanked = trade.tp1Pnl||0;
+      pnl = livePnl+tp1PnlBanked;
+      roe = (pnl/trade.amount)*100;
+    }
+    const pnlCls=pnl>0?'profit':pnl<0?'loss':'neutral';
 
-  return `
-  <div class="trade-card ${cardCls}">
+    // Progress bar
+    let progress=50;
+    if(price&&trade.sl&&trade.tp2){
+      const range=dir==='LONG'?trade.tp2-currentSL:currentSL-trade.tp2;
+      const moved=dir==='LONG'?price-currentSL:currentSL-price;
+      progress=Math.max(0,Math.min(100,(moved/range)*100));
+    }
+
+    const trailOffset=trade.trailOffset||(trade.tp1?(Math.abs(trade.tp1-trade.entryPrice)*0.5):0);
+
+    return `<div class="trade-card">
+      <div class="tc-head">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="tc-pair">${trade.pair}</div>
+          <span class="tc-dir ${dir==='LONG'?'long':'short'}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</span>
+          <span class="tc-status ${badgeCls}">${badgeLabel}</span>
+          ${tp1hit?'<span class="trailing-badge">🔒 SL → Entry</span>':''}
+          ${tp1hit?`<span class="partial-tag">50% closed @ TP1</span>`:''}
+        </div>
+        <button class="btn-tc-action" onclick="promptClose(${trade.id})">⬛ Close</button>
+      </div>
+      ${tp1hit?`<div class="be-notice">🛡️ <strong>Break-Even Protection Active</strong> — SL moved to entry ${fmtP(trade.entryPrice)}. If stopped here = <strong style="color:var(--green)">WIN</strong> (TP1 already banked). Trailing SL is active.</div>`:''}
+      ${tp1hit&&trade.tp1Pnl?`<div class="tc-tp1-row"><span>🎯 TP1 banked: <span class="tp1-locked">${fmtUSD(trade.tp1Pnl)}</span></span><span style="font-family:var(--font-n);font-size:.7rem;color:var(--muted)">50% closed @ ${fmtP(trade.tp1HitPrice||trade.tp1)}</span></div>`:''}
+      <div class="tc-pnl-row">
+        <div class="pnl-big">
+          <div class="pnl-label">${tp1hit?'Total P&L (TP1 + live)':'Unrealised P&L'}</div>
+          <div class="pnl-value ${pnlCls}">${price?fmtUSD(pnl):'—'}</div>
+          <div class="pnl-roe ${pnlCls}">${price?(roe>0?'+':'')+roe.toFixed(2)+'% ROE':'—'}</div>
+        </div>
+        <div style="font-family:var(--font-n);font-size:.72rem;color:var(--muted);text-align:right">
+          <div>Current: <strong style="color:var(--cyan)">${price?fmtP(price):'—'}</strong></div>
+          <div style="margin-top:3px">Lev: ${trade.leverage}× · ${fmtP(trade.amount)} USDT</div>
+          ${tp1hit?`<div style="margin-top:3px;color:var(--yellow)">Trailing SL: ${fmtP(currentSL)}</div>`:''}
+        </div>
+      </div>
+      ${(open||tp1hit)?`<div style="padding:6px 16px 12px">
+        <div style="height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${progress.toFixed(0)}%;background:${progress>66?'var(--green)':progress>33?'var(--yellow)':'var(--cyan)'};border-radius:3px;transition:width .6s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--font-n);font-size:.58rem;color:var(--dim);margin-top:3px">
+          <span>SL ${fmtP(currentSL)}${tp1hit?' (BE)':''}</span>
+          <span>TP1 ${fmtP(trade.tp1)}</span>
+          <span>TP2 ${fmtP(trade.tp2)}</span>
+        </div>
+      </div>`:''}
+      <div class="tc-levels">
+        <div class="tc-lbox"><div class="tc-llbl">Entry</div><div class="tc-lval col-entry">${fmtP(trade.entryPrice)}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">TP 1</div><div class="tc-lval ${tp1hit?'col-tp2':'col-tp1'}">${fmtP(trade.tp1)}${tp1hit?` <span style="font-size:.6rem;color:var(--green)">✓</span>`:''}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">TP 2</div><div class="tc-lval col-tp2">${fmtP(trade.tp2)}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">Stop Loss</div><div class="tc-lval ${tp1hit?'sl-moved col-sl':'col-sl'}">${fmtP(currentSL)}</div></div>
+        <div class="tc-lbox"><div class="tc-llbl">Liq Price</div><div class="tc-lval col-liq">${fmtP(trade.liqPrice)}</div></div>
+      </div>
+      <div style="padding:6px 16px 12px;font-family:var(--font-n);font-size:.67rem;color:var(--muted)">
+        Filled ${trade.fillTime?fmtTime(trade.fillTime):'—'} · ${trade.symbol}
+      </div>
+    </div>`;
+  }
+
+  // ── CLOSED / HISTORY card ───────────────────────────────────
+  const totalPnl=trade.totalPnl??trade.pnl??0, roe=trade.totalRoe??trade.roe??0;
+  const pnlCls=totalPnl>0?'profit':totalPnl<0?'loss':'neutral';
+  const win=isWin(trade),loss=isLoss(trade);
+  return `<div class="trade-card closed-${win?'win':loss?'loss':'neutral'}">
     <div class="tc-head">
-      <div class="tc-left">
-        <span class="tc-pair">${trade.pair}</span>
-        <span class="tc-dir ${dir.toLowerCase()}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</span>
-        <span class="tc-lev">${trade.leverage}×</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="tc-pair">${trade.pair}</div>
+        <span class="tc-dir ${dir==='LONG'?'long':'short'}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</span>
         <span class="tc-status ${badgeCls}">${badgeLabel}</span>
       </div>
-      <span class="tc-time">${timeStr}</span>
+      <div class="pnl-value ${pnlCls}" style="font-size:1rem">${fmtUSD(totalPnl)}</div>
     </div>
-
+    ${(trade.status==='BE_CLOSE')?`<div style="padding:6px 16px;font-size:.77rem;color:var(--green)">🏆 TP1 banked ${fmtUSD(trade.tp1Pnl||0)} — price returned to entry. Counted as <strong>WIN</strong>.</div>`:''}
+    ${(trade.status==='TRAIL_WIN')?`<div style="padding:6px 16px;font-size:.77rem;color:var(--green)">🏆 TP1 banked ${fmtUSD(trade.tp1Pnl||0)} + trailing SL closed at ${fmtP(trade.closePrice)}. Full <strong>WIN</strong>.</div>`:''}
+    ${trade.tp1Pnl&&trade.status==='TP2'?`<div style="padding:6px 16px;font-size:.77rem;color:var(--green)">🏆 TP1 ${fmtUSD(trade.tp1Pnl)} + TP2 ${fmtUSD(totalPnl-(trade.tp1Pnl||0))} = Full WIN</div>`:''}
     <div class="tc-pnl-row">
       <div class="pnl-big">
-        <div class="pnl-label">${open?'Unrealized P&L':'Realized P&L'}</div>
-        <div class="pnl-value ${pnlCls}">${fmtUSD(pnl)}</div>
-        <div class="pnl-roe ${pnlCls}">${roe>=0?'+':''}${roe.toFixed(2)}% ROE</div>
+        <div class="pnl-label">Total P&L</div>
+        <div class="pnl-value ${pnlCls}">${fmtUSD(totalPnl)}</div>
+        <div class="pnl-roe ${pnlCls}">${roe>0?'+':''}${roe.toFixed(2)}% ROE</div>
       </div>
-      <div class="tc-mark">
-        <div class="mark-lbl">${open?'Mark Price':'Close Price'}</div>
-        <div class="mark-val">${fmtP(open?price:(trade.closePrice||price))}</div>
-        <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);margin-top:2px">Margin: $${trade.amount.toFixed(2)}</div>
+      <div style="font-family:var(--font-n);font-size:.72rem;color:var(--muted);text-align:right">
+        <div>Close: <strong>${trade.closePrice?fmtP(trade.closePrice):'—'}</strong></div>
+        <div style="margin-top:3px">${trade.closeTime?fmtTime(trade.closeTime):'—'}</div>
+        <div style="margin-top:3px">${trade.leverage}× · ${fmtP(trade.amount)}</div>
       </div>
     </div>
-
     <div class="tc-levels">
       <div class="tc-lbox"><div class="tc-llbl">Entry</div><div class="tc-lval col-entry">${fmtP(trade.entryPrice)}</div></div>
       <div class="tc-lbox"><div class="tc-llbl">TP 1</div><div class="tc-lval col-tp1">${fmtP(trade.tp1)}</div></div>
       <div class="tc-lbox"><div class="tc-llbl">TP 2</div><div class="tc-lval col-tp2">${fmtP(trade.tp2)}</div></div>
       <div class="tc-lbox"><div class="tc-llbl">Stop Loss</div><div class="tc-lval col-sl">${fmtP(trade.sl)}</div></div>
-      <div class="tc-lbox"><div class="tc-llbl">Liq. Price</div><div class="tc-lval col-liq">${fmtP(trade.liqPrice)}</div></div>
+      <div class="tc-lbox"><div class="tc-llbl">Leverage</div><div class="tc-lval">${trade.leverage}×</div></div>
     </div>
-
-    ${progBlock}
-
-    <div class="tc-foot">
-      <div class="tc-meta-small">
-        Size: ${trade.size>=1?trade.size.toFixed(4):trade.size.toFixed(6)} ${trade.symbol.replace('USDT','')}
-        &nbsp;·&nbsp; Notional: $${trade.notional.toFixed(2)}
-      </div>
-      ${open ? `<button class="btn-close-trade" onclick="promptClose(${trade.id})">Close Position</button>` : ''}
+    <div style="padding:4px 16px 12px;font-family:var(--font-n);font-size:.67rem;color:var(--muted)">
+      Opened ${fmtTime(trade.openTime)} · ${trade.symbol}
     </div>
   </div>`;
 }
 
-/* ════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
    PRICE POLLING & TRADE LOGIC
-   ════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════ */
 
 async function fetchPricesNow() {
   const trades  = getTrades().filter(isActive);
-  const symbols = [...new Set(trades.map(t => t.symbol))];
-  if (!symbols.length) return;
+  const symbols = [...new Set(trades.map(t=>t.symbol))];
+  if(!symbols.length) return;
   try {
-    const qs   = symbols.map(s => `"${s}"`).join(',');
-    const res  = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbols=[${qs}]`);
-    const data = await res.json();
-    data.forEach(d => { livePrices[d.symbol] = parseFloat(d.price); });
-    checkPendingFills();   // step 1: fill any waiting limit orders
-    checkTpSl();           // step 2: check TP/SL on OPEN trades
-    if (currentTab === 'open') renderTradeList();
+    const qs   = symbols.map(s=>`"${s}"`).join(',');
+    const data = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbols=[${qs}]`).then(r=>r.json());
+    data.forEach(d=>{ livePrices[d.symbol]=parseFloat(d.price); });
+    checkPendingFills();
+    checkTpSl();
+    if(currentTab==='open') renderTradeList();
   } catch(_) {}
 }
 
-/*
- * checkPendingFills
- * ─────────────────
- * Limit orders are saved as PENDING_LONG / PENDING_SHORT.
- * They only become OPEN once the live price actually reaches
- * the entry price — exactly like a real limit order fill.
- *
- * PENDING_LONG  fills when price drops to <= entryPrice
- * PENDING_SHORT fills when price rises to >= entryPrice
- *
- * After fill, TP/SL tracking starts from the NEXT poll.
- */
+/* ── Pending fills ──────────────────────────────────────────── */
 function checkPendingFills() {
-  const trades = getTrades();
-  let changed  = false;
-  trades.forEach((t, i) => {
-    if (!isPending(t)) return;
-    const price = livePrices[t.symbol];
-    if (price == null) return;
-    const shouldFill =
-      (t.status === 'PENDING_LONG'  && price <= t.entryPrice) ||
-      (t.status === 'PENDING_SHORT' && price >= t.entryPrice);
-    if (shouldFill) {
-      trades[i] = { ...t, status: 'OPEN', fillTime: new Date().toISOString() };
-      changed = true;
-    }
+  const trades=getTrades(); let changed=false;
+  trades.forEach((t,i)=>{
+    if(!isPending(t)) return;
+    const price=livePrices[t.symbol]; if(price==null) return;
+    const fill=(t.status==='PENDING_LONG'&&price<=t.entryPrice)||(t.status==='PENDING_SHORT'&&price>=t.entryPrice);
+    if(fill){ trades[i]={...t,status:'OPEN',fillTime:new Date().toISOString()}; changed=true; }
   });
-  if (changed) { saveTrades(trades); updateStats(); }
+  if(changed){ saveTrades(trades); updateStats(); }
 }
 
-/*
- * checkTpSl
- * ─────────
- * Only runs on OPEN trades (not PENDING).
- * This prevents the instant-TP/SL bug: a PENDING trade
- * will not be checked here — it must first fill.
- */
+/* ═══════════════════════════════════════════════════════════════
+   checkTpSl — Core logic with Trailing SL + BE protection
+   ═══════════════════════════════════════════════════════════════ */
 function checkTpSl() {
-  const trades = getTrades();
-  let changed  = false;
-  trades.forEach((t, i) => {
-    if (!isOpen(t)) return;          // ← skip PENDING
-    const price = livePrices[t.symbol];
-    if (price == null) return;
-    const dir = t.direction;
-    let hit = null;
-    if (dir === 'LONG') {
-      if      (price >= t.tp2) hit = 'TP2';
-      else if (price >= t.tp1) hit = 'TP1';
-      else if (price <= t.sl)  hit = 'SL';
-    } else {
-      if      (price <= t.tp2) hit = 'TP2';
-      else if (price <= t.tp1) hit = 'TP1';
-      else if (price >= t.sl)  hit = 'SL';
+  const trades=getTrades(); let changed=false;
+  trades.forEach((t,i)=>{
+    if(!isOpen(t)&&!isTP1Hit(t)) return;
+    const price=livePrices[t.symbol]; if(price==null) return;
+    const dir=t.direction;
+
+    /* ── Already at TP1_HIT: trailing SL + TP2 watch ────────── */
+    if(isTP1Hit(t)){
+      // trailOffset = half the TP1 distance
+      const trailOffset = t.trailOffset||(Math.abs(t.tp1-t.entryPrice)*0.5);
+      // New trailing SL position
+      const newTrailSL = dir==='LONG'
+        ? Math.max(t.entryPrice, price - trailOffset)
+        : Math.min(t.entryPrice, price + trailOffset);
+      // Update trailing SL if it moved favourably
+      const updatedSL = dir==='LONG'
+        ? Math.max(t.currentSl||t.entryPrice, newTrailSL)
+        : Math.min(t.currentSl||t.entryPrice, newTrailSL);
+
+      let hit=null;
+      if(dir==='LONG'){
+        if      (price>=t.tp2)         hit='TP2';
+        else if (price<=updatedSL){
+          // SL hit — check if it's at/above entry → WIN
+          hit = updatedSL >= t.entryPrice-0.0001 ? 'BE_CLOSE_OR_TRAIL' : 'SL_AFTER_TP1';
+        }
+      } else {
+        if      (price<=t.tp2)         hit='TP2';
+        else if (price>=updatedSL){
+          hit = updatedSL <= t.entryPrice+0.0001 ? 'BE_CLOSE_OR_TRAIL' : 'SL_AFTER_TP1';
+        }
+      }
+
+      if(hit){
+        const remaining50Pnl = dir==='LONG'
+          ? (price - t.entryPrice)*t.size*0.5
+          : (t.entryPrice - price)*t.size*0.5;
+        const tp1Banked = t.tp1Pnl||0;
+        const totalPnl  = tp1Banked + remaining50Pnl;
+        const totalRoe  = (totalPnl/t.amount)*100;
+
+        if(hit==='TP2'){
+          trades[i]={...t,status:'TP2',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
+        } else if(hit==='BE_CLOSE_OR_TRAIL'){
+          // Price at or above entry when SL hit → WIN
+          const isBE = Math.abs(updatedSL - t.entryPrice) < t.entryPrice*0.0005;
+          const finalStatus = isBE ? 'BE_CLOSE' : 'TRAIL_WIN';
+          trades[i]={...t,status:finalStatus,closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
+        } else {
+          // SL hit below entry after TP1 (shouldn't happen with proper trailing, but safety)
+          trades[i]={...t,status:'SL',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
+        }
+        changed=true;
+      } else {
+        // Update trailing SL if moved
+        if(updatedSL!==t.currentSl){
+          trades[i]={...t,currentSl:updatedSL,trailOffset};
+          changed=true;
+        }
+      }
+      return;
     }
-    if (hit) {
-      const pnl = dir==='LONG'
-        ? (price-t.entryPrice)*t.size
-        : (t.entryPrice-price)*t.size;
-      const roe = (pnl/t.amount)*100;
-      trades[i] = { ...t, status:hit, closePrice:price, closeTime:new Date().toISOString(), pnl, roe };
-      changed = true;
+
+    /* ── OPEN trade: check TP1/TP2/SL ───────────────────────── */
+    let hit=null;
+    if(dir==='LONG'){
+      if      (price>=t.tp2) hit='TP2';
+      else if (price>=t.tp1) hit='TP1';
+      else if (price<=t.sl)  hit='SL';
+    } else {
+      if      (price<=t.tp2) hit='TP2';
+      else if (price<=t.tp1) hit='TP1';
+      else if (price>=t.sl)  hit='SL';
+    }
+
+    if(hit==='TP1'){
+      /* ── TP1 hit → partial close 50%, move SL to entry ───── */
+      const tp1Pnl=(dir==='LONG'?(price-t.entryPrice)*t.size*0.5:(t.entryPrice-price)*t.size*0.5);
+      const trailOffset=Math.abs(t.tp1-t.entryPrice)*0.5;
+      trades[i]={...t,
+        status:'TP1_HIT',
+        tp1HitPrice:price,
+        tp1HitTime:new Date().toISOString(),
+        tp1Pnl,
+        currentSl:t.entryPrice,  // SL → entry (break-even)
+        trailOffset,
+      };
+      changed=true;
+    } else if(hit==='TP2'){
+      // Went straight to TP2 without hitting TP1 first (unusual but possible)
+      const pnl=dir==='LONG'?(price-t.entryPrice)*t.size:(t.entryPrice-price)*t.size;
+      const roe=(pnl/t.amount)*100;
+      trades[i]={...t,status:'TP2',closePrice:price,closeTime:new Date().toISOString(),totalPnl:pnl,totalRoe:roe,pnl,roe};
+      changed=true;
+    } else if(hit==='SL'){
+      const pnl=dir==='LONG'?(price-t.entryPrice)*t.size:(t.entryPrice-price)*t.size;
+      const roe=(pnl/t.amount)*100;
+      trades[i]={...t,status:'SL',closePrice:price,closeTime:new Date().toISOString(),totalPnl:pnl,totalRoe:roe,pnl,roe};
+      changed=true;
     }
   });
-  if (changed) { saveTrades(trades); renderAll(); }
+  if(changed){ saveTrades(trades); renderAll(); }
 }
 
-/* ── Close / Cancel flow ── */
+/* ── Manual close ───────────────────────────────────────────── */
 function promptClose(id) {
-  pendingActionId = id; pendingAction = 'close';
-  const t = getTrades().find(x => x.id === id); if (!t) return;
-  const price = livePrices[t.symbol] || t.entryPrice;
-  const pnl   = t.direction==='LONG'
-    ? (price-t.entryPrice)*t.size : (t.entryPrice-price)*t.size;
-  document.getElementById('cmTitle').textContent = 'Close Position';
-  document.getElementById('cmBody').innerHTML = `
-    Close <strong>${t.pair}</strong> ${t.direction}?<br><br>
+  pendingActionId=id; pendingAction='close';
+  const t=getTrades().find(x=>x.id===id); if(!t) return;
+  const price=livePrices[t.symbol]||t.entryPrice;
+  const tp1Banked=t.tp1Pnl||0;
+  const rem=isTP1Hit(t)?0.5:1.0;
+  const livePnl=t.direction==='LONG'?(price-t.entryPrice)*t.size*rem:(t.entryPrice-price)*t.size*rem;
+  const totalPnl=tp1Banked+livePnl;
+  document.getElementById('cmTitle').textContent='Close Position';
+  document.getElementById('cmBody').innerHTML=`Close <strong>${t.pair}</strong> ${t.direction}?<br><br>
     Mark price: <strong>${fmtP(price)}</strong><br>
-    Realized P&L: <strong style="color:${pnl>=0?'var(--green)':'var(--red)'}">${fmtUSD(pnl)}</strong>`;
-  document.getElementById('btnCmOk').textContent = 'Close Position';
+    ${isTP1Hit(t)?`TP1 banked: <strong style="color:var(--green)">${fmtUSD(tp1Banked)}</strong><br>Live 50%: <strong>${fmtUSD(livePnl)}</strong><br>`:''}
+    Total P&L: <strong style="color:${totalPnl>=0?'var(--green)':'var(--red)'}">${fmtUSD(totalPnl)}</strong>
+    ${totalPnl>=0&&isTP1Hit(t)?'<br><span style="color:var(--green);font-size:.82rem">✅ This will be counted as a WIN</span>':''}`;
+  document.getElementById('btnCmOk').textContent='Close Position';
   document.getElementById('closeOverlay').classList.add('open');
 }
-
 function promptCancel(id) {
-  pendingActionId = id; pendingAction = 'cancel';
-  const t = getTrades().find(x => x.id === id); if (!t) return;
-  document.getElementById('cmTitle').textContent = 'Cancel Limit Order';
-  document.getElementById('cmBody').innerHTML = `
-    Cancel the pending <strong>${t.direction}</strong> limit order for <strong>${t.pair}</strong>?<br><br>
-    Entry target: <strong>${fmtP(t.entryPrice)}</strong><br>
-    This order has not been filled yet.`;
-  document.getElementById('btnCmOk').textContent = 'Cancel Order';
+  pendingActionId=id; pendingAction='cancel';
+  const t=getTrades().find(x=>x.id===id); if(!t) return;
+  document.getElementById('cmTitle').textContent='Cancel Limit Order';
+  document.getElementById('cmBody').innerHTML=`Cancel pending <strong>${t.direction}</strong> on <strong>${t.pair}</strong>?<br><br>Entry target: <strong>${fmtP(t.entryPrice)}</strong><br>This order has not filled yet.`;
+  document.getElementById('btnCmOk').textContent='Cancel Order';
   document.getElementById('closeOverlay').classList.add('open');
 }
-
-function closeConfirmModal() {
-  document.getElementById('closeOverlay').classList.remove('open');
-  pendingActionId = null; pendingAction = null;
-}
-
-function doConfirmAction() {
-  if (!pendingActionId) return;
-  if (pendingAction === 'close')  doCloseTrade();
-  if (pendingAction === 'cancel') doCancelOrder();
-}
+function closeConfirmModal(){ document.getElementById('closeOverlay').classList.remove('open'); pendingActionId=null; pendingAction=null; }
+function doConfirmAction(){ if(!pendingActionId) return; if(pendingAction==='close') doCloseTrade(); if(pendingAction==='cancel') doCancelOrder(); }
 
 function doCloseTrade() {
-  const trades = getTrades();
-  const idx    = trades.findIndex(x => x.id === pendingActionId);
-  if (idx === -1) { closeConfirmModal(); return; }
-  const t     = trades[idx];
-  const price = livePrices[t.symbol] || t.entryPrice;
-  const pnl   = t.direction==='LONG'
-    ? (price-t.entryPrice)*t.size : (t.entryPrice-price)*t.size;
-  const roe   = (pnl/t.amount)*100;
-  trades[idx] = { ...t, status:'CLOSED', closePrice:price, closeTime:new Date().toISOString(), pnl, roe };
+  const trades=getTrades(),idx=trades.findIndex(x=>x.id===pendingActionId);
+  if(idx===-1){closeConfirmModal();return;}
+  const t=trades[idx],price=livePrices[t.symbol]||t.entryPrice;
+  const tp1Banked=t.tp1Pnl||0;
+  const rem=isTP1Hit(t)?0.5:1.0;
+  const livePnl=t.direction==='LONG'?(price-t.entryPrice)*t.size*rem:(t.entryPrice-price)*t.size*rem;
+  const totalPnl=tp1Banked+livePnl, totalRoe=(totalPnl/t.amount)*100;
+  trades[idx]={...t,status:'CLOSED',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
   saveTrades(trades); closeConfirmModal(); renderAll();
 }
-
 function doCancelOrder() {
-  const trades = getTrades();
-  const idx    = trades.findIndex(x => x.id === pendingActionId);
-  if (idx === -1) { closeConfirmModal(); return; }
-  trades[idx] = { ...trades[idx], status:'CANCELLED', closeTime:new Date().toISOString() };
+  const trades=getTrades(),idx=trades.findIndex(x=>x.id===pendingActionId);
+  if(idx===-1){closeConfirmModal();return;}
+  trades[idx]={...trades[idx],status:'CANCELLED',closeTime:new Date().toISOString()};
   saveTrades(trades); closeConfirmModal(); renderAll();
 }
 
-/* ── WebSocket (ticker bar) ── */
-const wsProto = location.protocol==='https:'?'wss:':'ws:';
-let ws, wsRetry = 1000;
-function connectWS() {
-  try {
-    ws = new WebSocket(`${wsProto}//${location.host}`);
-    ws.onopen  = () => { wsRetry = 1000; };
-    ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type==='market_update' && data.ticker) {
-          data.ticker.forEach(c => { livePrices[c.symbol] = c.price; });
-          updateTicker(data.ticker);
-        }
-      } catch(_) {}
+/* ── WebSocket ──────────────────────────────────────────────── */
+const wsProto=location.protocol==='https:'?'wss:':'ws:';
+let ws,wsRetry=1000;
+function connectWS(){
+  try{
+    ws=new WebSocket(`${wsProto}//${location.host}`);
+    ws.onopen=()=>{wsRetry=1000;};
+    ws.onmessage=(e)=>{
+      try{
+        const data=JSON.parse(e.data);
+        if(data.type==='market_update'&&data.ticker){data.ticker.forEach(c=>{livePrices[c.symbol]=c.price;});updateTicker(data.ticker);}
+      }catch(_){}
     };
-    ws.onclose = () => setTimeout(connectWS, wsRetry = Math.min(wsRetry*1.5, 15000));
-  } catch(_) {}
+    ws.onclose=()=>setTimeout(connectWS,wsRetry=Math.min(wsRetry*1.5,15000));
+  }catch(_){}
 }
-function updateTicker(coins) {
-  if (!coins) return;
-  const symMap = {BTCUSDT:'BTC',ETHUSDT:'ETH',BNBUSDT:'BNB',SOLUSDT:'SOL',XRPUSDT:'XRP'};
-  coins.forEach(c => {
-    const sym = symMap[c.symbol]; if (!sym) return;
-    const up  = c.change >= 0;
-    const chg = (up?'+':'')+c.change.toFixed(2)+'%';
-    const pr  = c.price>=1000?'$'+c.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
-              : c.price>=1   ?'$'+c.price.toFixed(4):'$'+c.price.toFixed(6);
-    ['','2'].forEach(sfx => {
-      const pe = document.getElementById(`tk-${sym}-p${sfx}`);
-      const ce = document.getElementById(`tk-${sym}-c${sfx}`);
-      if (pe) pe.textContent = pr;
-      if (ce) { ce.textContent=chg; ce.className=`t-chg ${up?'up':'down'}`; }
+function updateTicker(coins){
+  if(!coins)return;
+  const symMap={BTCUSDT:'BTC',ETHUSDT:'ETH',BNBUSDT:'BNB',SOLUSDT:'SOL',XRPUSDT:'XRP'};
+  coins.forEach(c=>{
+    const sym=symMap[c.symbol];if(!sym)return;
+    const up=c.change>=0,chg=(up?'+':'')+c.change.toFixed(2)+'%';
+    const pr=c.price>=1000?'$'+c.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):c.price>=1?'$'+c.price.toFixed(4):'$'+c.price.toFixed(6);
+    ['','2'].forEach(sfx=>{
+      const pe=document.getElementById(`tk-${sym}-p${sfx}`),ce=document.getElementById(`tk-${sym}-c${sfx}`);
+      if(pe)pe.textContent=pr;if(ce){ce.textContent=chg;ce.className=`t-chg ${up?'up':'down'}`;}
     });
   });
 }
+
+function openMobSidebar(){document.getElementById('dashSidebar').classList.add('open');document.getElementById('mobOverlay').classList.add('show');}
+function closeMobSidebar(){document.getElementById('dashSidebar').classList.remove('open');document.getElementById('mobOverlay').classList.remove('show');}
 </script>
 </body>
 </html>

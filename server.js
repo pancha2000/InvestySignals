@@ -110,93 +110,347 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/investysign
     await seedDefaultSettings();
   })
   .catch(err => {
-    console.error('⚠️  MongoDB connection failed:', err.message);
-    console.log('   → Falling back to hardcoded signals');
-  });
 
-/* Seed default settings if not present */
+
+/* ── New indicator settings defaults ── */
+const indicatorDefaults = [
+  // Analysis engine
+  { key: 'ind_rsi_period',        value: 14,    label: 'RSI Period',               group: 'indicators' },
+  { key: 'ind_ema_fast',          value: 20,    label: 'EMA Fast Period',           group: 'indicators' },
+  { key: 'ind_ema_slow',          value: 50,    label: 'EMA Slow Period',           group: 'indicators' },
+  { key: 'ind_ema_long',          value: 200,   label: 'EMA Long Period (200)',      group: 'indicators' },
+  { key: 'ind_macd_fast',         value: 12,    label: 'MACD Fast',                 group: 'indicators' },
+  { key: 'ind_macd_slow',         value: 26,    label: 'MACD Slow',                 group: 'indicators' },
+  { key: 'ind_macd_signal',       value: 9,     label: 'MACD Signal',               group: 'indicators' },
+  { key: 'ind_bb_period',         value: 20,    label: 'Bollinger Bands Period',     group: 'indicators' },
+  { key: 'ind_bb_mult',           value: 2,     label: 'Bollinger Bands Multiplier', group: 'indicators' },
+  { key: 'ind_stoch_rsi_period',  value: 14,    label: 'Stoch RSI Period',           group: 'indicators' },
+  { key: 'ind_stoch_k',           value: 3,     label: 'Stoch RSI K Smooth',         group: 'indicators' },
+  { key: 'ind_stoch_d',           value: 3,     label: 'Stoch RSI D Smooth',         group: 'indicators' },
+  { key: 'ind_adx_period',        value: 14,    label: 'ADX Period',                 group: 'indicators' },
+  { key: 'ind_adx_choppy_gate',   value: 18,    label: 'ADX Choppy Market Gate',     group: 'indicators' },
+  { key: 'ind_atr_period',        value: 14,    label: 'ATR Period',                 group: 'indicators' },
+  { key: 'ind_supertrend_period', value: 10,    label: 'Supertrend Period',           group: 'indicators' },
+  { key: 'ind_supertrend_mult',   value: 3,     label: 'Supertrend Multiplier',       group: 'indicators' },
+  { key: 'ind_vwap_lookback',     value: 24,    label: 'VWAP Lookback (candles)',     group: 'indicators' },
+  { key: 'ind_kline_limit',       value: 200,   label: 'Kline History (bars)',         group: 'indicators' },
+  { key: 'ind_kline_tf',          value: '1h',  label: 'Primary Timeframe',            group: 'indicators' },
+  // Scoring gates
+  { key: 'ind_min_confidence',    value: 38,    label: 'Min Confidence % to Signal',  group: 'indicators' },
+  { key: 'ind_market_entry_conf', value: 65,    label: 'Market Entry Min Confidence', group: 'indicators' },
+  { key: 'ind_funding_gate',      value: 0.25,  label: 'Funding Rate Hard Gate (%)',   group: 'indicators' },
+  // Paper trading
+  { key: 'pt_tp1_trail_mult',     value: 0.5,   label: 'TP1 Trail Offset Multiplier', group: 'paper_trade' },
+  { key: 'pt_default_leverage',   value: 5,     label: 'Default Leverage',             group: 'paper_trade' },
+  { key: 'pt_default_amount',     value: 100,   label: 'Default Trade Amount (USDT)',  group: 'paper_trade' },
+];
+
 async function seedDefaultSettings() {
-  const defaults = [
-    // General
+  const generalDefaults = [
     { key: 'site_name',            value: 'InvestySignals',         label: 'Site Name',                   group: 'general' },
     { key: 'site_tagline',         value: 'Professional Crypto Signals', label: 'Site Tagline',           group: 'general' },
     { key: 'site_url',             value: 'https://investysignals.store', label: 'Site URL',              group: 'general' },
     { key: 'maintenance_mode',     value: false,                    label: 'Maintenance Mode',            group: 'general' },
     { key: 'register_open',        value: true,                     label: 'Allow New Registrations',     group: 'general' },
-    { key: 'footer_text',          value: '© 2026 InvestySignals. For educational purposes only.',
-                                                                     label: 'Footer Text',                group: 'general' },
-    // SEO
-    { key: 'seo_title',            value: 'InvestySignals — Free Crypto Trading Signals',
-                                                                     label: 'SEO Meta Title',             group: 'seo' },
-    { key: 'seo_description',      value: 'Get free professional crypto trading signals for Binance Futures. RSI, EMA, MACD analysis with precise entry, TP and SL levels.',
-                                                                     label: 'SEO Meta Description',       group: 'seo' },
-    { key: 'seo_keywords',         value: 'crypto signals, binance futures signals, bitcoin trading signals, free crypto signals, BTC ETH signals',
-                                                                     label: 'SEO Keywords',               group: 'seo' },
-    { key: 'og_image',             value: '',                        label: 'OG Share Image URL',         group: 'seo' },
-    { key: 'google_analytics_id',  value: '',                        label: 'Google Analytics ID (G-xxx)',group: 'seo' },
-    // AdSense
-    { key: 'adsense_enabled',      value: true,                    label: 'Enable Google AdSense',       group: 'adsense' },
-    { key: 'adsense_publisher_id', value: 'ca-pub-5034247623532581',    label: 'AdSense Publisher ID (ca-pub-xxxxx)',  group: 'adsense' },
-    { key: 'adsense_auto_ads',     value: false,                    label: 'Auto Ads (auto insert ads)',  group: 'adsense' },
-    { key: 'adsense_slot_header',  value: '',                        label: 'Header Ad Slot ID',          group: 'adsense' },
-    { key: 'adsense_slot_sidebar', value: '',                        label: 'Sidebar Ad Slot ID',         group: 'adsense' },
-    { key: 'adsense_slot_inline',  value: '',                        label: 'Inline Content Ad Slot ID',  group: 'adsense' },
-    { key: 'adsense_slot_footer',  value: '',                        label: 'Footer Ad Slot ID',          group: 'adsense' },
-    // Analysis
-    { key: 'scan_limit',           value: 50,                       label: 'Market Scan Limit',           group: 'analysis' },
-    { key: 'rsi_period',           value: 14,                       label: 'RSI Period',                  group: 'analysis' },
-    { key: 'rsi_long_threshold',   value: 45,                       label: 'RSI Long Threshold',          group: 'analysis' },
-    { key: 'rsi_short_threshold',  value: 55,                       label: 'RSI Short Threshold',         group: 'analysis' },
-    { key: 'kline_timeframe',      value: '1h',                     label: 'Kline Timeframe',             group: 'analysis' },
-    { key: 'kline_limit',          value: 150,                      label: 'Kline History Limit',         group: 'analysis' },
-    // Signals
-    { key: 'max_signals_shown',    value: 20,                       label: 'Max Signals on Page',         group: 'signals' },
-    { key: 'auto_close_signals',   value: true,                     label: 'Auto-close Signals',          group: 'signals' },
-    { key: 'signals_disclaimer',   value: 'These signals are for educational purposes only. Not financial advice.',
-                                                                     label: 'Signals Disclaimer',         group: 'signals' },
-    // Social
-    { key: 'social_telegram',      value: '',                        label: 'Telegram Channel URL',       group: 'social' },
-    { key: 'social_twitter',       value: '',                        label: 'Twitter / X URL',            group: 'social' },
-    { key: 'social_discord',       value: '',                        label: 'Discord Server URL',         group: 'social' },
-    { key: 'social_youtube',       value: '',                        label: 'YouTube Channel URL',        group: 'social' },
+    { key: 'footer_text',          value: '© 2026 InvestySignals. For educational purposes only.', label: 'Footer Text', group: 'general' },
+    { key: 'seo_title',            value: 'InvestySignals — Free Crypto Trading Signals', label: 'SEO Meta Title', group: 'seo' },
+    { key: 'seo_description',      value: 'Get free professional crypto trading signals for Binance Futures.', label: 'SEO Meta Description', group: 'seo' },
+    { key: 'seo_keywords',         value: 'crypto signals, binance futures signals, bitcoin trading signals', label: 'SEO Keywords', group: 'seo' },
+    { key: 'og_image',             value: '',   label: 'OG Share Image URL',        group: 'seo' },
+    { key: 'google_analytics_id',  value: '',   label: 'Google Analytics ID',       group: 'seo' },
+    { key: 'adsense_enabled',      value: true, label: 'Enable Google AdSense',     group: 'adsense' },
+    { key: 'adsense_publisher_id', value: 'ca-pub-5034247623532581', label: 'AdSense Publisher ID', group: 'adsense' },
+    { key: 'adsense_auto_ads',     value: false, label: 'Auto Ads',                 group: 'adsense' },
+    { key: 'scan_limit',           value: 50,   label: 'Market Scan Limit',         group: 'analysis' },
+    { key: 'max_signals_shown',    value: 20,   label: 'Max Signals on Page',       group: 'signals' },
+    { key: 'auto_close_signals',   value: true, label: 'Auto-close Signals',        group: 'signals' },
+    { key: 'signals_disclaimer',   value: 'These signals are for educational purposes only. Not financial advice.', label: 'Signals Disclaimer', group: 'signals' },
+    { key: 'social_telegram',      value: '',   label: 'Telegram Channel URL',      group: 'social' },
+    { key: 'social_twitter',       value: '',   label: 'Twitter / X URL',           group: 'social' },
+    { key: 'social_discord',       value: '',   label: 'Discord Server URL',        group: 'social' },
+    { key: 'social_youtube',       value: '',   label: 'YouTube Channel URL',       group: 'social' },
   ];
-  for (const d of defaults) {
+  const all = [...generalDefaults, ...indicatorDefaults];
+  for (const d of all) {
     await Settings.findOneAndUpdate({ key: d.key }, d, { upsert: true, new: true });
   }
-  console.log('[MongoDB] Default settings seeded (' + defaults.length + ' keys)');
+  console.log('[MongoDB] Default settings seeded (' + all.length + ' keys)');
 }
 
 /* ═══════════════════════════════════════════════════════
-   ADMIN AUTH MIDDLEWARE
+   USER SETTINGS SCHEMA (per-user indicator overrides)
 ═══════════════════════════════════════════════════════ */
-function adminAuth(req, res, next) {
+const userSettingsSchema = new mongoose.Schema({
+  firebaseUid: { type: String, required: true, unique: true, index: true },
+  email:       { type: String },
+  displayName: { type: String },
+  settings:    { type: mongoose.Schema.Types.Mixed, default: {} },
+  // Admin-managed fields
+  suspended:   { type: Boolean, default: false },
+  suspendedAt: { type: Date },
+  suspendReason:{ type: String },
+  deletedAt:   { type: Date },
+  role:        { type: String, enum: ['user','premium','admin'], default: 'user' },
+  lastSeen:    { type: Date, default: Date.now },
+  createdAt:   { type: Date, default: Date.now },
+}, { timestamps: true });
+
+const UserRecord = mongoose.model('UserRecord', userSettingsSchema);
+
+/* ═══════════════════════════════════════════════════════
+   FIREBASE ADMIN SDK (optional — degrades gracefully)
+═══════════════════════════════════════════════════════ */
+let firebaseAdmin = null;
+let firebaseAdminReady = false;
+
+try {
+  const admin = require('firebase-admin');
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firebaseAdmin = admin;
+    firebaseAdminReady = true;
+    console.log('✅ Firebase Admin SDK initialized');
+  } else {
+    console.log('⚠️  FIREBASE_SERVICE_ACCOUNT not set — Firebase Admin features disabled');
+  }
+} catch (e) {
+  console.log('⚠️  firebase-admin not installed — Firebase Admin features disabled');
+}
+
+/* Firebase ID token verification middleware */
+async function verifyFirebaseToken(req, res, next) {
   const auth = req.headers['authorization'];
   if (!auth || !auth.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, error: 'No token provided' });
   }
-  try {
-    const decoded = jwt.verify(auth.slice(7), JWT_SECRET);
-    req.admin = decoded;
+  const idToken = auth.slice(7);
+  if (firebaseAdminReady) {
+    try {
+      const decoded = await firebaseAdmin.auth().verifyIdToken(idToken);
+      req.firebaseUser = decoded;
+      // Upsert user record
+      await UserRecord.findOneAndUpdate(
+        { firebaseUid: decoded.uid },
+        { email: decoded.email, displayName: decoded.name, lastSeen: new Date() },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      const record = await UserRecord.findOne({ firebaseUid: decoded.uid });
+      if (record?.suspended) {
+        return res.status(403).json({ success: false, error: 'Account suspended', reason: record.suspendReason });
+      }
+      req.userRecord = record;
+      next();
+    } catch (e) {
+      return res.status(401).json({ success: false, error: 'Invalid Firebase token' });
+    }
+  } else {
+    // Fallback: decode without verification (dev mode)
+    req.firebaseUser = { uid: 'dev_user', email: 'dev@local' };
     next();
-  } catch (e) {
-    return res.status(401).json({ success: false, error: 'Invalid or expired token' });
   }
 }
 
 /* ═══════════════════════════════════════════════════════
-   ADMIN AUTH ENDPOINTS
+   USER API — Indicator Settings
 ═══════════════════════════════════════════════════════ */
 
-/* POST /api/admin/login */
-app.post('/api/admin/login', async (req, res) => {
-  const { username, password } = req.body;
-  const validUser = process.env.ADMIN_USERNAME || 'admin';
-  const validPass = process.env.ADMIN_PASSWORD || 'admin123';
+/* GET /api/user/settings — user's own indicator settings (merged with admin defaults) */
+app.get('/api/user/settings', verifyFirebaseToken, async (req, res) => {
+  try {
+    // Load admin defaults from Settings collection
+    const adminDefaults = {};
+    const rows = await Settings.find({ group: { $in: ['indicators', 'paper_trade'] } });
+    rows.forEach(r => { adminDefaults[r.key] = r.value; });
 
-  if (username !== validUser || password !== validPass) {
-    return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    // Load user overrides
+    const record = await UserRecord.findOne({ firebaseUid: req.firebaseUser.uid });
+    const userOverrides = record?.settings || {};
+
+    // Merge: user overrides take priority over admin defaults
+    const merged = { ...adminDefaults, ...userOverrides };
+    res.json({ success: true, data: merged, defaults: adminDefaults, overrides: userOverrides });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* PUT /api/user/settings — save user's indicator overrides */
+app.put('/api/user/settings', verifyFirebaseToken, async (req, res) => {
+  try {
+    const allowed = indicatorDefaults.map(d => d.key);
+    const updates = {};
+    Object.entries(req.body).forEach(([k, v]) => { if (allowed.includes(k)) updates[k] = v; });
+    const record = await UserRecord.findOneAndUpdate(
+      { firebaseUid: req.firebaseUser.uid },
+      { $set: { settings: updates } },
+      { new: true, upsert: true }
+    );
+    res.json({ success: true, data: record.settings });
+  } catch (e) { res.status(400).json({ success: false, error: e.message }); }
+});
+
+/* DELETE /api/user/settings — reset user settings to admin defaults */
+app.delete('/api/user/settings', verifyFirebaseToken, async (req, res) => {
+  try {
+    await UserRecord.findOneAndUpdate({ firebaseUid: req.firebaseUser.uid }, { $set: { settings: {} } });
+    res.json({ success: true, message: 'Settings reset to admin defaults' });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* ═══════════════════════════════════════════════════════
+   ADMIN — USER MANAGEMENT
+═══════════════════════════════════════════════════════ */
+
+/* GET /api/admin/users — list all registered users */
+app.get('/api/admin/users', adminAuth, async (req, res) => {
+  try {
+    const { skip = 0, limit = 50, suspended } = req.query;
+    const filter = {};
+    if (suspended === 'true')  filter.suspended = true;
+    if (suspended === 'false') filter.suspended = { $ne: true };
+    const [users, total] = await Promise.all([
+      UserRecord.find(filter).sort({ lastSeen: -1 }).skip(+skip).limit(+limit),
+      UserRecord.countDocuments(filter),
+    ]);
+
+    // Enrich with Firebase user data if available
+    let enriched = users;
+    if (firebaseAdminReady) {
+      enriched = await Promise.all(users.map(async u => {
+        try {
+          const fbUser = await firebaseAdmin.auth().getUser(u.firebaseUid);
+          return {
+            ...u.toObject(),
+            firebaseEmail:       fbUser.email,
+            firebaseDisplayName: fbUser.displayName,
+            firebaseDisabled:    fbUser.disabled,
+            firebaseCreated:     fbUser.metadata.creationTime,
+            firebaseLastLogin:   fbUser.metadata.lastSignInTime,
+          };
+        } catch (_) { return u.toObject(); }
+      }));
+    }
+    res.json({ success: true, total, data: enriched });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* POST /api/admin/users/:uid/suspend — suspend a user */
+app.post('/api/admin/users/:uid/suspend', adminAuth, async (req, res) => {
+  try {
+    const { reason = 'Suspended by admin' } = req.body;
+    const record = await UserRecord.findOneAndUpdate(
+      { firebaseUid: req.params.uid },
+      { suspended: true, suspendedAt: new Date(), suspendReason: reason },
+      { new: true }
+    );
+    if (!record) return res.status(404).json({ success: false, error: 'User not found' });
+    // Also disable in Firebase if available
+    if (firebaseAdminReady) {
+      try { await firebaseAdmin.auth().updateUser(req.params.uid, { disabled: true }); } catch (_) {}
+    }
+    res.json({ success: true, message: 'User suspended', data: record });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* POST /api/admin/users/:uid/unsuspend — restore a user */
+app.post('/api/admin/users/:uid/unsuspend', adminAuth, async (req, res) => {
+  try {
+    const record = await UserRecord.findOneAndUpdate(
+      { firebaseUid: req.params.uid },
+      { suspended: false, $unset: { suspendedAt: 1, suspendReason: 1 } },
+      { new: true }
+    );
+    if (!record) return res.status(404).json({ success: false, error: 'User not found' });
+    if (firebaseAdminReady) {
+      try { await firebaseAdmin.auth().updateUser(req.params.uid, { disabled: false }); } catch (_) {}
+    }
+    res.json({ success: true, message: 'User unsuspended', data: record });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* DELETE /api/admin/users/:uid — delete a user permanently */
+app.delete('/api/admin/users/:uid', adminAuth, async (req, res) => {
+  try {
+    await UserRecord.findOneAndDelete({ firebaseUid: req.params.uid });
+    if (firebaseAdminReady) {
+      try { await firebaseAdmin.auth().deleteUser(req.params.uid); } catch (_) {}
+    }
+    res.json({ success: true, message: 'User deleted permanently' });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* PUT /api/admin/users/:uid/role — change user role */
+app.put('/api/admin/users/:uid/role', adminAuth, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['user','premium','admin'].includes(role)) {
+      return res.status(400).json({ success: false, error: 'Invalid role' });
+    }
+    const record = await UserRecord.findOneAndUpdate(
+      { firebaseUid: req.params.uid },
+      { role },
+      { new: true }
+    );
+    res.json({ success: true, data: record });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* GET /api/admin/users/stats — user stats summary */
+app.get('/api/admin/users/stats', adminAuth, async (req, res) => {
+  try {
+    const [total, suspended, premium, sevenDays] = await Promise.all([
+      UserRecord.countDocuments(),
+      UserRecord.countDocuments({ suspended: true }),
+      UserRecord.countDocuments({ role: 'premium' }),
+      UserRecord.countDocuments({ lastSeen: { $gte: new Date(Date.now() - 7*24*60*60*1000) } }),
+    ]);
+    res.json({ success: true, data: { total, suspended, premium, activeLastWeek: sevenDays } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* ═══════════════════════════════════════════════════════
+   ADMIN — INDICATOR DEFAULTS (bulk update)
+═══════════════════════════════════════════════════════ */
+
+/* GET /api/admin/indicators — get current indicator defaults */
+app.get('/api/admin/indicators', adminAuth, async (req, res) => {
+  try {
+    const rows = await Settings.find({ group: { $in: ['indicators','paper_trade'] } });
+    const data = {};
+    rows.forEach(r => { data[r.key] = { value: r.value, label: r.label, group: r.group }; });
+    res.json({ success: true, data });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* PUT /api/admin/indicators — update indicator defaults */
+app.put('/api/admin/indicators', adminAuth, async (req, res) => {
+  try {
+    const allowed = indicatorDefaults.map(d => d.key);
+    const results = [];
+    for (const [key, value] of Object.entries(req.body)) {
+      if (!allowed.includes(key)) continue;
+      const s = await Settings.findOneAndUpdate({ key }, { value }, { new: true, upsert: true });
+      results.push(s);
+    }
+    res.json({ success: true, updated: results.length });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+/* Public endpoint — returns indicator defaults for analysis.html to load */
+app.get('/api/settings/indicators', async (req, res) => {
+  try {
+    const rows = await Settings.find({ group: { $in: ['indicators','paper_trade'] } });
+    const data = {};
+    rows.forEach(r => { data[r.key] = r.value; });
+    res.json({ success: true, data });
+  } catch (e) {
+    // Return hardcoded defaults as fallback
+    const fallback = {};
+    indicatorDefaults.forEach(d => { fallback[d.key] = d.value; });
+    res.json({ success: true, data: fallback, source: 'fallback' });
   }
-  const token = jwt.sign({ username, role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
+});
+
+
   res.json({ success: true, token, expiresIn: '12h' });
 });
 
