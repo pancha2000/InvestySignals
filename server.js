@@ -1,5 +1,5 @@
 /**
- * InvestySignals — Server v2 (Fixed)
+ * InvestySignals — Server v2.1 (Security + Bug Fixes)
  */
 require('dotenv').config();
 const express   = require('express');
@@ -18,8 +18,30 @@ const PORT       = process.env.PORT || 2000;
 const HOST       = process.env.HOST || '0.0.0.0';
 const JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'dev_secret_change_in_production';
 
+/* ── Security headers (Helmet) ── */
+try {
+  const helmet = require('helmet');
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+  console.log('✅ Helmet security headers active');
+} catch (_) { console.warn('⚠️  helmet not installed — run: npm install helmet express-rate-limit'); }
+
+/* ── Rate limiter (login brute-force protection) ── */
+let loginLimiter = (req, res, next) => next();
+try {
+  const rateLimit = require('express-rate-limit');
+  loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many login attempts. Try again in 15 minutes.' },
+  });
+  console.log('✅ Rate limiter active (login: 20/15min)');
+} catch (_) {}
+
+/* ── Body size limit (1MB max — prevents large payload attacks) ── */
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 /* ── Schemas ── */
 const signalSchema = new mongoose.Schema({
@@ -83,8 +105,8 @@ const indicatorDefaults = [
   { key:'ind_vwap_lookback',value:24,label:'VWAP Lookback (candles)',group:'indicators' },
   { key:'ind_kline_limit',value:200,label:'Kline History (bars)',group:'indicators' },
   { key:'ind_kline_tf',value:'1h',label:'Primary Timeframe',group:'indicators' },
-  { key:'ind_min_confidence',value:38,label:'Min Confidence % to Signal',group:'indicators' },
-  { key:'ind_market_entry_conf',value:65,label:'Market Entry Min Confidence',group:'indicators' },
+  { key:'ind_min_confidence',value:62,label:'Min Confidence % to Signal',group:'indicators' },
+  { key:'ind_market_entry_conf',value:75,label:'Market Entry Min Confidence',group:'indicators' },
   { key:'ind_funding_gate',value:0.25,label:'Funding Rate Hard Gate (%)',group:'indicators' },
   { key:'pt_tp1_trail_mult',value:0.5,label:'TP1 Trail Offset Multiplier',group:'paper_trade' },
   { key:'pt_default_leverage',value:5,label:'Default Leverage',group:'paper_trade' },
@@ -101,7 +123,6 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/investysign
   })
   .catch(err => {
     console.error('⚠️  MongoDB failed:', err.message);
-    console.log('   → Falling back to hardcoded signals');
   });
 
 async function seedDefaultSettings() {
@@ -150,6 +171,8 @@ try {
     console.log('✅ Firebase Admin initialized');
   } else {
     console.log('⚠️  FIREBASE_SERVICE_ACCOUNT not set — Firebase Admin disabled');
+    console.log('   → Firebase Console → Project Settings → Service Accounts → Generate new private key');
+    console.log('   → Add to .env: FIREBASE_SERVICE_ACCOUNT={"type":"service_account",...}');
   }
 } catch (e) { console.log('⚠️  firebase-admin not available:', e.message); }
 
@@ -187,8 +210,8 @@ async function verifyFirebaseToken(req, res, next) {
    ROUTES
 ══════════════════════════════════════════════════════ */
 
-/* Admin login */
-app.post('/api/admin/login', async (req, res) => {
+/* Admin login — rate limited */
+app.post('/api/admin/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (username !== (process.env.ADMIN_USERNAME||'admin') || password !== (process.env.ADMIN_PASSWORD||'admin123'))
     return res.status(401).json({ success:false, error:'Invalid credentials' });
@@ -369,21 +392,18 @@ app.delete('/api/user/settings', verifyFirebaseToken, async (req, res) => {
   catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
-/* Public APIs */
-const HARDCODED_SIGNALS = [
-  { id:1, pair:'BTC/USDT', coin:'BTC', emoji:'₿', direction:'LONG', timeframe:'4H', entry:83500, tp1:87000, tp2:91500, sl:80000, grade:'A+', rrr:'2.1:1', status:'ACTIVE', confidence:92, posted:'2026-04-01 08:00', exchange:'Binance Futures' },
-  { id:2, pair:'ETH/USDT', coin:'ETH', emoji:'Ξ', direction:'LONG', timeframe:'1H', entry:1870, tp1:1980, tp2:2100, sl:1800, grade:'A', rrr:'2.4:1', status:'ACTIVE', confidence:85, posted:'2026-04-01 09:30', exchange:'Binance Futures' },
-  { id:3, pair:'SOL/USDT', coin:'SOL', emoji:'◎', direction:'SHORT', timeframe:'4H', entry:142, tp1:128, tp2:118, sl:150, grade:'B+', rrr:'1.8:1', status:'WAITING', confidence:78, posted:'2026-04-01 10:00', exchange:'Binance Futures' },
-];
+/* ── Public APIs ── */
 app.get('/api/signals', async (req, res) => {
   if (mongoConnected) {
     try {
       const { status } = req.query;
       const signals = await Signal.find(status?{status}:{}).sort({ postedAt:-1 }).limit(50);
-      if (signals.length > 0) return res.json({ success:true, count:signals.length, data:signals, source:'mongodb' });
+      // Always return MongoDB data — never show fake hardcoded signals
+      return res.json({ success:true, count:signals.length, data:signals, source:'mongodb' });
     } catch (e) { console.error('[API]', e.message); }
   }
-  res.json({ success:true, count:HARDCODED_SIGNALS.length, data:HARDCODED_SIGNALS, source:'hardcoded' });
+  // MongoDB is down — return empty, never fake data
+  res.json({ success:true, count:0, data:[], source:'unavailable' });
 });
 app.get('/api/announcement', async (req, res) => {
   if (!mongoConnected) return res.json({ success:true, data:null });
