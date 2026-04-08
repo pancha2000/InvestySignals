@@ -729,7 +729,7 @@ window.handleSignOut=async()=>{await signOut(auth);window.location.href='index.h
 function openMob(){document.getElementById('dashSidebar').classList.add('open');document.getElementById('mobOverlay').classList.add('show');}
 function closeMob(){document.getElementById('dashSidebar').classList.remove('open');document.getElementById('mobOverlay').classList.remove('show');}
 
-/* ── FIXED openTab — works for ALL 7 tabs including Indicator Settings ── */
+/* ── FIXED openTab: 7 tabs including Indicator Settings ── */
 function openTab(id){
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -741,6 +741,11 @@ function openTab(id){
   if(id==='tab-settings'&&typeof loadIndicatorSettings==='function')loadIndicatorSettings();
 }
 
+function showAlert(id,type,msg){
+  const el=document.getElementById(id);
+  el.className='alert '+type+' show';
+  el.innerHTML=(type==='success'?'✅ ':'❌ ')+msg;
+  setTimeout(()=>el.classList.remove('show'),4000);
 }
 
 function showToast(title,body,ok=true){
@@ -1169,6 +1174,7 @@ async function resetIndicatorSettings() {
     showToast('Error: ' + e.message, 'error');
   }
 }
+
 
 </script>
 
