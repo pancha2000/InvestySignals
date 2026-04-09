@@ -703,6 +703,8 @@ async function runDeepScan(symbol){
     const ex={trend4h:t4,fundingRate:fr,oiChange:oi,divergence:div,emaStack:es,vwap,supertrend:spt,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc};
     const entry=decideEntry(rsi,vol,C,H,L,curP,macd,bb,stoch,adx,obv,atr,ex);
     renderDeep(container,symbol,rsi,vol,entry,curP);
+    // Auto-save to backtest tracker
+    btSaveSignal(symbol,entry,curP,sess,rsi);
   }catch(err){container.innerHTML=`<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text" style="color:var(--red)">Scan failed</div><div class="empty-sub">${err.message}</div></div></div></div>`;}
   document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b=>b.disabled=false);
 }
@@ -1160,6 +1162,70 @@ function renderDeep(container,symbol,rsi,vol,entry,curP){
 </div></div>`;
 }
 
+
+/* ── Backtest: Auto-save every scan signal ── */
+function btSaveSignal(symbol,entry,curP,sess,rsi){
+  try{
+    const{direction:dir,entryType,confidence:conf,isRisky=false,riskFlags=[],
+          entryPrice:ep,tp1Price:tp1,tp2Price:tp2,slPrice:sl,rrr1,rrr2,indicators:ind}=entry;
+    const sig={
+      id:Date.now(),symbol,pair:symbol.replace('USDT','/USDT'),
+      direction:dir,entryType,confidence:conf,isRisky,riskFlags,
+      entryPrice:ep,tp1Price:tp1,tp2Price:tp2,slPrice:sl,currentSL:sl,rrr1,rrr2,
+      timestamp:new Date().toISOString(),
+      session:sess?.session||'Unknown',
+      // indicator snapshot
+      snap:{
+        rsi:parseFloat((rsi||0).toFixed(2)),
+        adx:ind?.adx?.adx?parseFloat(ind.adx.adx.toFixed(2)):null,
+        trend4h:ind?.trend4h?.bias||null,
+        trend4hScore:ind?.trend4h?.score||null,
+        supertrend:ind?.supertrend?.bullish,
+        supertrendDist:ind?.supertrend?.distPct||null,
+        emaStack:ind?.emaStack?.stack||null,
+        macdTrend:ind?.macd?.trend||null,
+        macdStrengthen:ind?.macd?.strengthening||false,
+        bbPos:ind?.bb?.position!=null?parseFloat((ind.bb.position*100).toFixed(1)):null,
+        bbSqueeze:ind?.bb?.squeeze||false,
+        stochSignal:ind?.stochRsi?.signal||null,
+        stochK:ind?.stochRsi?.k!=null?parseFloat(ind.stochRsi.k.toFixed(1)):null,
+        vwapAbove:ind?.vwap?.above,
+        vwapPct:ind?.vwap?.pct!=null?parseFloat(ind.vwap.pct.toFixed(2)):null,
+        funding:ind?.fundingRate!=null?parseFloat(ind.fundingRate.toFixed(4)):null,
+        oiTrend:ind?.oiChange?.trend||null,
+        oiPct:ind?.oiChange?.pct!=null?parseFloat(ind.oiChange.pct.toFixed(2)):null,
+        hasDivergence:!!(ind?.divergence?.regularBull||ind?.divergence?.regularBear||ind?.divergence?.hiddenBull||ind?.divergence?.hiddenBear),
+        divTypes:[ind?.divergence?.regularBull?'RegBull':null,ind?.divergence?.regularBear?'RegBear':null,ind?.divergence?.hiddenBull?'HidBull':null,ind?.divergence?.hiddenBear?'HidBear':null].filter(Boolean),
+        bullBOS:ind?.bos?.bullBOS||false,
+        bearBOS:ind?.bos?.bearBOS||false,
+        choch:ind?.bos?.choch||false,
+        bullFVG:!!ind?.fvg?.bullFVG,
+        bearFVG:!!ind?.fvg?.bearFVG,
+        mtfBullAlign:ind?.mtfRSI?.bullishAlign||false,
+        mtfBearAlign:ind?.mtfRSI?.bearishAlign||false,
+        btcBias:ind?.btcContext?.bias||null,
+        sessionQuality:sess?.quality||null,
+        atrPct:ind?.atr?.pct!=null?parseFloat(ind.atr.pct.toFixed(2)):null,
+        obv:ind?.obv?.trend||null,
+      },
+      // outcome (updated by backtest page)
+      status:entryType==='MARKET'?'OPEN':'PENDING',
+      filled:entryType==='MARKET',
+      fillPrice:entryType==='MARKET'?curP:null,
+      fillTime:entryType==='MARKET'?new Date().toISOString():null,
+      tp1Hit:false,tp1HitPrice:null,tp1HitTime:null,
+      tp2Hit:false,tp2HitPrice:null,tp2HitTime:null,
+      slHit:false,slHitTime:null,
+      beHit:false,
+      closedAt:null,finalPnl:null,durationMin:null,
+      lastPrice:curP,lastChecked:new Date().toISOString(),
+    };
+    const sigs=JSON.parse(localStorage.getItem('bt_signals')||'[]');
+    sigs.unshift(sig);
+    if(sigs.length>300)sigs.splice(300);
+    localStorage.setItem('bt_signals',JSON.stringify(sigs));
+  }catch(e){console.warn('btSave error:',e);}
+}
 
 /* ── Paper Trade Modal ── */
 function openPTModal(symbol,direction,entryType,entryPrice,tp1,tp2,sl){

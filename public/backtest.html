@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Signal Tracker & Backtest — InvestySignals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070b14;--surface:#0c1220;--card:#101827;--border:#1a2640;--border2:#243350;
+  --cyan:#00d4ff;--green:#00ff88;--red:#ff3d5a;--yellow:#ffc333;--purple:#a78bfa;
+  --text:#e2e8f0;--muted:#64748b;--dim:#334155;
+  --font-h:'Rajdhani',sans-serif;--font-n:'IBM Plex Mono',monospace;--font-b:'Outfit',sans-serif;
+  --sidebar-w:240px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-height:1.6;overflow-x:hidden;min-height:100vh;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.auth-guard{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:14px;}
+.auth-spinner{width:38px;height:38px;border:3px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite;}
+.auth-logo{font-family:var(--font-h);font-size:1.6rem;font-weight:700;}
+.auth-logo span{color:var(--cyan);}
+@keyframes spin{to{transform:rotate(360deg);}}
+.top-bar{position:fixed;top:0;left:0;right:0;height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;}
+.tb-left{display:flex;align-items:center;gap:10px;}
+.tb-brand{font-family:var(--font-h);font-weight:700;font-size:.88rem;letter-spacing:.04em;}
+.tb-brand span{color:var(--cyan);}
+.mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
+@media(max-width:768px){.mob-menu-btn{display:flex;}}
+.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:48px;left:0;height:calc(100vh - 48px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+.ds-brand{padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.ds-logo{font-family:var(--font-h);font-size:1.1rem;font-weight:700;letter-spacing:.06em;}
+.ds-logo span{color:var(--cyan);}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ds-user{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.ds-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--green));display:flex;align-items:center;justify-content:center;font-family:var(--font-h);font-weight:700;font-size:.85rem;color:#000;flex-shrink:0;}
+.ds-uname{font-size:.82rem;font-weight:600;line-height:1.2;}
+.ds-uemail{font-size:.68rem;color:var(--muted);font-family:var(--font-n);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
+.ds-nav{flex:1;padding:10px 8px;overflow-y:auto;}
+.ds-section{font-size:.62rem;font-weight:600;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;padding:10px 8px 4px;}
+.ds-nav a{display:flex;align-items:center;gap:9px;padding:10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;min-height:44px;}
+.ds-nav a:hover{background:rgba(255,255,255,.04);color:var(--text);}
+.ds-nav a.active{background:rgba(0,212,255,.08);color:var(--cyan);border-left:2px solid var(--cyan);padding-left:8px;}
+.ni{font-size:.95rem;width:18px;text-align:center;}
+.ds-badge{font-family:var(--font-n);font-size:.6rem;padding:2px 6px;border-radius:4px;font-weight:600;margin-left:auto;}
+.ds-badge.green{background:rgba(0,255,136,.12);color:var(--green);}
+.ds-badge.cyan{background:rgba(0,212,255,.12);color:var(--cyan);}
+.ds-footer{padding:12px 16px;border-top:1px solid var(--border);}
+.btn-signout{width:100%;padding:10px;background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);color:var(--red);border-radius:8px;font-size:.8rem;cursor:pointer;transition:all .2s;font-family:var(--font-b);min-height:44px;}
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;}
+.mob-overlay.show{display:block;}
+@media(max-width:768px){.dash-sidebar{transform:translateX(-100%);top:0;height:100vh;}.dash-sidebar.open{transform:translateX(0);}}
+.dash-layout{display:flex;padding-top:48px;overflow-x:hidden;width:100%;}
+.dash-main{margin-left:var(--sidebar-w);flex:1;padding:20px 24px 48px;min-width:0;overflow-x:hidden;}
+@media(max-width:768px){.dash-main{margin-left:0;padding:14px 12px 36px;}}
+
+/* Tabs */
+.tab-nav{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.tab-nav-btn{padding:10px 18px;font-family:var(--font-b);font-size:.84rem;font-weight:600;background:none;border:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;white-space:nowrap;min-height:44px;}
+.tab-nav-btn:hover{color:var(--text);}
+.tab-nav-btn.active{color:var(--cyan);border-bottom-color:var(--cyan);}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+/* Stats grid */
+.stats-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px;}
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:500px){.stats-row{grid-template-columns:repeat(2,1fr);}}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+.stat-val{font-family:var(--font-n);font-size:1.3rem;font-weight:700;line-height:1;}
+.stat-lbl{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:4px;}
+.stat-sub{font-size:.68rem;color:var(--muted);margin-top:2px;}
+
+/* Buttons */
+.btn-primary{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.07));border:1px solid rgba(0,212,255,.35);color:var(--cyan);border-radius:9px;font-family:var(--font-b);font-size:.84rem;font-weight:600;cursor:pointer;transition:all .22s;min-height:40px;}
+.btn-primary:hover{background:linear-gradient(135deg,rgba(0,212,255,.25),rgba(0,212,255,.12));box-shadow:0 0 14px rgba(0,212,255,.2);}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+.btn-danger{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);color:var(--red);border-radius:9px;font-family:var(--font-b);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s;min-height:40px;}
+.btn-danger:hover{background:rgba(255,61,90,.12);}
+
+/* Signal cards */
+.signal-grid{display:flex;flex-direction:column;gap:10px;}
+.sig-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s;}
+.sig-card:hover{border-color:var(--border2);}
+.sig-card.long{border-left:3px solid var(--green);}
+.sig-card.short{border-left:3px solid var(--red);}
+.sig-card.risk{border-left:3px solid var(--yellow);}
+.sig-head{display:flex;align-items:center;gap:10px;padding:10px 14px;flex-wrap:wrap;}
+.sig-pair{font-family:var(--font-h);font-size:1.05rem;font-weight:700;}
+.sig-dir{font-family:var(--font-n);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.06em;}
+.sig-dir.long{background:rgba(0,255,136,.12);color:var(--green);}
+.sig-dir.short{background:rgba(255,61,90,.12);color:var(--red);}
+.sig-badge{font-family:var(--font-n);font-size:.62rem;padding:2px 7px;border-radius:4px;}
+.sig-time{font-family:var(--font-n);font-size:.64rem;color:var(--muted);margin-left:auto;}
+.sig-body{padding:0 14px 12px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+@media(max-width:500px){.sig-body{grid-template-columns:repeat(3,1fr);}}
+.sig-lvl{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;}
+.sig-lvl-lbl{font-family:var(--font-n);font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px;}
+.sig-lvl-val{font-family:var(--font-n);font-size:.78rem;font-weight:600;}
+.sig-progress{padding:0 14px 12px;}
+.progress-bar{height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-top:5px;}
+.progress-fill{height:100%;border-radius:3px;transition:width .4s ease;}
+.sig-snap{padding:0 14px 12px;display:flex;flex-wrap:wrap;gap:5px;}
+.snap-chip{font-family:var(--font-n);font-size:.6rem;padding:2px 7px;border-radius:4px;}
+.snap-ok{background:rgba(0,255,136,.08);color:var(--green);border:1px solid rgba(0,255,136,.15);}
+.snap-bad{background:rgba(255,61,90,.08);color:var(--red);border:1px solid rgba(255,61,90,.15);}
+.snap-neu{background:rgba(100,116,139,.08);color:var(--muted);border:1px solid rgba(100,116,139,.15);}
+.snap-warn{background:rgba(255,195,51,.08);color:var(--yellow);border:1px solid rgba(255,195,51,.15);}
+.sig-actions{padding:0 14px 12px;display:flex;gap:7px;flex-wrap:wrap;}
+.btn-sm{padding:6px 12px;font-size:.75rem;min-height:32px;border-radius:7px;font-family:var(--font-b);font-weight:600;cursor:pointer;border:1px solid;transition:all .18s;}
+.btn-sm-close{background:rgba(255,61,90,.06);border-color:rgba(255,61,90,.2);color:var(--red);}
+.btn-sm-close:hover{background:rgba(255,61,90,.12);}
+.btn-sm-del{background:rgba(100,116,139,.06);border-color:rgba(100,116,139,.2);color:var(--muted);}
+.btn-sm-del:hover{background:rgba(100,116,139,.1);}
+
+/* Status badges */
+.status-open{background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.2);}
+.status-pending{background:rgba(255,195,51,.1);color:var(--yellow);border:1px solid rgba(255,195,51,.2);}
+.status-tp1{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2);}
+.status-tp2{background:rgba(0,255,136,.14);color:#00ff88;border:2px solid rgba(0,255,136,.4);}
+.status-sl{background:rgba(255,61,90,.1);color:var(--red);border:1px solid rgba(255,61,90,.2);}
+.status-be{background:rgba(255,195,51,.08);color:var(--yellow);border:1px solid rgba(255,195,51,.15);}
+.status-manual{background:rgba(100,116,139,.1);color:var(--muted);border:1px solid rgba(100,116,139,.2);}
+
+/* Table */
+.table-wrap{overflow-x:auto;border-radius:10px;}
+.bt-table{width:100%;border-collapse:collapse;font-size:.78rem;min-width:700px;}
+.bt-table th{font-family:var(--font-n);font-size:.6rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface);}
+.bt-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle;}
+.bt-table tr:hover td{background:rgba(255,255,255,.02);}
+.bt-table tr:last-child td{border-bottom:none;}
+
+/* Filter bar */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+.filter-btn{padding:6px 13px;background:var(--card);border:1px solid var(--border);border-radius:7px;font-size:.77rem;font-family:var(--font-n);color:var(--muted);cursor:pointer;transition:all .18s;}
+.filter-btn:hover,.filter-btn.on{background:rgba(0,212,255,.09);border-color:rgba(0,212,255,.3);color:var(--cyan);}
+
+/* Methodology docs */
+.doc-section{margin-bottom:20px;}
+.doc-h2{font-family:var(--font-h);font-size:1.15rem;font-weight:700;color:var(--cyan);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.doc-h3{font-family:var(--font-h);font-size:.95rem;font-weight:700;color:var(--text);margin:14px 0 6px;}
+.doc-p{font-size:.83rem;color:var(--muted);line-height:1.7;margin-bottom:8px;}
+.doc-table{width:100%;border-collapse:collapse;font-size:.78rem;margin-bottom:12px;}
+.doc-table th{font-family:var(--font-n);font-size:.6rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);background:var(--surface);}
+.doc-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.03);font-family:var(--font-n);font-size:.74rem;vertical-align:top;}
+.doc-table td:first-child{color:var(--cyan);font-weight:600;white-space:nowrap;}
+.doc-table td:nth-child(2){color:var(--text);}
+.doc-table td:nth-child(3){color:var(--muted);}
+.doc-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.code-inline{font-family:var(--font-n);font-size:.76rem;background:rgba(0,212,255,.06);color:var(--cyan);padding:1px 6px;border-radius:4px;}
+
+/* Panel */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;}
+.panel-title{font-family:var(--font-h);font-size:.95rem;font-weight:700;display:flex;align-items:center;gap:7px;}
+.panel-body{padding:16px;}
+
+/* Refresh indicator */
+.refresh-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;}
+.refresh-dot.loading{animation:spin .8s linear infinite;border:2px solid var(--border2);border-top-color:var(--cyan);background:none;}
+#toastBox{position:fixed;bottom:18px;right:14px;z-index:9999;display:flex;flex-direction:column;gap:7px;pointer-events:none;max-width:280px;}
+.toast{background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:10px 13px;box-shadow:0 8px 22px rgba(0,0,0,.4);animation:tIn .22s ease;pointer-events:all;}
+@keyframes tIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.toast-t{font-family:var(--font-h);font-size:.88rem;font-weight:700;}
+.toast-b{font-size:.72rem;color:var(--muted);}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+.empty-icon{font-size:2.2rem;margin-bottom:10px;}
+.empty-txt{font-size:.88rem;color:var(--text);}
+.empty-sub{font-size:.78rem;margin-top:5px;}
+</style>
+</head>
+<body>
+
+<div class="auth-guard" id="authGuard">
+  <div class="auth-logo">INVESTY<span>SIGNALS</span></div>
+  <div class="auth-spinner"></div>
+</div>
+
+<div class="top-bar">
+  <div class="tb-left">
+    <button class="mob-menu-btn" onclick="openMob()">☰</button>
+    <div class="tb-brand">INVESTY<span>SIGNALS</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span id="refreshStatus" style="font-family:var(--font-n);font-size:.68rem;color:var(--muted)">—</span>
+    <button class="btn-primary" style="padding:6px 12px;font-size:.78rem" onclick="checkAllSignals()" id="btnRefresh">⟳ Refresh</button>
+  </div>
+</div>
+
+<div class="mob-overlay" id="mobOverlay" onclick="closeMob()"></div>
+
+<div class="dash-layout">
+  <aside class="dash-sidebar" id="dashSidebar">
+    <div class="ds-brand"><div class="ds-logo">INVESTY<span>SIGNALS</span></div><div class="live-dot"></div></div>
+    <div class="ds-user">
+      <div class="ds-avatar" id="userAvatar">?</div>
+      <div style="min-width:0"><div class="ds-uname" id="userName">—</div><div class="ds-uemail" id="userEmail">—</div></div>
+    </div>
+    <nav class="ds-nav">
+      <div class="ds-section">Main</div>
+      <a href="dashboard.html"><span class="ni">📊</span> Dashboard</a>
+      <a href="live-signals.html"><span class="ni">📝</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
+      <a href="analysis.html"><span class="ni">🔬</span> Analysis</a>
+      <a href="backtest.html" class="active"><span class="ni">📈</span> Signal Tracker <span class="ds-badge cyan">NEW</span></a>
+      <div class="ds-section">Account</div>
+      <a href="profile.html"><span class="ni">👤</span> My Profile</a>
+      <a href="index.html"><span class="ni">🏠</span> Home</a>
+    </nav>
+    <div class="ds-footer">
+      <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="dash-main" id="dashMain" style="display:none">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+      <div>
+        <h1 style="font-family:var(--font-h);font-size:1.5rem;font-weight:700">📈 Signal Tracker</h1>
+        <p style="color:var(--muted);font-size:.82rem;margin-top:3px">Auto-saves every deep scan. Tracks TP1 → SL move to BE → TP2. Real P&L data.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-primary" onclick="checkAllSignals()">⟳ Check Prices</button>
+        <button class="btn-danger" onclick="exportCSV()">📥 Export CSV</button>
+        <button class="btn-danger" onclick="clearAll()">🗑 Clear All</button>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card"><div class="stat-val" id="st-total" style="color:var(--cyan)">0</div><div class="stat-lbl">Total Signals</div></div>
+      <div class="stat-card"><div class="stat-val" id="st-open" style="color:var(--yellow)">0</div><div class="stat-lbl">Open / Pending</div></div>
+      <div class="stat-card"><div class="stat-val" id="st-tp1rate" style="color:var(--green)">—</div><div class="stat-lbl">TP1 Hit Rate</div><div class="stat-sub" id="st-tp1count"></div></div>
+      <div class="stat-card"><div class="stat-val" id="st-tp2rate" style="color:var(--cyan)">—</div><div class="stat-lbl">TP2 Hit Rate</div><div class="stat-sub" id="st-tp2count"></div></div>
+      <div class="stat-card"><div class="stat-val" id="st-slrate" style="color:var(--red)">—</div><div class="stat-lbl">SL Hit Rate</div><div class="stat-sub" id="st-slcount"></div></div>
+      <div class="stat-card"><div class="stat-val" id="st-avgconf" style="color:var(--purple)">—</div><div class="stat-lbl">Avg Confidence</div><div class="stat-sub" id="st-byscore"></div></div>
+    </div>
+
+    <!-- Breakdown row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px" id="breakdownRow">
+      <div class="stat-card"><div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">By Direction</div><div id="byDir" style="font-size:.8rem"></div></div>
+      <div class="stat-card"><div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">By Session</div><div id="bySess" style="font-size:.8rem"></div></div>
+      <div class="stat-card"><div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Risk vs Normal</div><div id="byRisk" style="font-size:.8rem"></div></div>
+      <div class="stat-card"><div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Score Breakdown</div><div id="byScore" style="font-size:.8rem"></div></div>
+    </div>
+
+    <!-- Tab nav -->
+    <div class="tab-nav">
+      <button class="tab-nav-btn active" onclick="switchTab('open')">🟡 Open / Pending</button>
+      <button class="tab-nav-btn" onclick="switchTab('tp1')">✅ TP1 Hit</button>
+      <button class="tab-nav-btn" onclick="switchTab('tp2')">🏆 TP2 Hit</button>
+      <button class="tab-nav-btn" onclick="switchTab('sl')">❌ SL / BE Hit</button>
+      <button class="tab-nav-btn" onclick="switchTab('all')">📋 All Signals</button>
+      <button class="tab-nav-btn" onclick="switchTab('docs')">📖 Methodology</button>
+    </div>
+
+    <div id="pane-open" class="tab-pane active"><div class="signal-grid" id="listOpen"></div></div>
+    <div id="pane-tp1" class="tab-pane"><div class="signal-grid" id="listTp1"></div></div>
+    <div id="pane-tp2" class="tab-pane"><div class="signal-grid" id="listTp2"></div></div>
+    <div id="pane-sl" class="tab-pane"><div class="signal-grid" id="listSl"></div></div>
+    <div id="pane-all" class="tab-pane">
+      <div class="filter-bar">
+        <span style="font-size:.78rem;color:var(--muted)">Filter:</span>
+        <button class="filter-btn on" id="f-all" onclick="setFilter('all',this)">All</button>
+        <button class="filter-btn" id="f-LONG" onclick="setFilter('LONG',this)">LONG</button>
+        <button class="filter-btn" id="f-SHORT" onclick="setFilter('SHORT',this)">SHORT</button>
+        <button class="filter-btn" id="f-risk" onclick="setFilter('risk',this)">⚠ Risk</button>
+        <button class="filter-btn" id="f-normal" onclick="setFilter('normal',this)">Normal</button>
+      </div>
+      <div class="table-wrap"><table class="bt-table" id="allTable">
+        <thead><tr><th>Time</th><th>Pair</th><th>Dir</th><th>Conf</th><th>Type</th><th>Entry</th><th>TP1</th><th>TP2</th><th>SL</th><th>Status</th><th>P&L%</th><th>Session</th><th></th></tr></thead>
+        <tbody id="allTbody"></tbody>
+      </table></div>
+    </div>
+
+    <div id="pane-docs" class="tab-pane">
+      <div class="doc-section">
+        <div class="doc-h2">📡 Step 1 — Data Collection</div>
+        <div class="doc-box">
+          <div class="doc-h3">API Endpoints (Binance Futures)</div>
+          <table class="doc-table">
+            <thead><tr><th>Data</th><th>Endpoint</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td>1H Candles (200)</td><td>/fapi/v1/klines?interval=1h&limit=200</td><td>Primary analysis: RSI, EMA, MACD, BB, Stoch, ATR, ADX, OBV, VWAP, Supertrend, BOS, FVG, Divergence</td></tr>
+              <tr><td>4H Candles (80)</td><td>/fapi/v1/klines?interval=4h&limit=80</td><td>Higher timeframe trend: 4H EMA stack, 4H RSI, MTF alignment</td></tr>
+              <tr><td>Live Price</td><td>/fapi/v1/ticker/price</td><td>Current price for entry calculation and MARKET orders</td></tr>
+              <tr><td>Premium Index</td><td>/fapi/v1/premiumIndex</td><td>Funding rate — key for squeeze risk detection</td></tr>
+              <tr><td>BTC 4H (50)</td><td>/fapi/v1/klines?symbol=BTCUSDT&interval=4h&limit=50</td><td>Market leader context — BTC direction bonus score</td></tr>
+              <tr><td>Open Interest</td><td>/fapi/v1/openInterest</td><td>Current OI for smart money positioning</td></tr>
+              <tr><td>OI History (12)</td><td>/futures/data/openInterestHist?period=5m&limit=12</td><td>OI trend over last hour — rising/falling/flat</td></tr>
+              <tr><td>All Tickers</td><td>/fapi/v1/ticker/24hr</td><td>Smart Scanner — ranks all USDT pairs by score</td></tr>
+              <tr><td>Funding (all)</td><td>/fapi/v1/premiumIndex (all)</td><td>Scanner — funding rate for all pairs</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-h2">⚙️ Step 2 — 16 Indicators Computed</div>
+        <div class="doc-box">
+          <table class="doc-table">
+            <thead><tr><th>Indicator</th><th>Parameters & Calculation</th><th>Max Score (per side)</th><th>Signal</th></tr></thead>
+            <tbody>
+              <tr><td>RSI</td><td>Period 14. Wilder smoothing on 1H closes. Formula: 100 − 100/(1 + AvgGain/AvgLoss)</td><td>+20</td><td>≤25 extreme OS (+20 LONG) / ≥75 extreme OB (+20 SHORT). Graduated.</td></tr>
+              <tr><td>EMA Stack</td><td>EMA20, EMA50, EMA200 on 1H closes. Exponential: k=2/(n+1)</td><td>+15</td><td>EMA20>EMA50>EMA200 + price above all = Perfect Bull (+15 LONG). Each partial alignment gives partial score.</td></tr>
+              <tr><td>MACD</td><td>Fast 12, Slow 26, Signal 9. Histogram = MACD − Signal</td><td>+10</td><td>Bullish histogram + growing = +10 LONG. Weakening = +6.</td></tr>
+              <tr><td>Bollinger Bands</td><td>Period 20, 2.0 std dev. Position = (price−lower)/(upper−lower)</td><td>+8</td><td>Position ≤10% (near lower band) = +8 LONG. ≥90% = +8 SHORT. Squeeze (width &lt;4%) adds +3 both.</td></tr>
+              <tr><td>Stoch RSI</td><td>RSI period 14, Stoch 14, K=3, D=3. K and D are smoothed</td><td>+8</td><td>K&lt;20 oversold = +8 LONG. K/D bullish crossover = +5.</td></tr>
+              <tr><td>ATR</td><td>Period 14. True range smoothed. Used for SL sizing ONLY — no score contribution</td><td>—</td><td>SL = max(swing_low − 0.2×ATR, entry − 2.5×ATR). Wider for risk entries (3×).</td></tr>
+              <tr><td>ADX</td><td>Period 14. DX = |+DI − −DI| / (+DI + −DI). ADX = smoothed DX</td><td>+8</td><td>ADX>50 strong, trending direction +8. 25–50 moderate +5. &lt;18 = risk flag (weak trend).</td></tr>
+              <tr><td>OBV</td><td>Cumulative: +volume on up closes, −volume on down. Compare 5-bar avg vs 5-bar prior avg</td><td>+8</td><td>Accumulation (rising) = +8 LONG. Distribution = +8 SHORT.</td></tr>
+              <tr><td>VWAP 24h</td><td>Sum(typical_price × volume) / Sum(volume) over last 24 candles</td><td>+12</td><td>Price >2% above VWAP = +12 LONG. >0% = +7. Below = adds to SHORT score.</td></tr>
+              <tr><td>Supertrend</td><td>Period 10, Multiplier 3. ATR-based upper/lower bands. Direction flips on close outside band</td><td>+12</td><td>Bullish = +12 LONG. Counter-trend = risk flag.</td></tr>
+              <tr><td>4H Trend</td><td>EMA20/50 on 4H + price position + 4H RSI + 10-bar HH/HL structure. Score −4 to +5</td><td>+20</td><td>Bull bias = +20 LONG (highest weight). Opposing = risk flag.</td></tr>
+              <tr><td>BOS / CHoCH</td><td>Detects swing highs/lows over last 35 bars. Bullish BOS = close above recent swing high</td><td>+10</td><td>Bullish BOS = +10 LONG. CHoCH (reversal structure) = +5 both.</td></tr>
+              <tr><td>FVG</td><td>Fair Value Gap: 3-candle imbalance. Gap[i] = close[i] &gt; high[i-2] (bullish)</td><td>+8</td><td>Bullish FVG present = +8 LONG. Bearish = +8 SHORT.</td></tr>
+              <tr><td>RSI Divergence</td><td>Compare swing lows/highs of price vs RSI over last 30 bars. Regular = price LL + RSI HL</td><td>+15 regular / +10 hidden</td><td>Regular bull = +15 LONG. Hidden bull = +10 (continuation signal).</td></tr>
+              <tr><td>Funding Rate</td><td>Binance perpetual funding. Paid every 8h. Negative = shorts pay longs</td><td>+10</td><td>Funding &lt;−0.02% = +10 LONG (shorts under pressure). >+0.05% = +10 SHORT. &gt;0.25% = risk flag.</td></tr>
+              <tr><td>Open Interest</td><td>Compare current OI vs OI from 12 5-minute periods ago</td><td>+3</td><td>Rising OI = +3 both (confirms move). Falling = −3 both (positions closing).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-h2">🎯 Step 3 — Direction & Score Decision</div>
+        <div class="doc-box">
+          <div class="doc-p">Each indicator adds to a <span class="code-inline">LONG_score</span> or <span class="code-inline">SHORT_score</span> independently. At the end:</div>
+          <div style="background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);border-radius:8px;padding:12px 14px;font-family:var(--font-n);font-size:.76rem;color:var(--text);line-height:1.9;margin-bottom:10px">
+            MAX_POSSIBLE = 185 points<br>
+            confidence = min(100, round(score / MAX_POSSIBLE × 100))<br>
+            direction = LONG if long_score ≥ short_score, else SHORT<br>
+            conf = whichever direction's score is higher
+          </div>
+          <div class="doc-p">Score thresholds:</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
+            <div style="background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-family:var(--font-n);font-size:.9rem;font-weight:700;color:var(--green)">85–100</div><div style="font-size:.68rem;color:var(--muted)">Grade S — Excellent</div></div>
+            <div style="background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-family:var(--font-n);font-size:.9rem;font-weight:700;color:var(--cyan)">70–84</div><div style="font-size:.68rem;color:var(--muted)">Grade A — High</div></div>
+            <div style="background:rgba(255,195,51,.08);border:1px solid rgba(255,195,51,.2);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-family:var(--font-n);font-size:.9rem;font-weight:700;color:var(--yellow)">50–69</div><div style="font-size:.68rem;color:var(--muted)">Grade B — Good</div></div>
+            <div style="background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.2);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-family:var(--font-n);font-size:.9rem;font-weight:700;color:var(--red)">&lt;50</div><div style="font-size:.68rem;color:var(--muted)">Grade C — Risky</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-h2">📍 Step 4 — Entry Type & Levels</div>
+        <div class="doc-box">
+          <div class="doc-h3">Entry Type Logic</div>
+          <table class="doc-table">
+            <thead><tr><th>Type</th><th>Conditions</th><th>What it means</th></tr></thead>
+            <tbody>
+              <tr><td>MARKET</td><td>Conf ≥75% + volume surge + RSI ≤40 (LONG) or ≥60 (SHORT)</td><td>Enter immediately at current price. Strong momentum confirmation.</td></tr>
+              <tr><td>MARKET</td><td>Conf ≥80% + Supertrend aligned + 4H trend aligned</td><td>Strong HTF + LTF alignment. Enter now, don't wait for pullback.</td></tr>
+              <tr><td>LIMIT</td><td>Default for most signals</td><td>Wait for price pullback to entry zone (recent 5-bar swing ± ATR buffer).</td></tr>
+              <tr><td>⚠ RISK ENTRY</td><td>2+ risk flags present OR conf &lt;50% with 1 flag</td><td>Enter at current price (limit pointless in risky conditions). Use wider SL (3×ATR).</td></tr>
+            </tbody>
+          </table>
+          <div class="doc-h3">SL Calculation</div>
+          <div style="font-family:var(--font-n);font-size:.76rem;color:var(--text);line-height:2;background:rgba(0,0,0,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+            LONG SL = min(10-bar_swing_low − 0.2×ATR, entry − slMultiplier×ATR)<br>
+            SHORT SL = max(10-bar_swing_high + 0.2×ATR, entry + slMultiplier×ATR)<br><br>
+            slMultiplier = 2.5× (low vol) / 2.2× (medium) / 2.0× (high vol >3.5%)<br>
+            Risk entry: 3.0× ATR always<br><br>
+            Rationale: SL beyond structure + ATR buffer = reduces noise stops
+          </div>
+          <div class="doc-h3">TP Calculation</div>
+          <div style="font-family:var(--font-n);font-size:.76rem;color:var(--text);line-height:2;background:rgba(0,0,0,.2);border-radius:8px;padding:12px 14px">
+            risk = |entry − SL|<br>
+            TP1 = entry + 1.2× risk (RR ~1.2:1 — conservative, higher hit rate)<br>
+            TP2 = entry + 2.5× risk (RR ~2.5:1 — full target)<br><br>
+            After TP1 hit → SL moves to breakeven (entry price)<br>
+            TP2 now risk-free: worst case = breakeven, best case = full profit
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-h2">⚠️ Step 5 — Risk Flags (Never Block, Always Warn)</div>
+        <div class="doc-box">
+          <table class="doc-table">
+            <thead><tr><th>Flag</th><th>Condition</th><th>Impact</th></tr></thead>
+            <tbody>
+              <tr><td>Weak Trend</td><td>ADX &lt; 18</td><td>Choppy market, false signals likely. Reduce size 50%.</td></tr>
+              <tr><td>Long Squeeze</td><td>Funding &gt; +0.25%</td><td>Longs paying heavily — squeeze risk. If LONG, reduce size.</td></tr>
+              <tr><td>Short Squeeze</td><td>Funding &lt; −0.25%</td><td>Shorts paying heavily — squeeze risk. If SHORT, reduce size.</td></tr>
+              <tr><td>Counter-trend 4H</td><td>4H trend opposes direction + no divergence</td><td>Trading against HTF. High failure rate unless reversal divergence confirmed.</td></tr>
+              <tr><td>Counter-trend ST</td><td>Supertrend opposes direction</td><td>Trend filter bearish on LONG (or vice versa). Momentum against trade.</td></tr>
+              <tr><td>Asian Session</td><td>UTC 00:00–07:00</td><td>Low liquidity. Fakeouts common. Prefer London/NY sessions.</td></tr>
+            </tbody>
+          </table>
+          <div class="doc-p" style="margin-top:8px">2+ flags = RISK ENTRY label shown. SL automatically widened to 3×ATR to absorb volatility.</div>
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-h2">📊 Step 6 — Trade Management After Entry</div>
+        <div class="doc-box">
+          <div class="doc-h3">What to Monitor During a Trade</div>
+          <table class="doc-table">
+            <thead><tr><th>What to Watch</th><th>Frequency</th><th>Action if Changes</th></tr></thead>
+            <tbody>
+              <tr><td>BTC 4H trend</td><td>Every 4H candle close</td><td>If BTC flips against your direction, consider partial exit or tighten SL</td></tr>
+              <tr><td>Funding rate</td><td>Every 8H (funding time)</td><td>If funding spikes extreme toward your direction → squeeze risk, consider exit</td></tr>
+              <tr><td>Volume</td><td>Hourly</td><td>If volume collapses after entry, momentum dying — exit at market</td></tr>
+              <tr><td>Your timeframe's RSI</td><td>Every new candle</td><td>If RSI crosses 50 against you, momentum shifting</td></tr>
+              <tr><td>Open Interest</td><td>Every 30 min</td><td>Falling OI while in profit = positions closing, take partial profits</td></tr>
+              <tr><td>Supertrend flip</td><td>Every new candle</td><td>Supertrend flips against direction → exit or move SL to breakeven immediately</td></tr>
+              <tr><td>MACD histogram</td><td>Every new candle</td><td>If histogram shrinks significantly, momentum fading</td></tr>
+            </tbody>
+          </table>
+
+          <div class="doc-h3" style="margin-top:14px">Trade Lifecycle</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:50%;background:rgba(255,195,51,.15);border:1px solid rgba(255,195,51,.3);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0">1</div><div style="font-size:.8rem"><strong style="color:var(--yellow)">PENDING</strong> — Limit order placed. Waiting for price to reach entry zone. Expires if not filled within 7 days.</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:50%;background:rgba(0,212,255,.15);border:1px solid rgba(0,212,255,.3);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0">2</div><div style="font-size:.8rem"><strong style="color:var(--cyan)">OPEN</strong> — Order filled (MARKET instant, LIMIT when price touches entry). SL and TP1/TP2 now active.</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:50%;background:rgba(0,255,136,.15);border:1px solid rgba(0,255,136,.3);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0">3</div><div style="font-size:.8rem"><strong style="color:var(--green)">TP1 HIT</strong> — Price reached TP1. Close 50–70% of position here. SL automatically moves to breakeven (entry price). Remaining position is now risk-free.</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:50%;background:rgba(255,195,51,.1);border:1px solid rgba(255,195,51,.25);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0">4a</div><div style="font-size:.8rem"><strong style="color:var(--yellow)">BREAKEVEN</strong> — After TP1, price pulls back to entry (BE SL hit). No loss — TP1 profits secured. Acceptable outcome.</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:50%;background:rgba(0,255,136,.18);border:2px solid rgba(0,255,136,.4);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0">4b</div><div style="font-size:.8rem"><strong style="color:#00ff88">TP2 HIT</strong> — Full target reached. Maximum profit. Best outcome.</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:50%;background:rgba(255,61,90,.12);border:1px solid rgba(255,61,90,.25);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0">✗</div><div style="font-size:.8rem"><strong style="color:var(--red)">SL HIT</strong> — Price hit stop loss. Loss = (entry − SL) / entry × 100%. With 2.5× ATR SL, typical loss = 2–4% of position.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-h2">🔮 What Could Be Added</div>
+        <div class="doc-box">
+          <table class="doc-table">
+            <thead><tr><th>Feature</th><th>Why Useful</th><th>Complexity</th></tr></thead>
+            <tbody>
+              <tr><td>15m Confirmation TF</td><td>Add a 3rd timeframe — entry on 15m structure after 1H + 4H align. Reduces false signals significantly.</td><td>Low — same engine, different TF</td></tr>
+              <tr><td>Weekly/Monthly Pivots</td><td>Key S/R levels from higher TF. Price near weekly pivot = high-probability reaction zone.</td><td>Low — calculate from weekly klines</td></tr>
+              <tr><td>CVD (Cumulative Volume Delta)</td><td>Difference between buy volume and sell volume. Rising CVD on longs = strong buy pressure confirmation.</td><td>Medium — needs trade data, not klines</td></tr>
+              <tr><td>Liquidation Heatmap</td><td>Binance provides estimated liquidation levels. Price often targets liquidity clusters.</td><td>Medium — Binance futures API</td></tr>
+              <tr><td>Volume Profile (VPVR)</td><td>Shows price levels with highest trading volume = institutional accumulation zones.</td><td>Medium-High — needs volume at price calculation</td></tr>
+              <tr><td>Fear & Greed Index</td><td>Extreme Fear = historically good buy zone. Extreme Greed = caution.</td><td>Low — external API (alternative.me)</td></tr>
+              <tr><td>Order Book Imbalance</td><td>Large bid/ask walls on order book = support/resistance. Disappearing walls = breakout incoming.</td><td>High — WebSocket depth stream</td></tr>
+              <tr><td>BTC Dominance</td><td>Rising BTC dominance = altcoin weakness. Falling = altseason.</td><td>Low — CoinGecko API</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /docs pane -->
+  </main>
+</div>
+
+<div id="toastBox"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+const auth=getAuth(initializeApp({apiKey:"AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",authDomain:"crypto-98b33.firebaseapp.com",projectId:"crypto-98b33",storageBucket:"crypto-98b33.firebasestorage.app",messagingSenderId:"619954501803",appId:"1:619954501803:web:559d48b801f072abd71fee"}));
+onAuthStateChanged(auth,u=>{
+  document.getElementById('authGuard').style.display='none';
+  if(!u){window.location.href='login.html';return;}
+  document.getElementById('dashMain').style.display='block';
+  const name=u.displayName||u.email?.split('@')[0]||'Trader';
+  const ini=name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)||'U';
+  document.getElementById('userAvatar').textContent=ini;
+  document.getElementById('userName').textContent=name;
+  document.getElementById('userEmail').textContent=u.email||'';
+  initPage();
+});
+window.handleSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
+</script>
+
+<script>
+const FAPI='https://fapi.binance.com';
+let currentFilter='all',currentTab='open',checking=false;
+
+function openMob(){document.getElementById('dashSidebar').classList.add('open');document.getElementById('mobOverlay').classList.add('show');}
+function closeMob(){document.getElementById('dashSidebar').classList.remove('open');document.getElementById('mobOverlay').classList.remove('show');}
+
+function toast(title,body,ok=true){
+  const c=document.getElementById('toastBox'),t=document.createElement('div');
+  t.className='toast';t.style.borderColor=ok?'rgba(0,255,136,.3)':'rgba(255,61,90,.3)';
+  t.innerHTML=`<div class="toast-t">${title}</div><div class="toast-b">${body}</div>`;
+  c.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .25s';setTimeout(()=>t.remove(),260);},3500);
+}
+
+function loadSignals(){return JSON.parse(localStorage.getItem('bt_signals')||'[]');}
+function saveSignals(sigs){localStorage.setItem('bt_signals',JSON.stringify(sigs));}
+
+function fmtPrice(p){
+  const n=parseFloat(p);
+  if(isNaN(n))return'—';
+  if(n>=1000)return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(n>=1)return'$'+n.toFixed(4);
+  if(n>=0.01)return'$'+n.toFixed(5);
+  return'$'+n.toFixed(6);
+}
+function fmtTime(iso){
+  if(!iso)return'—';
+  const d=new Date(iso);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+}
+function timeSince(iso){
+  if(!iso)return'—';
+  const s=Math.floor((Date.now()-new Date(iso))/1000);
+  if(s<60)return s+'s ago';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function statusBadge(sig){
+  const m={OPEN:'status-open',PENDING:'status-pending',TP1_HIT:'status-tp1',TP2_HIT:'status-tp2',SL_HIT:'status-sl',BE_HIT:'status-be',MANUAL_CLOSE:'status-manual',EXPIRED:'status-manual'};
+  const lbl={OPEN:'● Open',PENDING:'⏳ Pending',TP1_HIT:'✅ TP1',TP2_HIT:'🏆 TP2',SL_HIT:'❌ SL',BE_HIT:'— BE',MANUAL_CLOSE:'⊠ Manual',EXPIRED:'⌛ Expired'};
+  return`<span class="sig-badge ${m[sig.status]||'status-open'}" style="font-family:var(--font-n);font-size:.63rem">${lbl[sig.status]||sig.status}</span>`;
+}
+function pnlColor(v){return v===null?'var(--muted)':v>0?'var(--green)':v<0?'var(--red)':'var(--yellow)';}
+function pnlStr(v){if(v===null)return'—';return(v>=0?'+':'')+v.toFixed(2)+'%';}
+
+/* Progress bar — price between entry and tp1 */
+function progressHtml(sig){
+  const ep=sig.fillPrice||sig.entryPrice,cur=sig.lastPrice;
+  if(!cur||sig.status!=='OPEN')return'';
+  const dir=sig.direction;
+  const risk=Math.abs(ep-sig.slPrice);
+  const moved=dir==='LONG'?(cur-ep):(ep-cur);
+  const toTp1=Math.abs(sig.tp1Price-ep);
+  const pct=Math.max(0,Math.min(100,(moved/toTp1)*100));
+  const col=moved>=0?'var(--green)':'var(--red)';
+  const movePct=risk>0?((moved/ep)*100).toFixed(2):0;
+  return`<div class="sig-progress">
+    <div style="display:flex;justify-content:space-between;font-family:var(--font-n);font-size:.62rem;color:var(--muted)">
+      <span>Price: <strong style="color:var(--cyan)">${fmtPrice(cur)}</strong></span>
+      <span style="color:${col}">${moved>=0?'+':''}${movePct}% from entry</span>
+      <span>→ TP1: ${fmtPrice(sig.tp1Price)}</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct.toFixed(1)}%;background:${col}"></div></div>
+  </div>`;
+}
+
+function snapChips(snap){
+  if(!snap)return'';
+  const chips=[];
+  if(snap.rsi!=null)chips.push({c:snap.rsi<=30||snap.rsi>=70?'warn':'neu',l:`RSI ${snap.rsi}`});
+  if(snap.trend4h)chips.push({c:snap.trend4h==='bull'?'ok':snap.trend4h==='bear'?'bad':'neu',l:`4H ${snap.trend4h}`});
+  if(snap.supertrend!=null)chips.push({c:snap.supertrend?'ok':'bad',l:`ST ${snap.supertrend?'Bull':'Bear'}`});
+  if(snap.emaStack)chips.push({c:snap.emaStack.includes('bull')?'ok':snap.emaStack.includes('bear')?'bad':'neu',l:`EMA ${snap.emaStack.replace('perfect_','').replace('_',' ')}`});
+  if(snap.macdTrend)chips.push({c:snap.macdTrend==='bullish'?'ok':'bad',l:`MACD ${snap.macdTrend==='bullish'?'▲':'▼'}${snap.macdStrengthen?' ↑':''}`});
+  if(snap.vwapAbove!=null)chips.push({c:snap.vwapAbove?'ok':'bad',l:`VWAP ${snap.vwapAbove?'↑':'↓'} ${snap.vwapPct!=null?(snap.vwapPct>=0?'+':'')+snap.vwapPct+'%':''}`.trim()});
+  if(snap.bbSqueeze)chips.push({c:'warn',l:'BB Squeeze'});
+  if(snap.stochSignal==='oversold')chips.push({c:'ok',l:'Stoch OS'});
+  if(snap.stochSignal==='overbought')chips.push({c:'bad',l:'Stoch OB'});
+  if(snap.adx!=null)chips.push({c:snap.adx>=25?'ok':snap.adx>=18?'neu':'bad',l:`ADX ${snap.adx}`});
+  if(snap.hasDivergence)chips.push({c:'ok',l:`Div: ${snap.divTypes.join(' ')}`});
+  if(snap.bullBOS)chips.push({c:'ok',l:'Bull BOS'});
+  if(snap.bearBOS)chips.push({c:'bad',l:'Bear BOS'});
+  if(snap.choch)chips.push({c:'warn',l:'CHoCH'});
+  if(snap.bullFVG)chips.push({c:'ok',l:'Bull FVG'});
+  if(snap.bearFVG)chips.push({c:'bad',l:'Bear FVG'});
+  if(snap.funding!=null)chips.push({c:Math.abs(snap.funding)<=0.01?'neu':Math.abs(snap.funding)<=0.04?'warn':'bad',l:`Fund ${snap.funding>=0?'+':''}${snap.funding}%`});
+  if(snap.oiTrend&&snap.oiTrend!=='unknown')chips.push({c:snap.oiTrend==='rising'?'ok':'warn',l:`OI ${snap.oiTrend} ${snap.oiPct!=null?(snap.oiPct>=0?'+':'')+snap.oiPct+'%':''}`.trim()});
+  if(snap.btcBias)chips.push({c:snap.btcBias==='bull'?'ok':snap.btcBias==='bear'?'bad':'neu',l:`BTC ${snap.btcBias}`});
+  if(snap.sessionQuality)chips.push({c:snap.sessionQuality==='high'?'ok':snap.sessionQuality==='medium'?'neu':'warn',l:snap.session||'Session'});
+  if(snap.atrPct!=null)chips.push({c:'neu',l:`ATR ${snap.atrPct}%`});
+  return`<div class="sig-snap">${chips.map(ch=>`<span class="snap-chip snap-${ch.c}">${ch.l}</span>`).join('')}</div>`;
+}
+
+function buildSigCard(sig){
+  const dirCls=sig.isRisky?'risk':sig.direction==='LONG'?'long':'short';
+  const ep=sig.fillPrice||sig.entryPrice;
+  const confColor=sig.confidence>=70?'var(--green)':sig.confidence>=50?'var(--cyan)':'var(--yellow)';
+  const tp1pct=Math.abs((sig.tp1Price-ep)/ep*100).toFixed(2);
+  const tp2pct=Math.abs((sig.tp2Price-ep)/ep*100).toFixed(2);
+  const slpct=Math.abs((sig.slPrice-ep)/ep*100).toFixed(2);
+  const isDone=['TP2_HIT','SL_HIT','BE_HIT','MANUAL_CLOSE','EXPIRED'].includes(sig.status);
+
+  return`<div class="sig-card ${dirCls}" id="card-${sig.id}">
+  <div class="sig-head">
+    <div class="sig-pair">${sig.pair}</div>
+    <span class="sig-dir ${sig.direction.toLowerCase()}">${sig.direction==='LONG'?'▲':'▼'} ${sig.direction}</span>
+    ${sig.isRisky?`<span class="sig-badge snap-warn">⚠ RISK</span>`:''}
+    ${statusBadge(sig)}
+    <span style="font-family:var(--font-n);font-size:.62rem;padding:2px 7px;border-radius:4px;background:rgba(167,139,250,.1);color:#a78bfa">${sig.confidence}%</span>
+    <span class="sig-time">${timeSince(sig.timestamp)}</span>
+  </div>
+  <div class="sig-body">
+    <div class="sig-lvl"><div class="sig-lvl-lbl">Entry</div><div class="sig-lvl-val" style="color:${sig.filled?'var(--cyan)':'var(--yellow)'}">${fmtPrice(ep)}</div><div style="font-size:.58rem;color:var(--muted)">${sig.entryType}</div></div>
+    <div class="sig-lvl"><div class="sig-lvl-lbl">TP1 🎯${sig.tp1Hit?'✓':''}</div><div class="sig-lvl-val" style="color:${sig.tp1Hit?'var(--green)':'var(--text)'}">${fmtPrice(sig.tp1Price)}</div><div style="font-size:.58rem;color:var(--muted)">+${tp1pct}% RR${sig.rrr1}</div></div>
+    <div class="sig-lvl"><div class="sig-lvl-lbl">TP2${sig.tp2Hit?'✓':''}</div><div class="sig-lvl-val" style="color:${sig.tp2Hit?'#00ff88':'var(--muted)'}">${fmtPrice(sig.tp2Price)}</div><div style="font-size:.58rem;color:var(--muted)">+${tp2pct}% RR${sig.rrr2}</div></div>
+    <div class="sig-lvl"><div class="sig-lvl-lbl">SL${sig.slHit?'✓':''}</div><div class="sig-lvl-val" style="color:${sig.slHit?'var(--red)':'var(--text)'}">${fmtPrice(sig.currentSL)}</div><div style="font-size:.58rem;color:var(--muted)">−${slpct}%${sig.tp1Hit?'<span style="color:var(--yellow)"> BE</span>':''}</div></div>
+    <div class="sig-lvl"><div class="sig-lvl-lbl">P&L</div><div class="sig-lvl-val" style="color:${pnlColor(sig.finalPnl)}">${pnlStr(sig.finalPnl)}</div><div style="font-size:.58rem;color:var(--muted)">${sig.durationMin?Math.round(sig.durationMin)+'m':timeSince(sig.fillTime||sig.timestamp)}</div></div>
+  </div>
+  ${progressHtml(sig)}
+  ${snapChips(sig.snap)}
+  ${sig.riskFlags&&sig.riskFlags.length?`<div style="padding:0 14px 8px;font-size:.72rem;color:var(--yellow)">${sig.riskFlags.map(f=>`⚠ ${f}`).join(' · ')}</div>`:''}
+  <div class="sig-actions">
+    ${!isDone&&sig.filled?`<button class="btn-sm btn-sm-close" onclick="manualClose(${sig.id})">⊠ Close</button>`:''}
+    ${!isDone&&sig.status==='OPEN'?`<button class="btn-sm" style="background:rgba(0,255,136,.06);border-color:rgba(0,255,136,.2);color:var(--green)" onclick="markTp1(${sig.id})">✅ Mark TP1</button>`:''}
+    ${!isDone&&sig.tp1Hit?`<button class="btn-sm" style="background:rgba(0,255,136,.1);border-color:rgba(0,255,136,.3);color:var(--green)" onclick="markTp2(${sig.id})">🏆 Mark TP2</button>`:''}
+    <button class="btn-sm btn-sm-del" onclick="deleteSig(${sig.id})">🗑</button>
+    <span style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);margin-left:auto">Last checked: ${timeSince(sig.lastChecked)}</span>
+  </div>
+</div>`;
+}
+
+function renderAll(){
+  const sigs=loadSignals();
+  const open=sigs.filter(s=>s.status==='OPEN'||s.status==='PENDING');
+  const tp1s=sigs.filter(s=>s.status==='TP1_HIT'||s.tp1Hit);
+  const tp2s=sigs.filter(s=>s.status==='TP2_HIT');
+  const sls=sigs.filter(s=>s.status==='SL_HIT'||s.status==='BE_HIT');
+  const done=sigs.filter(s=>!['OPEN','PENDING'].includes(s.status));
+
+  document.getElementById('listOpen').innerHTML=open.length?open.map(buildSigCard).join(''):`<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-txt">No open signals</div><div class="empty-sub">Run a Deep Scan on Analysis page — signals auto-save here.</div></div>`;
+  document.getElementById('listTp1').innerHTML=tp1s.length?tp1s.map(buildSigCard).join(''):`<div class="empty-state"><div class="empty-icon">—</div><div class="empty-txt">No TP1 hits yet</div></div>`;
+  document.getElementById('listTp2').innerHTML=tp2s.length?tp2s.map(buildSigCard).join(''):`<div class="empty-state"><div class="empty-icon">—</div><div class="empty-txt">No TP2 hits yet</div></div>`;
+  document.getElementById('listSl').innerHTML=sls.length?sls.map(buildSigCard).join(''):`<div class="empty-state"><div class="empty-icon">—</div><div class="empty-txt">No SL hits yet</div></div>`;
+
+  // All table
+  let filtered=sigs;
+  if(currentFilter==='LONG')filtered=sigs.filter(s=>s.direction==='LONG');
+  else if(currentFilter==='SHORT')filtered=sigs.filter(s=>s.direction==='SHORT');
+  else if(currentFilter==='risk')filtered=sigs.filter(s=>s.isRisky);
+  else if(currentFilter==='normal')filtered=sigs.filter(s=>!s.isRisky);
+  const tbody=document.getElementById('allTbody');
+  tbody.innerHTML=filtered.length?filtered.map(sig=>{
+    const ep=sig.fillPrice||sig.entryPrice;
+    return`<tr>
+      <td style="font-family:var(--font-n);font-size:.7rem;color:var(--muted)">${fmtTime(sig.timestamp)}</td>
+      <td style="font-family:var(--font-n);font-weight:600">${sig.pair}</td>
+      <td><span class="sig-dir ${sig.direction.toLowerCase()}" style="font-size:.62rem">${sig.direction}</span></td>
+      <td style="font-family:var(--font-n);color:var(--purple)">${sig.confidence}%</td>
+      <td style="font-family:var(--font-n);font-size:.67rem;color:${sig.isRisky?'var(--yellow)':'var(--muted)'}">${sig.entryType}</td>
+      <td style="font-family:var(--font-n)">${fmtPrice(ep)}</td>
+      <td style="font-family:var(--font-n);color:${sig.tp1Hit?'var(--green)':'var(--text)'}">${fmtPrice(sig.tp1Price)}</td>
+      <td style="font-family:var(--font-n);color:${sig.tp2Hit?'#00ff88':'var(--muted)'}">${fmtPrice(sig.tp2Price)}</td>
+      <td style="font-family:var(--font-n);color:var(--red)">${fmtPrice(sig.currentSL)}</td>
+      <td>${statusBadge(sig)}</td>
+      <td style="font-family:var(--font-n);color:${pnlColor(sig.finalPnl)};font-weight:700">${pnlStr(sig.finalPnl)}</td>
+      <td style="font-family:var(--font-n);font-size:.68rem;color:var(--muted)">${sig.session||'—'}</td>
+      <td><button class="btn-sm btn-sm-del" onclick="deleteSig(${sig.id})">🗑</button></td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--muted)">No signals match filter</td></tr>`;
+
+  updateStats(sigs);
+}
+
+function updateStats(sigs){
+  const done=sigs.filter(s=>!['OPEN','PENDING'].includes(s.status));
+  const tp1hits=done.filter(s=>s.tp1Hit||s.status==='TP1_HIT'||s.status==='TP2_HIT'||s.status==='BE_HIT');
+  const tp2hits=done.filter(s=>s.status==='TP2_HIT');
+  const slhits=done.filter(s=>s.status==='SL_HIT');
+
+  document.getElementById('st-total').textContent=sigs.length;
+  document.getElementById('st-open').textContent=sigs.filter(s=>s.status==='OPEN'||s.status==='PENDING').length;
+  document.getElementById('st-tp1rate').textContent=done.length?Math.round(tp1hits.length/done.length*100)+'%':'—';
+  document.getElementById('st-tp1count').textContent=done.length?`${tp1hits.length}/${done.length} closed`:'';
+  document.getElementById('st-tp2rate').textContent=tp1hits.length?Math.round(tp2hits.length/tp1hits.length*100)+'%':'—';
+  document.getElementById('st-tp2count').textContent=tp1hits.length?`${tp2hits.length}/${tp1hits.length} after TP1`:'';
+  document.getElementById('st-slrate').textContent=done.length?Math.round(slhits.length/done.length*100)+'%':'—';
+  document.getElementById('st-slcount').textContent=done.length?`${slhits.length} losses`:'';
+  const avgConf=sigs.length?Math.round(sigs.reduce((a,s)=>a+s.confidence,0)/sigs.length):null;
+  document.getElementById('st-avgconf').textContent=avgConf?avgConf+'%':'—';
+
+  // By direction
+  const longs=done.filter(s=>s.direction==='LONG'),shorts=done.filter(s=>s.direction==='SHORT');
+  const ltp1=longs.filter(s=>s.tp1Hit||s.status==='TP2_HIT'||s.status==='BE_HIT'),stp1=shorts.filter(s=>s.tp1Hit||s.status==='TP2_HIT'||s.status==='BE_HIT');
+  document.getElementById('byDir').innerHTML=`
+    <div style="font-family:var(--font-n);font-size:.72rem;color:var(--green)">▲ LONG: ${ltp1.length}/${longs.length} TP1 ${longs.length?'('+Math.round(ltp1.length/longs.length*100)+'%)':''}</div>
+    <div style="font-family:var(--font-n);font-size:.72rem;color:var(--red)">▼ SHORT: ${stp1.length}/${shorts.length} TP1 ${shorts.length?'('+Math.round(stp1.length/shorts.length*100)+'%)':''}</div>`;
+
+  // By session
+  const sessions={};
+  done.forEach(s=>{const k=s.session||'Unknown';if(!sessions[k])sessions[k]={t:0,w:0};sessions[k].t++;if(s.tp1Hit||s.status==='TP2_HIT'||s.status==='BE_HIT')sessions[k].w++;});
+  document.getElementById('bySess').innerHTML=Object.entries(sessions).map(([k,v])=>`<div style="font-family:var(--font-n);font-size:.7rem;color:var(--text)">${k}: ${v.w}/${v.t} ${v.t?'('+Math.round(v.w/v.t*100)+'%)':''}</div>`).join('')||'<div style="color:var(--muted);font-size:.72rem">No data</div>';
+
+  // Risk vs normal
+  const risk=done.filter(s=>s.isRisky),norm=done.filter(s=>!s.isRisky);
+  const rtp1=risk.filter(s=>s.tp1Hit||s.status==='TP2_HIT'||s.status==='BE_HIT'),ntp1=norm.filter(s=>s.tp1Hit||s.status==='TP2_HIT'||s.status==='BE_HIT');
+  document.getElementById('byRisk').innerHTML=`
+    <div style="font-family:var(--font-n);font-size:.72rem;color:var(--green)">Normal: ${ntp1.length}/${norm.length} ${norm.length?'('+Math.round(ntp1.length/norm.length*100)+'%)':''}</div>
+    <div style="font-family:var(--font-n);font-size:.72rem;color:var(--yellow)">⚠ Risk: ${rtp1.length}/${risk.length} ${risk.length?'('+Math.round(rtp1.length/risk.length*100)+'%)':''}</div>`;
+
+  // By score
+  const s85=done.filter(s=>s.confidence>=85),s70=done.filter(s=>s.confidence>=70&&s.confidence<85),s50=done.filter(s=>s.confidence>=50&&s.confidence<70),slow=done.filter(s=>s.confidence<50);
+  const wr=grp=>grp.length?Math.round(grp.filter(s=>s.tp1Hit||s.status==='TP2_HIT'||s.status==='BE_HIT').length/grp.length*100)+'%':'—';
+  document.getElementById('byScore').innerHTML=`
+    <div style="font-family:var(--font-n);font-size:.7rem;color:var(--green)">S 85+: ${wr(s85)} (${s85.length})</div>
+    <div style="font-family:var(--font-n);font-size:.7rem;color:var(--cyan)">A 70+: ${wr(s70)} (${s70.length})</div>
+    <div style="font-family:var(--font-n);font-size:.7rem;color:var(--yellow)">B 50+: ${wr(s50)} (${s50.length})</div>
+    <div style="font-family:var(--font-n);font-size:.7rem;color:var(--muted)">C &lt;50: ${wr(slow)} (${slow.length})</div>`;
+}
+
+/* ── Price checking logic ── */
+async function checkAllSignals(){
+  if(checking)return;
+  checking=true;
+  const btn=document.getElementById('btnRefresh');
+  btn.disabled=true;btn.textContent='⟳ Checking…';
+  document.getElementById('refreshStatus').textContent='Checking prices…';
+
+  const sigs=loadSignals();
+  const active=sigs.filter(s=>s.status==='OPEN'||s.status==='PENDING');
+  // Expire pending signals older than 7 days
+  sigs.forEach(s=>{
+    if(s.status==='PENDING'&&(Date.now()-new Date(s.timestamp).getTime())>7*24*60*60*1000){
+      s.status='EXPIRED';s.closedAt=new Date().toISOString();
+    }
+  });
+
+  let checked=0;
+  for(const sig of active){
+    try{
+      // Fetch 1H klines since signal creation (up to 168 = 7 days)
+      const since=new Date(sig.fillTime||sig.timestamp).getTime();
+      const klines=await fetch(`${FAPI}/fapi/v1/klines?symbol=${sig.symbol}&interval=1h&startTime=${since}&limit=168`).then(r=>r.json());
+      const ticker=await fetch(`${FAPI}/fapi/v1/ticker/price?symbol=${sig.symbol}`).then(r=>r.json());
+      sig.lastPrice=parseFloat(ticker.price);
+      sig.lastChecked=new Date().toISOString();
+
+      if(!Array.isArray(klines)){checked++;continue;}
+
+      const ep=sig.fillPrice||sig.entryPrice;
+
+      for(const kl of klines){
+        const high=parseFloat(kl[2]),low=parseFloat(kl[3]),ct=kl[6];
+
+        // Check fill for PENDING limit orders
+        if(sig.status==='PENDING'){
+          const filled=(sig.direction==='LONG'&&low<=sig.entryPrice)||(sig.direction==='SHORT'&&high>=sig.entryPrice);
+          if(filled){sig.filled=true;sig.status='OPEN';sig.fillPrice=sig.entryPrice;sig.fillTime=new Date(ct).toISOString();}
+          continue;
+        }
+
+        // SL check (always first — more conservative)
+        const slHit=(sig.direction==='LONG'&&low<=sig.currentSL)||(sig.direction==='SHORT'&&high>=sig.currentSL);
+        if(slHit&&!sig.tp1Hit){
+          sig.status='SL_HIT';sig.slHit=true;sig.slHitTime=new Date(ct).toISOString();sig.closedAt=new Date(ct).toISOString();
+          const pnl=(sig.direction==='LONG')?(sig.currentSL-ep)/ep*100:(ep-sig.currentSL)/ep*100;
+          sig.finalPnl=parseFloat(pnl.toFixed(3));
+          sig.durationMin=Math.round((new Date(ct)-new Date(sig.fillTime||sig.timestamp))/60000);
+          break;
+        }
+        if(slHit&&sig.tp1Hit){
+          sig.status='BE_HIT';sig.beHit=true;sig.slHitTime=new Date(ct).toISOString();sig.closedAt=new Date(ct).toISOString();
+          sig.finalPnl=0;
+          sig.durationMin=Math.round((new Date(ct)-new Date(sig.fillTime||sig.timestamp))/60000);
+          break;
+        }
+
+        // TP1 check
+        if(!sig.tp1Hit){
+          const tp1Hit=(sig.direction==='LONG'&&high>=sig.tp1Price)||(sig.direction==='SHORT'&&low<=sig.tp1Price);
+          if(tp1Hit){
+            sig.tp1Hit=true;sig.tp1HitPrice=sig.tp1Price;sig.tp1HitTime=new Date(ct).toISOString();
+            sig.currentSL=ep; // Move SL to breakeven
+            sig.status='TP1_HIT';
+            const pnl=(sig.direction==='LONG')?(sig.tp1Price-ep)/ep*100:(ep-sig.tp1Price)/ep*100;
+            sig.finalPnl=parseFloat(pnl.toFixed(3));
+            toast(`✅ TP1 Hit!`,`${sig.pair} ${sig.direction} — SL moved to breakeven`);
+          }
+        }
+
+        // TP2 check (only after TP1)
+        if(sig.tp1Hit&&!sig.tp2Hit){
+          const tp2Hit=(sig.direction==='LONG'&&high>=sig.tp2Price)||(sig.direction==='SHORT'&&low<=sig.tp2Price);
+          if(tp2Hit){
+            sig.tp2Hit=true;sig.tp2HitPrice=sig.tp2Price;sig.tp2HitTime=new Date(ct).toISOString();
+            sig.status='TP2_HIT';sig.closedAt=new Date(ct).toISOString();
+            const pnl=(sig.direction==='LONG')?(sig.tp2Price-ep)/ep*100:(ep-sig.tp2Price)/ep*100;
+            sig.finalPnl=parseFloat(pnl.toFixed(3));
+            sig.durationMin=Math.round((new Date(ct)-new Date(sig.fillTime||sig.timestamp))/60000);
+            toast(`🏆 TP2 Hit!`,`${sig.pair} ${sig.direction} — Full target!`,true);
+            break;
+          }
+        }
+      }
+      checked++;
+    }catch(e){console.warn('Check error:',sig.symbol,e);}
+  }
+
+  saveSignals(sigs);
+  renderAll();
+  const now=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+  document.getElementById('refreshStatus').textContent=`Updated ${now} · ${checked} checked`;
+  btn.disabled=false;btn.textContent='⟳ Refresh';
+  checking=false;
+}
+
+/* ── Manual actions ── */
+function manualClose(id){
+  const sigs=loadSignals();
+  const sig=sigs.find(s=>s.id===id);
+  if(!sig)return;
+  const ep=sig.fillPrice||sig.entryPrice;
+  const pnl=sig.lastPrice?((sig.direction==='LONG'?(sig.lastPrice-ep)/ep:(ep-sig.lastPrice)/ep)*100):null;
+  sig.status='MANUAL_CLOSE';sig.closedAt=new Date().toISOString();sig.finalPnl=pnl?parseFloat(pnl.toFixed(3)):null;
+  sig.durationMin=Math.round((Date.now()-new Date(sig.fillTime||sig.timestamp).getTime())/60000);
+  saveSignals(sigs);renderAll();toast('⊠ Closed',sig.pair+' manually closed');
+}
+function markTp1(id){
+  const sigs=loadSignals();const sig=sigs.find(s=>s.id===id);if(!sig)return;
+  const ep=sig.fillPrice||sig.entryPrice;
+  sig.tp1Hit=true;sig.tp1HitPrice=sig.tp1Price;sig.tp1HitTime=new Date().toISOString();
+  sig.currentSL=ep;sig.status='TP1_HIT';
+  sig.finalPnl=parseFloat(((sig.direction==='LONG'?(sig.tp1Price-ep)/ep:(ep-sig.tp1Price)/ep)*100).toFixed(3));
+  saveSignals(sigs);renderAll();toast('✅ TP1 Marked',sig.pair+' — SL moved to BE');
+}
+function markTp2(id){
+  const sigs=loadSignals();const sig=sigs.find(s=>s.id===id);if(!sig)return;
+  const ep=sig.fillPrice||sig.entryPrice;
+  sig.tp2Hit=true;sig.tp2HitPrice=sig.tp2Price;sig.tp2HitTime=new Date().toISOString();
+  sig.status='TP2_HIT';sig.closedAt=new Date().toISOString();
+  sig.finalPnl=parseFloat(((sig.direction==='LONG'?(sig.tp2Price-ep)/ep:(ep-sig.tp2Price)/ep)*100).toFixed(3));
+  sig.durationMin=Math.round((Date.now()-new Date(sig.fillTime||sig.timestamp).getTime())/60000);
+  saveSignals(sigs);renderAll();toast('🏆 TP2 Marked',sig.pair+' full target!');
+}
+function deleteSig(id){
+  const sigs=loadSignals();
+  saveSignals(sigs.filter(s=>s.id!==id));
+  renderAll();
+}
+function clearAll(){
+  if(!confirm('Delete ALL signals? This cannot be undone.'))return;
+  localStorage.removeItem('bt_signals');renderAll();toast('🗑 Cleared','All signals removed',false);
+}
+
+function setFilter(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderAll();
+}
+
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pane-'+tab).classList.add('active');
+  const btns=document.querySelectorAll('.tab-nav-btn');
+  const idx={open:0,tp1:1,tp2:2,sl:3,all:4,docs:5}[tab]||0;
+  btns[idx]?.classList.add('active');
+}
+
+function exportCSV(){
+  const sigs=loadSignals();
+  if(!sigs.length){toast('Nothing to export','No signals saved',false);return;}
+  const hdr=['Time','Pair','Direction','Conf%','Type','EntryPrice','TP1','TP2','SL','Status','PnL%','Session','Duration_min','RSI','ADX','4H_trend','Supertrend','Funding%','OI_trend','EMA_stack','Divergence','BOS','TP1_time','TP2_time','SL_time'];
+  const rows=sigs.map(s=>[
+    s.timestamp,s.pair,s.direction,s.confidence,s.entryType,
+    s.entryPrice,s.tp1Price,s.tp2Price,s.slPrice,
+    s.status,s.finalPnl??'',s.session||'',s.durationMin||'',
+    s.snap?.rsi??'',s.snap?.adx??'',s.snap?.trend4h??'',
+    s.snap?.supertrend!=null?(s.snap.supertrend?'bull':'bear'):'',
+    s.snap?.funding??'',s.snap?.oiTrend??'',s.snap?.emaStack??'',
+    s.snap?.divTypes?.join(';')||'',
+    s.snap?.bullBOS?'bull':s.snap?.bearBOS?'bear':'',
+    s.tp1HitTime||'',s.tp2HitTime||'',s.slHitTime||''
+  ]);
+  const csv=[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`investysignals_backtest_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  toast('📥 Exported',`${sigs.length} signals exported to CSV`);
+}
+
+function initPage(){
+  renderAll();
+  // Auto-check every 5 minutes while page is open
+  setInterval(()=>{if(document.visibilityState==='visible')checkAllSignals();},5*60*1000);
+}
+</script>
+</body>
+</html>
