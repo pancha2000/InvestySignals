@@ -539,72 +539,58 @@ function decideEntry(rsi,vol,C,H,L,price,macd,bb,stoch,adx,obv,atr,ex){
   if(btc&&btc.bias!=='neutral'){if(btc.bias==='bull')ls+=5;else ss+=5;}
 
   const MAX=185,lc=Math.min(100,Math.round(ls/MAX*100)),sc=Math.min(100,Math.round(ss/MAX*100));
-  let dir='NEUTRAL',conf=0;
-  if(lc>=62||sc>=62){dir=lc>=sc?'LONG':'SHORT';conf=dir==='LONG'?lc:sc;}
+  // Always pick a direction — whichever side has more confluence
+  let dir=lc>=sc?'LONG':'SHORT';
+  let conf=dir==='LONG'?lc:sc;
+  // If both sides are near zero, still show the stronger one
+  if(conf<10)conf=Math.max(lc,sc,10);
 
   const ind={emaStack:es,macd,bb,stochRsi:stoch,adx,obv,atr,trend4h:t4,fundingRate:fr,oiChange:oi,divergence:div,vwap,supertrend:st,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc};
 
-  // ═══════ HARD GATES ═══════
-
-  // Gate 1: ADX choppy market
-  if(adx&&adx.adx<18)return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`CHOPPY MARKET — ADX ${adx.adx.toFixed(1)} < 18. No trend structure. Skip all directional trades.`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-
-  // Gate 2: Extreme funding rate
-  if(fr!==null&&fr>0.25&&dir==='LONG')return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`EXTREME FUNDING +${fr.toFixed(3)}% — Long squeeze risk. Avoid LONG.`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-  if(fr!==null&&fr<-0.25&&dir==='SHORT')return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`EXTREME FUNDING ${fr.toFixed(3)}% — Short squeeze risk. Avoid SHORT.`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-
-  // Gate 3: 4H trend opposes direction AND no divergence (HIGH-IMPACT GATE)
+  // ── Risk flags (warnings only — never block) ──
+  const riskFlags=[];
   const hasDivergence=div&&(div.regularBull||div.regularBear||div.hiddenBull||div.hiddenBear);
-  if(dir==='LONG'&&t4&&t4.bias==='bear'&&!hasDivergence)return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`4H TREND BEARISH — No divergence to justify counter-trend LONG. Wait for 4H trend flip or confirmed divergence.`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-  if(dir==='SHORT'&&t4&&t4.bias==='bull'&&!hasDivergence)return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`4H TREND BULLISH — No divergence to justify counter-trend SHORT. Wait for 4H trend flip or confirmed divergence.`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
+  if(adx&&adx.adx<18)riskFlags.push(`⚠ ADX ${adx.adx.toFixed(1)} — weak trend, choppy conditions`);
+  if(fr!==null&&fr>0.25&&dir==='LONG')riskFlags.push(`⚠ Funding +${fr.toFixed(3)}% — long squeeze risk`);
+  if(fr!==null&&fr<-0.25&&dir==='SHORT')riskFlags.push(`⚠ Funding ${fr.toFixed(3)}% — short squeeze risk`);
+  if(t4&&dir==='LONG'&&t4.bias==='bear'&&!hasDivergence)riskFlags.push('⚠ 4H trend bearish — counter-trend LONG');
+  if(t4&&dir==='SHORT'&&t4.bias==='bull'&&!hasDivergence)riskFlags.push('⚠ 4H trend bullish — counter-trend SHORT');
+  if(st&&dir==='LONG'&&!st.bullish)riskFlags.push('⚠ Supertrend bearish — against direction');
+  if(st&&dir==='SHORT'&&st.bullish)riskFlags.push('⚠ Supertrend bullish — against direction');
+  if(sess&&sess.isAsian)riskFlags.push('⚠ Asian session — low liquidity');
+  const isRisky=riskFlags.length>=2||(riskFlags.length>=1&&conf<50);
+  const entryLabel=isRisky?'RISK ENTRY':'LIMIT';
 
-  // Gate 4: Supertrend opposes direction AND no divergence
-  if(dir==='LONG'&&st&&!st.bullish&&!hasDivergence&&conf<75)return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`SUPERTREND BEARISH — Trend filter opposes LONG. Score ${conf}% insufficient to override. Wait for ST flip.`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-  if(dir==='SHORT'&&st&&st.bullish&&!hasDivergence&&conf<75)return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`SUPERTREND BULLISH — Trend filter opposes SHORT. Score ${conf}% insufficient to override. Wait for ST flip.`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-
-  // Gate 5: Asian session only (low liquidity = high fakeout rate)
-  if(sess&&sess.isAsian&&conf<78)return{direction:'BLOCK',confidence:0,hardBlock:true,hardBlockReason:`ASIAN SESSION — Low liquidity. Fakeout risk high (score ${conf}% < 78% required). Wait for London open (07:00 UTC).`,entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-
-  // Minimum confidence gate (raised from 38 → 62)
-  if(conf<62)return{direction:'NEUTRAL',confidence:conf,hardBlock:false,hardBlockReason:'',entryPrice:price,slPrice:price,tp1Price:price,tp2Price:price,rrr1:'—',rrr2:'—',indicators:ind};
-
-  // Entry type: market only on very strong setups
+  // Entry type
   const strongTrend=st&&t4&&((dir==='LONG'&&st.bullish&&t4.bias==='bull')||(dir==='SHORT'&&!st.bullish&&t4.bias==='bear'));
-  let entryType='LIMIT';
-  if(conf>=75&&vol.surge&&((dir==='LONG'&&rsi<=40)||(dir==='SHORT'&&rsi>=60)))entryType='MARKET';
-  if(conf>=80&&strongTrend)entryType='MARKET';
+  let entryType=isRisky?'RISK ENTRY':'LIMIT';
+  if(!isRisky&&conf>=75&&vol.surge&&((dir==='LONG'&&rsi<=40)||(dir==='SHORT'&&rsi>=60)))entryType='MARKET';
+  if(!isRisky&&conf>=80&&strongTrend)entryType='MARKET';
 
-  // ═══════ SL / TP CALCULATION (HIGH WIN-RATE EDITION) ═══════
-  // Key: wider SL (2.0+ ATR) = fewer noise stops
-  //      closer TP1 (1.2× risk) = higher hit rate
+  // SL / TP — wider SL when risky (more room)
   const aV=atr?atr.atr:price*0.015,aP=atr?atr.pct:1.5;
-  // SL multiplier: always at least 2.0× ATR — never go below
-  const slM=aP>3.5?2.0:aP>2.0?2.2:2.5;
+  const slM=isRisky?(aP>3.5?2.5:3.0):(aP>3.5?2.0:aP>2.0?2.2:2.5);
   const r10H=Math.max(...H.slice(-10)),r10L=Math.min(...L.slice(-10)),r5H=Math.max(...H.slice(-5)),r5L=Math.min(...L.slice(-5));
   let ep,sl,tp1,tp2;
   if(dir==='LONG'){
-    // Entry: for limit orders, use recent 5-bar low + small ATR buffer for better fill
-    ep=entryType==='MARKET'?price:Math.max(r5L, price - aV*0.3);
-    // SL: beyond swing low, at least slM × ATR below entry
-    sl=Math.min(r10L - aV*0.2, ep - aV*slM);
+    ep=(entryType==='MARKET'||isRisky)?price:Math.max(r5L,price-aV*0.3);
+    sl=Math.min(r10L-aV*0.2,ep-aV*slM);
     const risk=ep-sl;
-    tp1=ep+risk*1.2;  // CONSERVATIVE — 1.2× risk (was 1.5) = ~80% hit rate target
-    tp2=ep+risk*2.5;  // Full target (was 3.0)
-  } else if(dir==='SHORT'){
-    // Entry: for limit orders, use recent 5-bar high + small ATR buffer
-    ep=entryType==='MARKET'?price:Math.min(r5H, price + aV*0.3);
-    // SL: beyond swing high
-    sl=Math.max(r10H + aV*0.2, ep + aV*slM);
+    tp1=ep+risk*1.2;
+    tp2=ep+risk*2.5;
+  } else {
+    ep=(entryType==='MARKET'||isRisky)?price:Math.min(r5H,price+aV*0.3);
+    sl=Math.max(r10H+aV*0.2,ep+aV*slM);
     const risk=sl-ep;
-    tp1=ep-risk*1.2;  // CONSERVATIVE — 1.2× risk
+    tp1=ep-risk*1.2;
     tp2=ep-risk*2.5;
-  } else{ep=sl=tp1=tp2=price;}
-
+  }
   const risk=dir==='LONG'?ep-sl:sl-ep;
   const rrr1=risk>0?(Math.abs(tp1-ep)/risk).toFixed(2):'—';
   const rrr2=risk>0?(Math.abs(tp2-ep)/risk).toFixed(2):'—';
 
-  return{direction:dir,entryType,confidence:conf,hardBlock:false,hardBlockReason:'',entryPrice:ep,slPrice:sl,tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,indicators:ind};
+  return{direction:dir,entryType,confidence:conf,hardBlock:false,hardBlockReason:'',
+         riskFlags,isRisky,entryPrice:ep,slPrice:sl,tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,indicators:ind};
 }
 
 /* ================================================================
@@ -919,12 +905,13 @@ function renderIndicatorOnly(container,symbol,curP,fr,rsi,vol,macd,bb,stoch,adx,
    ═══════════════════════════════════════════════════════ */
 function renderDeep(container,symbol,rsi,vol,entry,curP){
   const{direction:dir,entryType,confidence:conf,entryPrice:ep,slPrice:sl,
-        tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,hardBlock,hardBlockReason,indicators:ind}=entry;
+        tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,hardBlock,hardBlockReason,
+        riskFlags=[],isRisky=false,indicators:ind}=entry;
   const{emaStack:es,macd,bb,stochRsi:stoch,adx,obv,atr,
         trend4h:t4,fundingRate:fr,oiChange:oi,divergence:div,
         vwap,supertrend:spt,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc}=ind;
   const pair=symbol.replace('USDT','/USDT');
-  const hasEntry=(dir==='LONG'||dir==='SHORT')&&!hardBlock;
+  const hasEntry=true; // always show entry now
 
   /* ── colours ── */
   const dirColor=dir==='LONG'?'var(--green)':dir==='SHORT'?'var(--red)':'var(--yellow)';
@@ -947,31 +934,24 @@ function renderDeep(container,symbol,rsi,vol,entry,curP){
       ${rows}
     </div>`;
 
-  /* ── what's blocking / why neutral ── */
+  /* ── risk warnings (instead of blocking) ── */
   let statusBlock='';
-  if(hardBlock){
-    statusBlock=`<div style="background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.76rem;color:rgba(255,61,90,.9);line-height:1.7">🛡️ <strong>Safety Gate Triggered</strong><br>${hardBlockReason}</div>`;
-  } else if(dir==='NEUTRAL'){
-    /* explain what's missing */
-    const missing=[];
-    if(!t4||t4.bias==='neutral')missing.push('4H trend is neutral — no clear HTF direction');
-    if(!spt)missing.push('Supertrend unavailable');
-    else if(rsi>40&&rsi<60&&!spt?.bullish===!spt?.bullish)missing.push('RSI in neutral zone (40–60)');
-    if(conf<62)missing.push(`Confluence score ${conf}% — minimum 62% required`);
-    if(adx&&adx.adx<20)missing.push(`ADX ${adx.adx.toFixed(1)} — weak trend structure`);
-    statusBlock=`<div style="background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.18);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.76rem;color:var(--yellow);line-height:1.7">
-      ⏸ <strong>No Signal — Conditions Not Met</strong><br>
-      ${missing.length?missing.map(m=>`· ${m}`).join('<br>'):'Score below threshold — wait for stronger confluence.'}
+  if(isRisky&&riskFlags.length){
+    statusBlock=`<div style="background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.2);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.74rem;color:var(--yellow);line-height:1.8">
+      ⚠ <strong>RISK ENTRY</strong> — Conditions not ideal. Reduce position size, use strict SL.<br>
+      ${riskFlags.map(f=>`· ${f}`).join('<br>')}
     </div>`;
   }
 
-  /* ── entry section (only if valid) ── */
-  const entrySection=hasEntry?`
+  /* ── entry section — always shown ── */
+  const entryBg=isRisky?'rgba(255,195,51,.06)':'var(--surface)';
+  const entryBrd=isRisky?'rgba(255,195,51,.28)':'var(--border)';
+  const entrySection=`
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+    <div style="background:${entryBg};border:1px solid ${entryBrd};border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Entry</div>
-      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--cyan)">${fmtPrice(ep)}</div>
-      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${entryType==='MARKET'?'Market':'Limit order'}</div>
+      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:${isRisky?'var(--yellow)':'var(--cyan)'}">${fmtPrice(ep)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${entryType==='MARKET'?'Market':entryType==='RISK ENTRY'?'⚠ Risk Entry':'Limit order'}</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">TP 1 🎯</div>
@@ -986,18 +966,13 @@ function renderDeep(container,symbol,rsi,vol,entry,curP){
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Stop Loss</div>
       <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--red)">${fmtPrice(sl)}</div>
-      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">2.0–2.5× ATR</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${isRisky?'3× ATR wider':'2.0–2.5× ATR'}</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Current</div>
       <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--text)">${fmtPrice(curP)}</div>
       <div style="font-size:.62rem;color:var(--muted);margin-top:2px">Live price</div>
     </div>
-  </div>`:
-  /* show current price row when no entry */
-  `<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-    <span style="font-family:var(--font-n);font-size:.66rem;color:var(--muted)">Current Price</span>
-    <span style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:var(--cyan)">${fmtPrice(curP)}</span>
   </div>`;
 
   /* ── quick chips ── */
@@ -1110,11 +1085,11 @@ function renderDeep(container,symbol,rsi,vol,entry,curP){
   const reasons=buildReasons(rsi,vol,entry);
 
   /* ── paper trade button ── */
-  const paperBtn=hasEntry?`<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`:'';
+  const paperBtn=`<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${isRisky?'LIMIT':entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`;
 
   /* ── header colours ── */
-  const borderCol=hasEntry?(dir==='LONG'?'rgba(0,255,136,.3)':'rgba(255,61,90,.3)'):'rgba(0,212,255,.2)';
-  const headerBg=hasEntry?(dir==='LONG'?'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))':'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))'):'linear-gradient(135deg,rgba(0,212,255,.05),rgba(0,212,255,.01))';
+  const borderCol=isRisky?'rgba(255,195,51,.35)':(dir==='LONG'?'rgba(0,255,136,.3)':'rgba(255,61,90,.3)');
+  const headerBg=isRisky?'linear-gradient(135deg,rgba(255,195,51,.06),rgba(255,195,51,.02))':(dir==='LONG'?'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))':'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))');
 
   container.innerHTML=`
 <div class="deep-result"><div class="panel deep-card" style="border-color:${borderCol}">
@@ -1123,19 +1098,18 @@ function renderDeep(container,symbol,rsi,vol,entry,curP){
   <div class="deep-header" style="background:${headerBg}">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div class="deep-pair">${pair}</div>
-      ${hasEntry?`<div class="deep-dir ${dir==='LONG'?'long':'short'}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</div>`:
-       hardBlock?`<span style="font-family:var(--font-n);font-size:.72rem;padding:3px 10px;border-radius:5px;background:rgba(255,61,90,.12);color:var(--red);border:1px solid rgba(255,61,90,.3)">⛔ Blocked</span>`:
-       `<span style="font-family:var(--font-n);font-size:.72rem;padding:3px 10px;border-radius:5px;background:rgba(255,195,51,.1);color:var(--yellow);border:1px solid rgba(255,195,51,.25)">⏸ No Signal</span>`}
+      <div class="deep-dir ${dir==='LONG'?'long':'short'}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</div>
+      ${isRisky?`<span style="font-family:var(--font-n);font-size:.68rem;padding:3px 10px;border-radius:5px;background:rgba(255,195,51,.15);color:var(--yellow);border:1px solid rgba(255,195,51,.4)">⚠ RISK ENTRY</span>`:''}
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      ${hasEntry?`<span style="font-family:var(--font-n);font-size:.7rem;padding:3px 10px;border-radius:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.25)">⚡ ${conf}%</span>`:''}
-      <span class="entry-badge ${hasEntry?entryType==='MARKET'?'market':'limit':'limit'}" style="${hasEntry?'':'opacity:.4'}">${hasEntry?entryType:'NO ENTRY'}</span>
+      <span style="font-family:var(--font-n);font-size:.7rem;padding:3px 10px;border-radius:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.25)">⚡ ${conf}%</span>
+      <span class="entry-badge ${entryType==='MARKET'?'market':isRisky?'limit':'limit'}">${entryType==='RISK ENTRY'?'⚠ RISK':entryType}</span>
     </div>
   </div>
 
   <!-- Score bar -->
   <div class="score-bar-wrap">
-    <div class="score-bar-title">🏆 Confluence Score ${hasEntry?'— Signal Valid':'— '+(hardBlock?'Blocked':'Below Threshold')}</div>
+    <div class="score-bar-title">🏆 Confluence Score — ${isRisky?'⚠ Risk Entry':'Signal Valid'}</div>
     <div class="score-total">
       <div class="score-num" style="color:${sColor}">${conf}</div>
       <span class="score-badge ${sg.cls}" style="font-size:.9rem;padding:3px 10px">${sg.label}</span>
@@ -1177,7 +1151,7 @@ function renderDeep(container,symbol,rsi,vol,entry,curP){
 
   <!-- Reasoning -->
   <div class="deep-reasoning">
-    <div class="reasoning-title">🧠 ${hasEntry?'Why This Signal':'Why No Entry'} — Indicator Analysis</div>
+    <div class="reasoning-title">🧠 Signal Analysis — ${isRisky?'⚠ Risk Entry Conditions':'Indicator Reasoning'}</div>
     <div class="reasoning-list">${reasons.map(r=>`<div class="reason-item"><span class="reason-icon">${r.icon}</span><span class="reason-txt">${r.text}</span></div>`).join('')}</div>
   </div>
 
