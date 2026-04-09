@@ -303,7 +303,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
           <span class="score-badge score-a">A 70+</span>
           <span class="score-badge score-b">B 50+</span>
           <span class="score-badge score-c">C &lt;50</span>
-          <span style="margin-left:4px">· 16-Factor · VWAP · Supertrend · BOS/FVG · Divergence · BTC Context</span>
+          <span style="margin-left:4px">· 16-Factor · VWAP · Supertrend · BOS/FVG · Divergence · BTC Context · Entry shown only when valid</span>
         </div>
         <div class="scan-table-wrap">
           <table class="scan-table">
@@ -674,7 +674,12 @@ async function runMarketScan(){
   }catch(err){body.innerHTML=`<tr class="loading-row"><td colspan="9" style="text-align:center;padding:26px;color:var(--red)">⚠ Failed: ${err.message}</td></tr>`;}
   btn.disabled=false;btn.classList.remove('scanning');document.getElementById('btnScanIcon').textContent='📡';
 }
-async function runManualDeepScan(){let s=document.getElementById('manualCoin').value.trim().toUpperCase();if(!s)return;if(!s.endsWith('USDT'))s+='USDT';await runDeepScan(s);}
+async function runManualDeepScan(){
+  let s=document.getElementById('manualCoin').value.trim().toUpperCase();
+  if(!s)return;
+  if(!s.endsWith('USDT'))s+='USDT';
+  await runDeepScan(s); // unified — entry shown if exists, indicators always shown
+}
 
 /* ── Deep Scan — 16-Factor — BTC crash fix ── */
 async function runDeepScan(symbol){
@@ -716,111 +721,471 @@ async function runDeepScan(symbol){
   document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b=>b.disabled=false);
 }
 
-/* ── Render Deep Result ── */
-function renderDeep(container,symbol,rsi,vol,entry,curP){
-  const{direction:dir,entryType,confidence:conf,entryPrice:ep,slPrice:sl,tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,hardBlock,hardBlockReason,indicators:ind}=entry;
-  const{emaStack:es,macd,bb,stochRsi:stoch,adx,obv,atr,trend4h:t4,fundingRate:fr,oiChange:oi,divergence:div,vwap,supertrend:spt,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc}=ind;
-  const pair=symbol.replace('USDT','/USDT');
-  if(dir==='BLOCK'||hardBlock){
-    container.innerHTML=`<div class="deep-result"><div class="panel deep-card" style="border-color:rgba(255,61,90,.4)"><div class="deep-header" style="background:rgba(255,61,90,.06)"><div style="display:flex;align-items:center;gap:12px"><div class="deep-pair">${pair}</div><span class="deep-dir" style="background:rgba(255,61,90,.15);color:var(--red);border:1px solid rgba(255,61,90,.3)">⛔ BLOCKED</span></div></div><div style="background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.25);border-radius:12px;padding:24px 20px;margin:20px 16px;text-align:center"><div style="font-size:2.4rem;margin-bottom:10px">🛡️</div><div style="font-family:var(--font-h);font-size:1.1rem;font-weight:700;color:var(--red);margin-bottom:8px">Safety Gate Triggered</div><div style="font-family:var(--font-n);font-size:.78rem;color:rgba(255,61,90,.85);line-height:1.7">${hardBlockReason}</div></div><div class="deep-disclaimer"><strong>⚠ Gate Active:</strong> Wait for conditions to normalize then re-scan.</div></div></div>`;
-    return;
-  }
-  const cCls=dir==='LONG'?'long-card':dir==='SHORT'?'short-card':'neutral-card';
-  const hCls=dir==='LONG'?'long-bg':dir==='SHORT'?'short-bg':'neutral-bg';
-  const dCls=dir==='LONG'?'long':dir==='SHORT'?'short':'neutral';
-  const dLbl=dir==='LONG'?'▲ LONG':dir==='SHORT'?'▼ SHORT':'— NEUTRAL';
-  const sColor=conf>=85?'var(--green)':conf>=70?'var(--cyan)':conf>=50?'var(--yellow)':'var(--red)';
-  const sg=scoreGrade(conf);
-  const rColor=rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
-  const rLbl=rsi<=30?'Oversold':rsi>=70?'Overbought':rsi<=45?'Bearish':rsi>=55?'Bullish':'Neutral';
-  const reasons=buildReasons(rsi,vol,entry);
-  const chips=[];
-  if(spt)chips.push({cls:spt.bullish?'ok':'bad',label:`ST ${spt.label}`});
-  if(t4)chips.push({cls:(t4.bias==='bull'&&dir==='LONG')||(t4.bias==='bear'&&dir==='SHORT')?'ok':t4.bias==='neutral'?'neu':'bad',label:`4H ${t4.label}`});
-  if(bos&&(bos.bullBOS||bos.bearBOS))chips.push({cls:'ok',label:bos.bullBOS?'Bull BOS':'Bear BOS'});
-  if(bos?.choch)chips.push({cls:'warn',label:'CHoCH'});
-  if(vwap)chips.push({cls:(vwap.above&&dir==='LONG')||(!vwap.above&&dir==='SHORT')?'ok':'warn',label:`VWAP ${vwap.above?'↑':'↓'}`});
-  if(fvg?.bullFVG)chips.push({cls:'ok',label:'Bull FVG'});
-  if(fvg?.bearFVG)chips.push({cls:'ok',label:'Bear FVG'});
-  if(div?.regularBull)chips.push({cls:'ok',label:'Reg Div ↑'});
-  if(div?.regularBear)chips.push({cls:'ok',label:'Reg Div ↓'});
-  if(div?.hiddenBull)chips.push({cls:'ok',label:'Hidden ↑'});
-  if(div?.hiddenBear)chips.push({cls:'ok',label:'Hidden ↓'});
-  if(es)chips.push({cls:(es.stack?.includes('bull')&&dir==='LONG')||(es.stack?.includes('bear')&&dir==='SHORT')?'ok':es.stack==='neutral'?'neu':'warn',label:`EMA ${es.stack?.replace('_',' ')}`});
-  if(fr!==null)chips.push({cls:Math.abs(fr)<=0.01?'ok':Math.abs(fr)<=0.04?'warn':'bad',label:`${fr.toFixed(3)}%`});
-  if(vol.surge)chips.push({cls:'ok',label:`Vol ${vol.label}`});
-  if(atr)chips.push({cls:atr.pct>=0.5&&atr.pct<=5?'ok':'warn',label:`ATR ${atr.pct.toFixed(1)}%`});
-  if(sess)chips.push({cls:sess.quality==='high'?'ok':sess.quality==='medium'?'neu':'warn',label:sess.session.split(' ')[0]});
-  if(btc)chips.push({cls:(btc.bias==='bull'&&dir==='LONG')||(btc.bias==='bear'&&dir==='SHORT')?'ok':btc.bias==='neutral'?'neu':'warn',label:`BTC ${btc.label.split(' ')[0]}`});
-  if(oi&&oi.trend!=='unknown')chips.push({cls:oi.trend==='rising'?'ok':'warn',label:`OI ${oi.trend}`});
+/* ── Indicator-Only Scan (Manual mode — no entry/SL/TP) ── */
+async function runIndicatorScan(symbol){
+  const container=document.getElementById('deepResult');
+  container.style.display='block';
+  container.innerHTML=`<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Loading indicators for ${symbol}…</div><div class="empty-sub">200 × 1H · 80 × 4H · 16 indicators computing…</div></div></div></div>`;
+  container.scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('btnManualDeep').disabled=true;
+  try{
+    const[klR,kl4R,tkR,prR]=await Promise.all([
+      fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=${KLINE_LIMIT}`),
+      fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=${KLINE_4H}`),
+      fetch(`${BINANCE_FAPI}/fapi/v1/ticker/price?symbol=${symbol}`),
+      fetch(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${symbol}`)
+    ]);
+    if(!klR.ok)throw new Error(`"${symbol}" not found on Binance Futures`);
+    const[klines,klines4h,tkData,prData]=await Promise.all([klR.json(),kl4R.json(),tkR.json(),prR.json()]);
+    let btcKl=null;
+    try{const bR=await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=BTCUSDT&interval=4h&limit=50`);if(bR.ok)btcKl=await bR.json();}catch(_){}
+    if(!klines||klines.length<RSI_PERIOD+20)throw new Error('Not enough candle data');
+    const curP=parseFloat(tkData.price),fr=prData?.lastFundingRate?parseFloat(prData.lastFundingRate)*100:null;
+    const C=klines.map(k=>parseFloat(k[4])),H=klines.map(k=>parseFloat(k[2])),L=klines.map(k=>parseFloat(k[3])),V=klines.map(k=>parseFloat(k[5]));
+    const C4=klines4h?klines4h.map(k=>parseFloat(k[4])):null;
+    const rsi=calcRSI(C,RSI_PERIOD),vol=analyzeVolume(klines);
+    const macd=calcMACD(C),bb=calcBollingerBands(C),stoch=calcStochasticRSI(C);
+    const atr=calcATR(H,L,C),adx=calcADX(H,L,C),obv=calcOBV(C,V);
+    const es=calcEMAStack(C),t4=calc4HTrend(klines4h),vwap=calcVWAP(klines);
+    const spt=calcSupertrend(H,L,C),bos=detectBOS(H,L,C),fvg=detectFVG(klines);
+    const div=detectDivergenceFull(C,H,L),mRSI=calcMTFRSI(C,C4),sess=getSession();
+    const btc=btcKl&&btcKl.length>20?calc4HTrend(btcKl):null;
+    const oi=await fetchOIChange(symbol);
+    renderIndicatorOnly(container,symbol,curP,fr,rsi,vol,macd,bb,stoch,adx,obv,atr,es,t4,vwap,spt,bos,fvg,div,mRSI,sess,btc,oi,klines);
+  }catch(err){container.innerHTML=`<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text" style="color:var(--red)">Failed</div><div class="empty-sub">${err.message}</div></div></div></div>`;}
+  document.getElementById('btnManualDeep').disabled=false;
+}
 
-  const paperBtn=dir!=='NEUTRAL'?`<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`:'';
+/* ── Render: Indicator Dashboard (No Entry/SL/TP) ── */
+function renderIndicatorOnly(container,symbol,curP,fr,rsi,vol,macd,bb,stoch,adx,obv,atr,es,t4,vwap,spt,bos,fvg,div,mRSI,sess,btc,oi,klines){
+  const pair=symbol.replace('USDT','/USDT');
+  const rColor=rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
+  const rLbl=rsi<=30?'Extreme Oversold 🔥':rsi>=70?'Extreme Overbought 🔥':rsi<=40?'Oversold':rsi>=60?'Overbought':rsi<=48?'Bearish Zone':rsi>=52?'Bullish Zone':'Neutral';
+
+  // Row helper
+  const row=(label,valueHtml,noteHtml='')=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+      <span style="font-family:var(--font-n);font-size:.68rem;color:var(--muted);flex:0 0 140px">${label}</span>
+      <span style="font-family:var(--font-n);font-size:.78rem;font-weight:600;flex:1;text-align:right">${valueHtml}</span>
+      ${noteHtml?`<span style="font-size:.65rem;color:var(--muted);margin-left:10px;flex:0 0 auto">${noteHtml}</span>`:''}
+    </div>`;
+
+  const sec=(title,icon,content)=>`
+    <div style="margin-bottom:16px;">
+      <div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:4px">${icon} ${title}</div>
+      ${content}
+    </div>`;
+
+  const badge=(txt,color)=>`<span style="font-family:var(--font-n);font-size:.68rem;padding:2px 8px;border-radius:4px;background:${color}20;color:${color};border:1px solid ${color}40">${txt}</span>`;
+
+  // ── Section: Momentum ──
+  const momContent=
+    row('RSI (14) · 1H',
+      `<span style="color:${rColor}">${rsi.toFixed(2)}</span>`,
+      `<span style="color:${rColor}">${rLbl}</span>`)+
+    row('RSI (14) · 4H',
+      mRSI?.rsi4H!=null?`<span style="color:${mRSI.rsi4H<=30?'var(--green)':mRSI.rsi4H>=70?'var(--red)':'var(--text)'}">${mRSI.rsi4H.toFixed(2)}</span>`:'<span style="color:var(--muted)">—</span>',
+      mRSI?.extremeBullish?'🔥 Both Extreme OS':mRSI?.bullishAlign?'Both Oversold':mRSI?.extremeBearish?'🔥 Both Extreme OB':mRSI?.bearishAlign?'Both Overbought':'')+
+    row('Stoch RSI · K/D',
+      stoch?`<span style="color:${stoch.signal==='oversold'?'var(--green)':stoch.signal==='overbought'?'var(--red)':'var(--text)'}">K: ${stoch.k.toFixed(1)} / D: ${stoch.d.toFixed(1)}</span>`:'<span style="color:var(--muted)">—</span>',
+      stoch?stoch.signal==='oversold'?'Oversold':stoch.signal==='overbought'?'Overbought':stoch.crossover==='bullish_cross'?'🔔 Bull Cross':stoch.crossover==='bearish_cross'?'🔔 Bear Cross':'Neutral':'')+
+    row('MACD Histogram',
+      macd?`<span style="color:${macd.histogram>0?'var(--green)':'var(--red)'}">${macd.histogram>0?'+':''}${macd.histogram.toFixed(6)}</span>`:'<span style="color:var(--muted)">—</span>',
+      macd?macd.trend==='bullish'?`▲ Bull ${macd.strengthening?'↑ Growing':'→ Flat'}`:
+           `▼ Bear ${macd.strengthening?'↑ Growing':'→ Flat'}`:'');
+
+  // ── Section: Trend ──
+  const trendContent=
+    row('EMA Stack · 1H',
+      `<span style="color:${es?.stack?.includes('bull')?'var(--green)':es?.stack?.includes('bear')?'var(--red)':'var(--yellow)'}">${{perfect_bull:'✓✓ Perfect Bullish',bull:'✓ Bullish',perfect_bear:'✗✗ Perfect Bearish',bear:'✗ Bearish',neutral:'↔ Neutral'}[es?.stack||'neutral']}</span>`,
+      es?.ema200?`EMA200 ${fmtPrice(es.ema200)}`:es?`EMA20 ${fmtPrice(es.ema20)} · EMA50 ${fmtPrice(es.ema50)}`:'')+ 
+    row('EMA 20 / 50 / 200',
+      es?`<span style="color:var(--cyan)">${fmtPrice(es.ema20)}</span> / <span style="color:var(--text)">${fmtPrice(es.ema50)}</span> / <span style="color:var(--muted)">${es.ema200?fmtPrice(es.ema200):'need 200 bars'}</span>`:'<span style="color:var(--muted)">—</span>')+
+    row('Supertrend (10,3)',
+      spt?`<span style="color:${spt.bullish?'var(--green)':'var(--red)'}">${spt.label}</span>`:'<span style="color:var(--muted)">—</span>',
+      spt?`Level: ${fmtPrice(spt.value)} · ${spt.distPct>=0?'+':''}${spt.distPct.toFixed(2)}% from price`:'')+
+    row('4H Trend',
+      t4?`<span style="color:${t4.bias==='bull'?'var(--green)':t4.bias==='bear'?'var(--red)':'var(--yellow)'}">${t4.label}</span>`:'<span style="color:var(--muted)">—</span>',
+      t4?`Score: ${t4.score} · RSI4H: ${t4.rsi4h?.toFixed(1)||'—'}`:'')+
+    row('BTC Context (4H)',
+      btc?`<span style="color:${btc.bias==='bull'?'var(--green)':btc.bias==='bear'?'var(--red)':'var(--yellow)'}">${btc.label}</span>`:'<span style="color:var(--muted)">—</span>',
+      'Market leader')+
+    row('ADX',
+      adx?`<span style="color:${adx.strength==='strong'?'var(--green)':adx.strength==='moderate'?'var(--cyan)':'var(--muted)'}">${adx.adx.toFixed(2)}</span>`:'<span style="color:var(--muted)">—</span>',
+      adx?`${adx.strength} · +DI ${adx.plusDI.toFixed(1)} / -DI ${adx.minusDI.toFixed(1)} · ${adx.trend}`:'');
+
+  // ── Section: Price Position ──
+  const priceContent=
+    row('Live Price',`<span style="color:var(--cyan);font-size:.88rem">${fmtPrice(curP)}</span>`)+
+    row('VWAP (24h)',
+      vwap?`<span style="color:${vwap.above?'var(--green)':'var(--red)'}">${fmtPrice(vwap.vwap)}</span>`:'<span style="color:var(--muted)">—</span>',
+      vwap?vwap.label:'')+
+    row('Bollinger Bands · Pos',
+      bb?`<span style="color:${bb.position<=0.2?'var(--green)':bb.position>=0.8?'var(--red)':'var(--text)'}">${(bb.position*100).toFixed(1)}%</span>`:'<span style="color:var(--muted)">—</span>',
+      bb?`${bb.position<=0.15?'Near Lower Band 🎯':bb.position>=0.85?'Near Upper Band 🎯':bb.position<=0.35?'Lower Half':'Upper Half'}${bb.squeeze?' · 💥 SQUEEZE!':''}`:'')+
+    row('BB Upper / Lower',
+      bb?`<span style="color:var(--red)">${fmtPrice(bb.upper)}</span> / <span style="color:var(--green)">${fmtPrice(bb.lower)}</span>`:'<span style="color:var(--muted)">—</span>',
+      bb?`Width ${(bb.width*100).toFixed(2)}%`:'')+
+    row('ATR (14)',
+      atr?`<span style="color:var(--text)">${fmtPrice(atr.atr)}</span>`:'<span style="color:var(--muted)">—</span>',
+      atr?`${atr.pct.toFixed(2)}% of price · ${atr.pct>3?'High Volatility':atr.pct>1.5?'Normal':'Low Volatility'}`:'')+
+    row('OBV Trend',
+      obv?`<span style="color:${obv.trend==='accumulation'?'var(--green)':'var(--red)'}">${obv.trend==='accumulation'?'▲ Accumulation':'▼ Distribution'}</span>`:'<span style="color:var(--muted)">—</span>',
+      '')+
+    row('Volume (3-bar avg)',
+      `<span style="color:${vol.surge?'var(--green)':'var(--text)'}">${vol.label} (${vol.ratio.toFixed(2)}× avg)</span>`,
+      vol.surge?'🔥 Volume Surge':'');
+
+  // ── Section: Structure (SMC) ──
+  const structContent=
+    row('Market Structure',
+      bos?(bos.bullBOS?`<span style="color:var(--green)">▲ Bullish BOS</span>`:bos.bearBOS?`<span style="color:var(--red)">▼ Bearish BOS</span>`:bos.choch?`<span style="color:var(--yellow)">⚡ CHoCH</span>`:'<span style="color:var(--muted)">Ranging</span>'):'<span style="color:var(--muted)">—</span>',
+      bos?.choch?'Change of Character':'')+
+    row('Swing High / Low',
+      bos?(bos.lastSwingHigh||bos.lastSwingLow?`<span style="color:var(--red)">${bos.lastSwingHigh?fmtPrice(bos.lastSwingHigh):'—'}</span> / <span style="color:var(--green)">${bos.lastSwingLow?fmtPrice(bos.lastSwingLow):'—'}</span>`:'<span style="color:var(--muted)">—</span>'):'<span style="color:var(--muted)">—</span>',
+      'Resistance / Support')+
+    row('Bullish FVG',
+      fvg?.bullFVG?`<span style="color:var(--green)">${fmtPrice(fvg.bullFVG.bottom)} → ${fmtPrice(fvg.bullFVG.top)}</span>`:'<span style="color:var(--muted)">None detected</span>')+
+    row('Bearish FVG',
+      fvg?.bearFVG?`<span style="color:var(--red)">${fmtPrice(fvg.bearFVG.bottom)} → ${fmtPrice(fvg.bearFVG.top)}</span>`:'<span style="color:var(--muted)">None detected</span>')+
+    row('RSI Divergence',
+      div?(div.regularBull||div.regularBear||div.hiddenBull||div.hiddenBear)?
+        `<span style="color:var(--cyan)">${[div.regularBull?'Regular Bullish ↑':null,div.regularBear?'Regular Bearish ↓':null,div.hiddenBull?'Hidden Bullish ↑':null,div.hiddenBear?'Hidden Bearish ↓':null].filter(Boolean).join(' · ')}</span>`:
+        '<span style="color:var(--muted)">None detected</span>':
+      '<span style="color:var(--muted)">—</span>');
+
+  // ── Section: Market Data ──
+  const mktContent=
+    row('Funding Rate',
+      fr!=null?`<span style="color:${Math.abs(fr)<=0.01?'var(--green)':Math.abs(fr)<=0.04?'var(--yellow)':'var(--red)'}">${fr.toFixed(4)}%</span>`:'<span style="color:var(--muted)">—</span>',
+      fr!=null?Math.abs(fr)<=0.01?'✓ Neutral':fr<0?`Shorts paying longs`:`Longs paying shorts`:'')+
+    row('Open Interest',
+      oi?`<span style="color:${oi.trend==='rising'?'var(--green)':oi.trend==='falling'?'var(--red)':'var(--muted)'}">${oi.trend==='rising'?'▲ Rising':oi.trend==='falling'?'▼ Falling':oi.trend==='flat'?'→ Flat':'—'}</span>`:'<span style="color:var(--muted)">—</span>',
+      oi?.pct!==undefined&&oi.trend!=='unknown'?(oi.pct>=0?'+':'')+oi.pct.toFixed(2)+'% (5m)':'')+
+    row('Session',
+      sess?`<span style="color:${sess.quality==='high'?'var(--green)':sess.quality==='medium'?'var(--cyan)':'var(--muted)'}">${sess.session}</span>`:'<span style="color:var(--muted)">—</span>',
+      sess?`${sess.quality} liquidity${sess.overlap?' · London/NY overlap':''}`:'');
 
   container.innerHTML=`
-<div class="deep-result"><div class="panel deep-card ${cCls}">
-  <div class="deep-header ${hCls}">
+<div class="deep-result"><div class="panel deep-card" style="border-color:rgba(0,212,255,.2)">
+  <!-- Header -->
+  <div class="deep-header" style="background:linear-gradient(135deg,rgba(0,212,255,.06),rgba(0,212,255,.02))">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div class="deep-pair">${pair}</div>
+      <span style="font-family:var(--font-n);font-size:.68rem;padding:3px 10px;border-radius:5px;background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.2)">📊 Indicator View</span>
+    </div>
+    <div style="font-family:var(--font-n);font-size:.72rem;color:var(--cyan)">${fmtPrice(curP)}</div>
+  </div>
+
+  <!-- Quick Summary Chips -->
+  <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;background:rgba(0,0,0,.1)">
+    ${rsi<=30||rsi>=70?badge(rsi<=30?`RSI ${rsi.toFixed(0)} OS`:`RSI ${rsi.toFixed(0)} OB`,rsi<=30?'#00ff88':'#ff3d5a'):''}
+    ${spt?badge(`ST ${spt.bullish?'Bull':'Bear'}`,spt.bullish?'#00ff88':'#ff3d5a'):''}
+    ${t4?badge(`4H ${t4.label.split(' ')[1]}`,t4.bias==='bull'?'#00ff88':t4.bias==='bear'?'#ff3d5a':'#ffc333'):''}
+    ${es?.stack?.includes('bull')?badge('EMA ✓ Bull','#00ff88'):es?.stack?.includes('bear')?badge('EMA ✗ Bear','#ff3d5a'):''}
+    ${macd?badge(`MACD ${macd.trend==='bullish'?'▲':'▼'}${macd.strengthening?' ↑':''}`,macd.trend==='bullish'?'#00ff88':'#ff3d5a'):''}
+    ${bb?.squeeze?badge('BB Squeeze 💥','#ffc333'):''}
+    ${stoch?.signal==='oversold'?badge('Stoch OS','#00ff88'):stoch?.signal==='overbought'?badge('Stoch OB','#ff3d5a'):''}
+    ${stoch?.crossover==='bullish_cross'?badge('K/D Cross ↑','#00ff88'):stoch?.crossover==='bearish_cross'?badge('K/D Cross ↓','#ff3d5a'):''}
+    ${bos?.bullBOS?badge('Bull BOS','#00ff88'):bos?.bearBOS?badge('Bear BOS','#ff3d5a'):''}
+    ${bos?.choch?badge('CHoCH ⚡','#ffc333'):''}
+    ${div?.regularBull?badge('Reg Div ↑','#00d4ff'):div?.regularBear?badge('Reg Div ↓','#ff3d5a'):''}
+    ${div?.hiddenBull?badge('Hidden ↑','#a78bfa'):div?.hiddenBear?badge('Hidden ↓','#a78bfa'):''}
+    ${fr!=null&&Math.abs(fr)>0.04?badge(`Fund ${fr.toFixed(3)}%`,fr<0?'#00ff88':'#ff3d5a'):''}
+    ${oi?.trend==='rising'?badge('OI Rising','#00ff88'):oi?.trend==='falling'?badge('OI Falling','#ff3d5a'):''}
+    ${vwap?badge(`VWAP ${vwap.above?'Above ↑':'Below ↓'}`,vwap.above?'#00ff88':'#ff3d5a'):''}
+    ${vol.surge?badge('Vol Surge 🔥','#ffc333'):''}
+    ${adx?badge(`ADX ${adx.adx.toFixed(0)} ${adx.strength}`,adx.adx>=25?'#00d4ff':'#64748b'):''}
+    ${sess?badge(sess.session.split('/')[0],sess.quality==='high'?'#00ff88':sess.quality==='medium'?'#00d4ff':'#64748b'):''}
+    ${btc?badge(`BTC ${btc.label.split(' ')[1]||'Neutral'}`,btc.bias==='bull'?'#00ff88':btc.bias==='bear'?'#ff3d5a':'#ffc333'):''}
+  </div>
+
+  <!-- Indicator Sections -->
+  <div style="padding:14px 16px">
+    ${sec('Momentum','📉',momContent)}
+    ${sec('Trend','📈',trendContent)}
+    ${sec('Price Position','🎯',priceContent)}
+    ${sec('Market Structure (SMC)','🏗️',structContent)}
+    ${sec('Market Data','💹',mktContent)}
+  </div>
+
+  <div class="deep-disclaimer" style="margin:0 16px 14px"><strong>📊 Indicator View</strong> — Raw indicator data only. No trade signals, entry or targets shown. Use this to understand market conditions before making your own decisions.</div>
+</div></div>`;
+}
+
+/* ── Render Deep Result (Signal Mode — from Scanner table 🔬) ── */
+/* ═══════════════════════════════════════════════════════
+   UNIFIED RENDER — Entry shown if valid, indicators ALWAYS
+   ═══════════════════════════════════════════════════════ */
+function renderDeep(container,symbol,rsi,vol,entry,curP){
+  const{direction:dir,entryType,confidence:conf,entryPrice:ep,slPrice:sl,
+        tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,hardBlock,hardBlockReason,indicators:ind}=entry;
+  const{emaStack:es,macd,bb,stochRsi:stoch,adx,obv,atr,
+        trend4h:t4,fundingRate:fr,oiChange:oi,divergence:div,
+        vwap,supertrend:spt,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc}=ind;
+  const pair=symbol.replace('USDT','/USDT');
+  const hasEntry=(dir==='LONG'||dir==='SHORT')&&!hardBlock;
+
+  /* ── colours ── */
+  const dirColor=dir==='LONG'?'var(--green)':dir==='SHORT'?'var(--red)':'var(--yellow)';
+  const rColor=rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
+  const rLbl=rsi<=30?'Extreme Oversold 🔥':rsi>=70?'Extreme Overbought 🔥':rsi<=40?'Oversold':rsi>=60?'Overbought':rsi<=48?'Bearish Zone':rsi>=52?'Bullish Zone':'Neutral';
+  const sColor=conf>=85?'var(--green)':conf>=70?'var(--cyan)':conf>=50?'var(--yellow)':'var(--red)';
+  const sg=scoreGrade(conf);
+
+  /* ── helpers ── */
+  const badge=(txt,col)=>`<span style="font-family:var(--font-n);font-size:.65rem;padding:2px 8px;border-radius:4px;background:${col}22;color:${col};border:1px solid ${col}44">${txt}</span>`;
+  const row=(label,valHtml,noteHtml='')=>`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.035)">
+      <span style="font-family:var(--font-n);font-size:.66rem;color:var(--muted);flex:0 0 130px;padding-top:1px">${label}</span>
+      <span style="font-family:var(--font-n);font-size:.76rem;font-weight:600;flex:1;text-align:right;padding:0 8px">${valHtml}</span>
+      <span style="font-size:.63rem;color:var(--muted);flex:0 0 auto;white-space:nowrap">${noteHtml}</span>
+    </div>`;
+  const sec=(title,icon,rows)=>`
+    <div style="margin-bottom:14px">
+      <div style="font-family:var(--font-n);font-size:.58rem;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:2px">${icon} ${title}</div>
+      ${rows}
+    </div>`;
+
+  /* ── what's blocking / why neutral ── */
+  let statusBlock='';
+  if(hardBlock){
+    statusBlock=`<div style="background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.76rem;color:rgba(255,61,90,.9);line-height:1.7">🛡️ <strong>Safety Gate Triggered</strong><br>${hardBlockReason}</div>`;
+  } else if(dir==='NEUTRAL'){
+    /* explain what's missing */
+    const missing=[];
+    if(!t4||t4.bias==='neutral')missing.push('4H trend is neutral — no clear HTF direction');
+    if(!spt)missing.push('Supertrend unavailable');
+    else if(rsi>40&&rsi<60&&!spt?.bullish===!spt?.bullish)missing.push('RSI in neutral zone (40–60)');
+    if(conf<62)missing.push(`Confluence score ${conf}% — minimum 62% required`);
+    if(adx&&adx.adx<20)missing.push(`ADX ${adx.adx.toFixed(1)} — weak trend structure`);
+    statusBlock=`<div style="background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.18);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.76rem;color:var(--yellow);line-height:1.7">
+      ⏸ <strong>No Signal — Conditions Not Met</strong><br>
+      ${missing.length?missing.map(m=>`· ${m}`).join('<br>'):'Score below threshold — wait for stronger confluence.'}
+    </div>`;
+  }
+
+  /* ── entry section (only if valid) ── */
+  const entrySection=hasEntry?`
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Entry</div>
+      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--cyan)">${fmtPrice(ep)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${entryType==='MARKET'?'Market':'Limit order'}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">TP 1 🎯</div>
+      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--green)">${fmtPrice(tp1)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr1}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">TP 2</div>
+      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:rgba(0,255,136,.65)">${fmtPrice(tp2)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr2}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Stop Loss</div>
+      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--red)">${fmtPrice(sl)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">2.0–2.5× ATR</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Current</div>
+      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--text)">${fmtPrice(curP)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">Live price</div>
+    </div>
+  </div>`:
+  /* show current price row when no entry */
+  `<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+    <span style="font-family:var(--font-n);font-size:.66rem;color:var(--muted)">Current Price</span>
+    <span style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:var(--cyan)">${fmtPrice(curP)}</span>
+  </div>`;
+
+  /* ── quick chips ── */
+  const chips=[];
+  if(spt)chips.push({cls:spt.bullish?'ok':'bad',l:`ST ${spt.bullish?'Bull':'Bear'}`});
+  if(t4)chips.push({cls:t4.bias==='bull'?'ok':t4.bias==='bear'?'bad':'neu',l:`4H ${t4.label.replace('↔ ','').replace('▲ ','').replace('▼ ','')}`});
+  if(es)chips.push({cls:es.stack?.includes('bull')?'ok':es.stack?.includes('bear')?'bad':'neu',l:`EMA ${es.stack?.replace('perfect_','').replace('_',' ')}`});
+  if(macd)chips.push({cls:macd.trend==='bullish'?'ok':'bad',l:`MACD ${macd.trend==='bullish'?'▲':'▼'}${macd.strengthening?' ↑':''}`});
+  if(bb?.squeeze)chips.push({cls:'warn',l:'BB Squeeze 💥'});
+  if(stoch)chips.push({cls:stoch.signal==='oversold'?'ok':stoch.signal==='overbought'?'bad':stoch.crossover==='bullish_cross'?'ok':stoch.crossover==='bearish_cross'?'bad':'neu',l:`Stoch ${stoch.signal==='oversold'?'OS':stoch.signal==='overbought'?'OB':stoch.crossover?.includes('bullish')?'↑ Cross':stoch.crossover?.includes('bearish')?'↓ Cross':'Neutral'}`});
+  if(adx)chips.push({cls:adx.adx>=25?'ok':adx.adx>=18?'neu':'bad',l:`ADX ${adx.adx.toFixed(0)} ${adx.strength}`});
+  if(vwap)chips.push({cls:vwap.above?'ok':'bad',l:`VWAP ${vwap.above?'Above ↑':'Below ↓'}`});
+  if(bos?.bullBOS)chips.push({cls:'ok',l:'Bull BOS'});
+  if(bos?.bearBOS)chips.push({cls:'bad',l:'Bear BOS'});
+  if(bos?.choch)chips.push({cls:'warn',l:'CHoCH ⚡'});
+  if(div?.regularBull)chips.push({cls:'ok',l:'Reg Div ↑'});
+  if(div?.regularBear)chips.push({cls:'bad',l:'Reg Div ↓'});
+  if(div?.hiddenBull)chips.push({cls:'ok',l:'Hidden ↑'});
+  if(div?.hiddenBear)chips.push({cls:'bad',l:'Hidden ↓'});
+  if(fr!==null)chips.push({cls:Math.abs(fr)<=0.01?'ok':Math.abs(fr)<=0.04?'warn':'bad',l:`Fund ${fr.toFixed(3)}%`});
+  if(oi&&oi.trend!=='unknown')chips.push({cls:oi.trend==='rising'?'ok':'warn',l:`OI ${oi.trend}`});
+  if(vol.surge)chips.push({cls:'ok',l:'Vol Surge 🔥'});
+  if(btc)chips.push({cls:btc.bias==='bull'?'ok':btc.bias==='bear'?'bad':'neu',l:`BTC ${btc.label.split(' ')[1]||'Neutral'}`});
+  if(sess)chips.push({cls:sess.quality==='high'?'ok':sess.quality==='medium'?'neu':'warn',l:sess.session.split('/')[0].split(' ')[0]});
+
+  /* ── indicator rows ── */
+  const secMomentum=sec('Momentum','📉',
+    row('RSI (14) · 1H',
+      `<span style="color:${rColor}">${rsi.toFixed(2)}</span>`,
+      `<span style="color:${rColor}">${rLbl}</span>`)+
+    row('RSI (14) · 4H',
+      mRSI?.rsi4H!=null?`<span style="color:${mRSI.rsi4H<=30?'var(--green)':mRSI.rsi4H>=70?'var(--red)':'var(--text)'}">${mRSI.rsi4H.toFixed(2)}</span>`:'<span style="color:var(--muted)">—</span>',
+      mRSI?.extremeBullish?'🔥 Both Extreme OS':mRSI?.extremeBearish?'🔥 Both Extreme OB':mRSI?.bullishAlign?'Both Oversold':mRSI?.bearishAlign?'Both Overbought':'')+
+    row('MTF RSI Alignment',
+      mRSI?`<span style="color:${mRSI.bullishAlign?'var(--green)':mRSI.bearishAlign?'var(--red)':'var(--muted)'}">${mRSI.extremeBullish?'🔥 Extreme Oversold':mRSI.bullishAlign?'Both Oversold':mRSI.extremeBearish?'🔥 Extreme Overbought':mRSI.bearishAlign?'Both Overbought':'Mixed / Neutral'}</span>`:'<span style="color:var(--muted)">—</span>')+
+    row('Stoch RSI · K / D',
+      stoch?`<span style="color:${stoch.signal==='oversold'?'var(--green)':stoch.signal==='overbought'?'var(--red)':'var(--text)'}">K ${stoch.k.toFixed(1)} / D ${stoch.d.toFixed(1)}</span>`:'<span style="color:var(--muted)">—</span>',
+      stoch?stoch.signal==='oversold'?'Oversold':stoch.signal==='overbought'?'Overbought':stoch.crossover==='bullish_cross'?'🔔 Bullish Cross':stoch.crossover==='bearish_cross'?'🔔 Bearish Cross':'Neutral':'')+
+    row('MACD · Trend',
+      macd?`<span style="color:${macd.trend==='bullish'?'var(--green)':'var(--red)'}">${macd.trend==='bullish'?'▲ Bullish':'▼ Bearish'}</span>`:'<span style="color:var(--muted)">—</span>',
+      macd?`Histogram ${macd.histogram>0?'+':''}${macd.histogram.toFixed(6)} · ${macd.strengthening?'⬆ Strengthening':'→ Weakening'}`:'')+
+    row('OBV Pressure',
+      obv?`<span style="color:${obv.trend==='accumulation'?'var(--green)':'var(--red)'}">${obv.trend==='accumulation'?'▲ Accumulation':'▼ Distribution'}</span>`:'<span style="color:var(--muted)">—</span>')+
+    row('Volume (3-bar)',
+      `<span style="color:${vol.surge?'var(--green)':'var(--text)'}">${vol.label} · ${vol.ratio.toFixed(2)}× avg</span>`,
+      vol.surge?'🔥 Surge':''));
+
+  const secTrend=sec('Trend','📈',
+    row('EMA Stack · 1H',
+      `<span style="color:${es?.stack?.includes('bull')?'var(--green)':es?.stack?.includes('bear')?'var(--red)':'var(--yellow)'}">${{perfect_bull:'✓✓ Perfect Bullish',bull:'✓ Bullish',perfect_bear:'✗✗ Perfect Bearish',bear:'✗ Bearish',neutral:'↔ Neutral'}[es?.stack||'neutral']}</span>`,
+      es?.ema200?`EMA200 ${fmtPrice(es.ema200)}`:'')+
+    row('EMA 20 / 50 / 200',
+      es?`<span style="font-size:.7rem">${fmtPrice(es.ema20)} / ${fmtPrice(es.ema50)} / ${es.ema200?fmtPrice(es.ema200):'<span style="color:var(--muted)">need 200 bars</span>'}</span>`:'<span style="color:var(--muted)">—</span>')+
+    row('Supertrend (10,3)',
+      spt?`<span style="color:${spt.bullish?'var(--green)':'var(--red)'}">${spt.label}</span>`:'<span style="color:var(--muted)">—</span>',
+      spt?`Level ${fmtPrice(spt.value)} · ${spt.distPct>=0?'+':''}${spt.distPct.toFixed(2)}% from price`:'')+
+    row('4H Trend',
+      t4?`<span style="color:${t4.bias==='bull'?'var(--green)':t4.bias==='bear'?'var(--red)':'var(--yellow)'}">${t4.label}</span>`:'<span style="color:var(--muted)">—</span>',
+      t4?`Score ${t4.score} · EMA20_4H ${t4.ema20_4h?fmtPrice(t4.ema20_4h):'—'} · RSI4H ${t4.rsi4h?.toFixed(1)||'—'}`:'')+
+    row('ADX',
+      adx?`<span style="color:${adx.strength==='strong'?'var(--green)':adx.strength==='moderate'?'var(--cyan)':'var(--muted)'}">${adx.adx.toFixed(2)}</span>`:'<span style="color:var(--muted)">—</span>',
+      adx?`${adx.strength.toUpperCase()} · +DI ${adx.plusDI.toFixed(1)} / -DI ${adx.minusDI.toFixed(1)} · ${adx.trend}`:'')+
+    row('BTC Context (4H)',
+      btc?`<span style="color:${btc.bias==='bull'?'var(--green)':btc.bias==='bear'?'var(--red)':'var(--yellow)'}">${btc.label}</span>`:'<span style="color:var(--muted)">—</span>',
+      'Market leader'));
+
+  const secPrice=sec('Price Position','🎯',
+    row('VWAP (24h)',
+      vwap?`<span style="color:${vwap.above?'var(--green)':'var(--red)'}">${fmtPrice(vwap.vwap)}</span>`:'<span style="color:var(--muted)">—</span>',
+      vwap?vwap.label:'')+
+    row('BB Position',
+      bb?`<span style="color:${bb.position<=0.2?'var(--green)':bb.position>=0.8?'var(--red)':'var(--text)'}">${(bb.position*100).toFixed(1)}%</span>`:'<span style="color:var(--muted)">—</span>',
+      bb?`${bb.position<=0.15?'Near Lower Band 🎯':bb.position>=0.85?'Near Upper Band 🎯':bb.position<0.5?'Lower Half':'Upper Half'}${bb.squeeze?' · 💥 SQUEEZE':''}`:'')+
+    row('BB Upper / Lower',
+      bb?`<span style="color:var(--red)">${fmtPrice(bb.upper)}</span> / <span style="color:var(--green)">${fmtPrice(bb.lower)}</span>`:'<span style="color:var(--muted)">—</span>',
+      bb?`Width ${(bb.width*100).toFixed(2)}%`:'')+
+    row('ATR (14)',
+      atr?`${fmtPrice(atr.atr)}`:'<span style="color:var(--muted)">—</span>',
+      atr?`${atr.pct.toFixed(2)}% · ${atr.pct>3?'High Volatility':atr.pct>1.5?'Normal':'Low Volatility'}`:'')+
+    row('Session',
+      sess?`<span style="color:${sess.quality==='high'?'var(--green)':sess.quality==='medium'?'var(--cyan)':'var(--muted)'}">${sess.session}</span>`:'<span style="color:var(--muted)">—</span>',
+      sess?`${sess.quality} liquidity`:''));
+
+  const secSMC=sec('Market Structure (SMC)','🏗️',
+    row('BOS / CHoCH',
+      bos?(bos.bullBOS?`<span style="color:var(--green)">▲ Bullish BOS</span>`:bos.bearBOS?`<span style="color:var(--red)">▼ Bearish BOS</span>`:bos.choch?`<span style="color:var(--yellow)">⚡ CHoCH</span>`:'<span style="color:var(--muted)">Ranging / None</span>'):'<span style="color:var(--muted)">—</span>',
+      bos?.choch?'Change of Character':'')+
+    row('Swing H / L (10-bar)',
+      bos?(bos.lastSwingHigh||bos.lastSwingLow?`<span style="color:var(--red)">${bos.lastSwingHigh?fmtPrice(bos.lastSwingHigh):'—'}</span> / <span style="color:var(--green)">${bos.lastSwingLow?fmtPrice(bos.lastSwingLow):'—'}</span>`:'<span style="color:var(--muted)">—</span>'):'<span style="color:var(--muted)">—</span>',
+      'Resistance / Support')+
+    row('Bullish FVG',
+      fvg?.bullFVG?`<span style="color:var(--green)">${fmtPrice(fvg.bullFVG.bottom)} → ${fmtPrice(fvg.bullFVG.top)}</span>`:'<span style="color:var(--muted)">None detected</span>')+
+    row('Bearish FVG',
+      fvg?.bearFVG?`<span style="color:var(--red)">${fmtPrice(fvg.bearFVG.bottom)} → ${fmtPrice(fvg.bearFVG.top)}</span>`:'<span style="color:var(--muted)">None detected</span>')+
+    row('RSI Divergence',
+      div?(div.regularBull||div.regularBear||div.hiddenBull||div.hiddenBear)?
+        `<span style="color:var(--cyan)">${[div.regularBull?'📈 Regular Bull':null,div.regularBear?'📉 Regular Bear':null,div.hiddenBull?'🔮 Hidden Bull':null,div.hiddenBear?'🔮 Hidden Bear':null].filter(Boolean).join(' · ')}</span>`:
+        '<span style="color:var(--muted)">None detected</span>':
+      '<span style="color:var(--muted)">—</span>'));
+
+  const secMkt=sec('Market Data','💹',
+    row('Funding Rate',
+      fr!=null?`<span style="color:${Math.abs(fr)<=0.01?'var(--green)':Math.abs(fr)<=0.04?'var(--yellow)':'var(--red)'}">${fr.toFixed(4)}%</span>`:'<span style="color:var(--muted)">—</span>',
+      fr!=null?Math.abs(fr)<=0.01?'✓ Neutral':fr<0?'Shorts paying longs':'Longs paying shorts':'')+
+    row('Open Interest (5m)',
+      oi?`<span style="color:${oi.trend==='rising'?'var(--green)':oi.trend==='falling'?'var(--red)':'var(--muted)'}">${oi.trend==='rising'?'▲ Rising':oi.trend==='falling'?'▼ Falling':oi.trend==='flat'?'→ Flat':'—'}</span>`:'<span style="color:var(--muted)">—</span>',
+      oi?.pct!==undefined&&oi.trend!=='unknown'?(oi.pct>=0?'+':'')+oi.pct.toFixed(2)+'%':''));
+
+  /* ── reasoning ── */
+  const reasons=buildReasons(rsi,vol,entry);
+
+  /* ── paper trade button ── */
+  const paperBtn=hasEntry?`<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`:'';
+
+  /* ── header colours ── */
+  const borderCol=hasEntry?(dir==='LONG'?'rgba(0,255,136,.3)':'rgba(255,61,90,.3)'):'rgba(0,212,255,.2)';
+  const headerBg=hasEntry?(dir==='LONG'?'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))':'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))'):'linear-gradient(135deg,rgba(0,212,255,.05),rgba(0,212,255,.01))';
+
+  container.innerHTML=`
+<div class="deep-result"><div class="panel deep-card" style="border-color:${borderCol}">
+
+  <!-- Header -->
+  <div class="deep-header" style="background:${headerBg}">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div class="deep-pair">${pair}</div>
-      <div class="deep-dir ${dCls}">${dLbl}</div>
+      ${hasEntry?`<div class="deep-dir ${dir==='LONG'?'long':'short'}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</div>`:
+       hardBlock?`<span style="font-family:var(--font-n);font-size:.72rem;padding:3px 10px;border-radius:5px;background:rgba(255,61,90,.12);color:var(--red);border:1px solid rgba(255,61,90,.3)">⛔ Blocked</span>`:
+       `<span style="font-family:var(--font-n);font-size:.72rem;padding:3px 10px;border-radius:5px;background:rgba(255,195,51,.1);color:var(--yellow);border:1px solid rgba(255,195,51,.25)">⏸ No Signal</span>`}
     </div>
-    <div class="deep-entry-type">
-      <span class="entry-badge ${entryType==='MARKET'?'market':'limit'}">${entryType}</span>
-      <span style="font-family:var(--font-n);font-size:.62rem;padding:3px 9px;border-radius:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.25)">⚡ ${conf}%</span>
-      <span style="font-family:var(--font-n);font-size:.7rem;color:var(--muted)">16-factor</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      ${hasEntry?`<span style="font-family:var(--font-n);font-size:.7rem;padding:3px 10px;border-radius:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.25)">⚡ ${conf}%</span>`:''}
+      <span class="entry-badge ${hasEntry?entryType==='MARKET'?'market':'limit':'limit'}" style="${hasEntry?'':'opacity:.4'}">${hasEntry?entryType:'NO ENTRY'}</span>
     </div>
   </div>
+
+  <!-- Score bar -->
   <div class="score-bar-wrap">
-    <div class="score-bar-title">🏆 Confluence Score</div>
+    <div class="score-bar-title">🏆 Confluence Score ${hasEntry?'— Signal Valid':'— '+(hardBlock?'Blocked':'Below Threshold')}</div>
     <div class="score-total">
       <div class="score-num" style="color:${sColor}">${conf}</div>
       <span class="score-badge ${sg.cls}" style="font-size:.9rem;padding:3px 10px">${sg.label}</span>
       <div class="score-track"><div class="score-fill" style="width:${conf}%;background:${sColor}"></div></div>
+      <span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">min 62%</span>
     </div>
-    <div class="score-factors">${chips.map(c=>`<span class="sf ${c.cls}">${c.label}</span>`).join('')}</div>
+    <div class="score-factors">${chips.map(c=>`<span class="sf ${c.cls}">${c.l}</span>`).join('')}</div>
   </div>
+
+  <!-- SMC quick row -->
   <div style="display:flex;gap:5px;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.1)">
-    <span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);align-self:center;letter-spacing:.08em">SMC:</span>
-    ${bos?.bullBOS?'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)">Bull BOS ✓</span>':bos?.bearBOS?'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(255,61,90,.1);color:var(--red);border:1px solid rgba(255,61,90,.2)">Bear BOS ✓</span>':'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(100,116,139,.08);color:var(--muted);border:1px solid rgba(100,116,139,.15)">No BOS</span>'}
-    ${bos?.choch?'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(255,195,51,.08);color:var(--yellow);border:1px solid rgba(255,195,51,.2)">CHoCH ⚡</span>':''}
-    ${fvg?.bullFVG?'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)">Bull FVG</span>':''}
-    ${fvg?.bearFVG?'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(255,61,90,.1);color:var(--red);border:1px solid rgba(255,61,90,.2)">Bear FVG</span>':''}
-    ${div?.regularBull?'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)">Reg Div ↑</span>':''}
-    ${div?.regularBear?'<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:rgba(255,61,90,.1);color:var(--red);border:1px solid rgba(255,61,90,.2)">Reg Div ↓</span>':''}
-    ${spt?`<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:${spt.bullish?'rgba(0,255,136,.1)':'rgba(255,61,90,.1)'};color:${spt.bullish?'var(--green)':'var(--red)'};border:1px solid ${spt.bullish?'rgba(0,255,136,.2)':'rgba(255,61,90,.2)'}">ST ${spt.bullish?'Bull':'Bear'}</span>`:''}
-    ${vwap?`<span style="font-family:var(--font-n);font-size:.63rem;padding:3px 9px;border-radius:4px;background:${vwap.above?'rgba(0,255,136,.1)':'rgba(255,61,90,.1)'};color:${vwap.above?'var(--green)':'var(--red)'};border:1px solid ${vwap.above?'rgba(0,255,136,.2)':'rgba(255,61,90,.2)'}">VWAP ${vwap.above?'↑':'↓'}</span>`:''}
+    <span style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);align-self:center;letter-spacing:.08em">SMC:</span>
+    ${bos?.bullBOS?`${badge('Bull BOS ✓','#00ff88')}`:bos?.bearBOS?`${badge('Bear BOS ✓','#ff3d5a')}`:badge('No BOS','#334155')}
+    ${bos?.choch?badge('CHoCH ⚡','#ffc333'):''}
+    ${fvg?.bullFVG?badge('Bull FVG','#00ff88'):''}
+    ${fvg?.bearFVG?badge('Bear FVG','#ff3d5a'):''}
+    ${div?.regularBull?badge('Reg Div ↑','#00d4ff'):''}
+    ${div?.regularBear?badge('Reg Div ↓','#ff3d5a'):''}
+    ${div?.hiddenBull?badge('Hidden ↑','#a78bfa'):''}
+    ${div?.hiddenBear?badge('Hidden ↓','#a78bfa'):''}
+    ${spt?badge(`ST ${spt.bullish?'Bull':'Bear'}`,spt.bullish?'#00ff88':'#ff3d5a'):''}
+    ${vwap?badge(`VWAP ${vwap.above?'↑':'↓'}`,vwap.above?'#00ff88':'#ff3d5a'):''}
   </div>
-  ${dir==='NEUTRAL'?`<div class="panel-body"><div class="empty-state" style="padding:26px 0"><div class="empty-icon">🟡</div><div class="empty-text">No clear signal</div><div class="empty-sub">Score ${conf}% below 62% threshold. RSI ${rsi.toFixed(1)} — wait for stronger confluence.</div></div></div>`:`
-  <div class="deep-levels">
-    <div class="level-box"><div class="level-lbl">Entry</div><div class="level-val entry-val">${fmtPrice(ep)}</div><div class="level-sub">${entryType==='MARKET'?'Market price':'Limit order'}</div></div>
-    <div class="level-box"><div class="level-lbl">TP 1 🎯</div><div class="level-val tp1-val">${fmtPrice(tp1)}</div><div class="level-sub">RR ${rrr1} · target first</div></div>
-    <div class="level-box"><div class="level-lbl">TP 2</div><div class="level-val tp2-val">${fmtPrice(tp2)}</div><div class="level-sub">RR ${rrr2} · hold portion</div></div>
-    <div class="level-box"><div class="level-lbl">Stop Loss</div><div class="level-val sl-val">${fmtPrice(sl)}</div><div class="level-sub">2.0–2.5× ATR</div></div>
-    <div class="level-box"><div class="level-lbl">Current</div><div class="level-val" style="color:var(--text)">${fmtPrice(curP)}</div><div class="level-sub">Live price</div></div>
+
+  <!-- Entry levels (only if valid signal) OR current price -->
+  ${entrySection}
+
+  <!-- Blocked / No Signal reason -->
+  ${statusBlock?`<div style="padding:12px 16px">${statusBlock}</div>`:''}
+
+  <!-- ALL Indicator Readings — ALWAYS shown -->
+  <div style="padding:12px 16px">
+    ${secMomentum}
+    ${secTrend}
+    ${secPrice}
+    ${secSMC}
+    ${secMkt}
   </div>
-  <div class="deep-indicators">
-    <div class="ind-box"><div class="ind-lbl">RSI (14) · 1H</div><div class="ind-val" style="color:${rColor}">${rsi.toFixed(1)}</div><div class="ind-bar-track"><div class="ind-bar-fill" style="width:${rsi.toFixed(0)}%;background:${rColor}"></div></div><div class="rsi-zone-labels"><span>0</span><span>30</span><span>50</span><span>70</span><span>100</span></div><div style="font-size:.68rem;color:${rColor};margin-top:2px">${rLbl}${div?.regularBull?' · 📈 Reg Bull':div?.hiddenBull?' · 🔮 Hidden Bull':div?.regularBear?' · 📉 Reg Bear':div?.hiddenBear?' · 🔮 Hidden Bear':''}</div></div>
-    <div class="ind-box"><div class="ind-lbl">EMA Stack · 1H</div><div class="ind-val" style="color:${es?.stack?.includes('bull')?'var(--green)':es?.stack?.includes('bear')?'var(--red)':'var(--muted)'}">${{perfect_bull:'✓✓ Perfect Bull',bull:'✓ Bull',perfect_bear:'✗✗ Perfect Bear',bear:'✗ Bear',neutral:'↔ Mixed'}[es?.stack||'neutral']}</div>${es?.ema20?`<div style="font-family:var(--font-n);font-size:.61rem;color:var(--muted);margin-top:4px">20: ${fmtPrice(es.ema20)}<br>50: ${fmtPrice(es.ema50)}${es.ema200?'<br>200: '+fmtPrice(es.ema200):'<br><span style="color:rgba(255,195,51,.7)">200: need 200 bars</span>'}</div>`:''}</div>
-    <div class="ind-box"><div class="ind-lbl">VWAP (24h)</div><div class="ind-val" style="color:${vwap?.above?'var(--green)':'var(--red)'}"><br>${vwap?fmtPrice(vwap.vwap):'—'}</div>${vwap?`<div style="font-size:.68rem;color:${vwap.above?'var(--green)':'var(--red)'};margin-top:4px">${vwap.label}</div>`:''}</div>
-    <div class="ind-box"><div class="ind-lbl">Supertrend (10,3)</div><div class="ind-val" style="color:${spt?.bullish?'var(--green)':'var(--red)'}"><br>${spt?spt.label:'—'}</div>${spt?`<div style="font-family:var(--font-n);font-size:.61rem;color:var(--muted);margin-top:4px">Level: ${fmtPrice(spt.value)}</div>`:''}</div>
-    <div class="ind-box"><div class="ind-lbl">Market Structure</div><div class="ind-val" style="color:${bos?.bullBOS?'var(--green)':bos?.bearBOS?'var(--red)':bos?.choch?'var(--yellow)':'var(--muted)'}"><br>${bos?.bullBOS?'Bull BOS ✓':bos?.bearBOS?'Bear BOS ✓':bos?.choch?'CHoCH ⚡':'Ranging'}</div></div>
-    <div class="ind-box"><div class="ind-lbl">4H Trend</div><div class="ind-val" style="color:${t4?.bias==='bull'?'var(--green)':t4?.bias==='bear'?'var(--red)':'var(--yellow)'}"><br>${t4?.label||'—'}</div>${t4?.rsi4h?`<div style="font-family:var(--font-n);font-size:.61rem;color:var(--muted);margin-top:4px">RSI 4H: ${t4.rsi4h.toFixed(1)}</div>`:''}</div>
-    <div class="ind-box"><div class="ind-lbl">Funding Rate</div><div class="ind-val" style="color:${fr!==null?(Math.abs(fr)<=0.01?'var(--green)':Math.abs(fr)<=0.04?'var(--yellow)':'var(--red)'):'var(--muted)'}"><br>${fr!==null?fr.toFixed(4)+'%':'—'}</div><div style="font-size:.68rem;color:var(--muted);margin-top:4px">${fr===null?'—':Math.abs(fr)<=0.01?'✓ Neutral':fr<0?'Shorts pay longs':'Longs pay shorts'}</div></div>
-    <div class="ind-box"><div class="ind-lbl">MTF RSI</div><div class="ind-val" style="color:${mRSI?.bullishAlign?'var(--green)':mRSI?.bearishAlign?'var(--red)':'var(--muted)'}"><br>${mRSI?.extremeBullish?'🔥 Extreme OS':mRSI?.bullishAlign?'Both OS':mRSI?.extremeBearish?'🔥 Extreme OB':mRSI?.bearishAlign?'Both OB':'Mixed'}</div>${mRSI?.rsi1H?`<div style="font-family:var(--font-n);font-size:.61rem;color:var(--muted);margin-top:4px">1H: ${mRSI.rsi1H.toFixed(1)}<br>4H: ${mRSI.rsi4H?.toFixed(1)||'—'}</div>`:''}</div>
-    <div class="ind-box"><div class="ind-lbl">Open Interest</div><div class="ind-val" style="color:${oi?.trend==='rising'?'var(--green)':oi?.trend==='falling'?'var(--red)':'var(--muted)'}"><br>${oi?.trend==='rising'?'▲ Rising':oi?.trend==='falling'?'▼ Falling':oi?.trend==='flat'?'→ Flat':'—'}</div><div style="font-size:.68rem;color:var(--muted);margin-top:4px">${oi?.pct!==undefined&&oi?.trend!=='unknown'?(oi.pct>=0?'+':'')+oi.pct.toFixed(2)+'%':'—'}</div></div>
-    ${adx?`<div class="ind-box"><div class="ind-lbl">ADX</div><div class="ind-val" style="color:${adx.strength==='strong'?'var(--green)':adx.strength==='moderate'?'var(--cyan)':'var(--muted)'}"><br>${adx.adx.toFixed(1)}</div><div class="ind-bar-track" style="margin-top:4px"><div class="ind-bar-fill" style="width:${Math.min(adx.adx*2,100).toFixed(0)}%;background:${adx.strength==='strong'?'var(--green)':'var(--cyan)'}"></div></div><div style="font-size:.66rem;margin-top:2px;color:var(--muted)">${adx.strength} · ${adx.trend}</div></div>`:''}
-    ${macd?`<div class="ind-box"><div class="ind-lbl">MACD</div><div class="ind-val" style="color:${macd.trend==='bullish'?'var(--green)':'var(--red)'}"><br>${macd.trend==='bullish'?'▲ Bull':'▼ Bear'}</div><div style="font-size:.66rem;margin-top:2px;color:${macd.strengthening?'var(--green)':'var(--muted)'}">${macd.strengthening?'⬆ Strengthening':'→ Weakening'}</div></div>`:''}
-    ${bb?`<div class="ind-box"><div class="ind-lbl">Bollinger Bands</div><div class="ind-val" style="color:${bb.position<=0.2?'var(--green)':bb.position>=0.8?'var(--red)':'var(--cyan)'}"><br>${bb.position<=0.2?'Lower Zone':bb.position>=0.8?'Upper Zone':'Mid Zone'}</div><div style="font-size:.66rem;margin-top:2px;color:${bb.squeeze?'var(--yellow)':'var(--muted)'}">${bb.squeeze?'💥 Squeeze!':'Width: '+(bb.width*100).toFixed(2)+'%'}</div></div>`:''}
-    ${sess?`<div class="ind-box"><div class="ind-lbl">Session</div><div class="ind-val" style="color:${sess.quality==='high'?'var(--green)':sess.quality==='medium'?'var(--cyan)':'var(--muted)'}"><br>${sess.session}</div><div style="font-size:.68rem;color:var(--muted);margin-top:4px">${sess.quality} liquidity</div></div>`:''}
-    ${btc?`<div class="ind-box"><div class="ind-lbl">BTC Context (4H)</div><div class="ind-val" style="color:${btc.bias==='bull'?'var(--green)':btc.bias==='bear'?'var(--red)':'var(--yellow)'}"><br>${btc.label}</div><div style="font-size:.68rem;color:var(--muted);margin-top:4px">Market leader</div></div>`:''}
-  </div>
+
+  <!-- Reasoning -->
   <div class="deep-reasoning">
-    <div class="reasoning-title">🧠 Signal Analysis — 16-Factor · High Win-Rate Edition</div>
+    <div class="reasoning-title">🧠 ${hasEntry?'Why This Signal':'Why No Entry'} — Indicator Analysis</div>
     <div class="reasoning-list">${reasons.map(r=>`<div class="reason-item"><span class="reason-icon">${r.icon}</span><span class="reason-txt">${r.text}</span></div>`).join('')}</div>
-  </div>`}
-  <div class="deep-disclaimer"><strong>⚠ Risk Warning:</strong> 16-Factor analysis: VWAP · Supertrend · BOS/CHoCH · FVG · Divergence · MTF RSI · BTC Context · Session · Funding · OI. Hard gates block low-quality setups. TP1 set at 1.2× risk for ~80% hit rate. <strong>Not financial advice.</strong></div>
+  </div>
+
+  <div class="deep-disclaimer"><strong>⚠ Risk Warning:</strong> 16-Factor analysis. Entry shown only when ≥62% confluence + safety gates passed. TP1 at 1.2× risk for ~80% hit rate. <strong>Not financial advice.</strong></div>
   ${paperBtn}
 </div></div>`;
 }
+
 
 /* ── Paper Trade Modal ── */
 function openPTModal(symbol,direction,entryType,entryPrice,tp1,tp2,sl){
