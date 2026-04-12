@@ -387,6 +387,9 @@ onAuthStateChanged(auth,(user)=>{
 window.handleSignOut=async function(){await signOut(auth);window.location.href='index.html';};
 </script>
 
+<!-- Fibonacci Entry Engine + Indicator Settings Loader -->
+<script src="analysis/indicator.js"></script>
+
 <script>
 /* ================================================================
    InvestySignals — Analysis Engine v4 — MULTI-TIMEFRAME EDITION
@@ -400,8 +403,13 @@ window.handleSignOut=async function(){await signOut(auth);window.location.href='
    ================================================================ */
 
 const BINANCE_FAPI='https://fapi.binance.com';
-const RSI_PERIOD=14, KLINE_1H=200, KLINE_4H=80, KLINE_15M=150, KLINE_1D=60;
-const SCAN_LIMIT=50;
+// Fixed timeframe candle counts (not user-configurable)
+const RSI_PERIOD=14, KLINE_4H=80, KLINE_15M=150, KLINE_1D=60;
+// These read from admin-controlled indicator settings via IS() defined in indicator.js
+// Falls back to hardcoded defaults until ISETTINGS loads
+function getKline1H(){ return IS('ind_kline_limit',200); }
+function getScanLimit(){ return IS('scan_limit',50); }
+const KLINE_1H=200, SCAN_LIMIT=50; // legacy aliases kept for non-scan usage
 
 /* ── Formatters ── */
 function fmtPrice(p){const n=parseFloat(p);if(isNaN(n))return'—';if(n>=1000)return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});if(n>=1)return'$'+n.toFixed(4);if(n>=0.01)return'$'+n.toFixed(5);return'$'+n.toFixed(6);}
@@ -832,32 +840,34 @@ function decideEntry(rsi,vol,C,H,L,price,macd,bb,stoch,adx,obv,atr,ex){
   let ep,sl,tp1,tp2;
 
   if(dir==='LONG'){
-    ep=(entryType==='MARKET'||isRisky)?price:Math.max(r5L,price-aV*0.3);
-    // If price is at bullish OB, use OB low as SL basis
+    // ── Entry: snap to nearest key Fibonacci support level (38.2/50/61.8%)
+    // Falls back to 5-candle low if Fibonacci not aligned or null
+    const fibEP=snapToFibEntry(price,fibonacci,'LONG',aV);
+    ep=(entryType==='MARKET'||isRisky)?price:(fibEP||Math.max(r5L,price-aV*0.3));
+
+    // ── Stop Loss: below Fibonacci swing-low (trade invalidation) → OB low → ATR fallback
+    const fibSL=getFibSL(ep,fibonacci,'LONG',aV);
     const obSL=mtfOBs?.nearestBullOB?mtfOBs.nearestBullOB.low-aV*0.3:null;
-    sl=obSL?Math.min(obSL,r10L-aV*0.2,ep-aV*slM):Math.min(r10L-aV*0.2,ep-aV*slM);
-    const risk=ep-sl;
-    // If price near fib level, use next fib as TP1
-    if(fibonacci?.levels&&fibonacci.trend==='uptrend'){
-      const nextFib=fibonacci.levels.filter(l=>l.price>ep&&l.r>=0&&l.r<=1).sort((a,b)=>a.price-b.price)[0];
-      tp1=nextFib&&Math.abs(nextFib.price-ep)<risk*2?nextFib.price:ep+risk*1.2;
-    }else{tp1=ep+risk*1.2;}
-    // TP2: next major S/R zone above or fib extension
-    const nextResist=srZones?.above?.find(z=>z.price>tp1);
-    const fibExt=fibonacci?.levels?.find(l=>l.type==='extend'&&l.price>tp1);
-    tp2=nextResist?Math.min(nextResist.price,ep+risk*2.5):(fibExt?fibExt.price:ep+risk*2.5);
+    const rawSL=Math.min(r10L-aV*0.2,ep-aV*slM);
+    // fibSL is the Fibonacci-derived stop; merge: use the deeper of fib vs ATR
+    sl=fibSL?Math.max(fibSL,rawSL):(obSL?Math.min(obSL,rawSL):rawSL);
+
+    // ── TP1 & TP2: Fibonacci 100% level + 161.8% extension
+    ({tp1,tp2}=getFibTargets(ep,sl,fibonacci,'LONG',srZones));
+
   }else{
-    ep=(entryType==='MARKET'||isRisky)?price:Math.min(r5H,price+aV*0.3);
+    // ── Entry: snap to nearest key Fibonacci resistance level (38.2/50/61.8%)
+    const fibEP=snapToFibEntry(price,fibonacci,'SHORT',aV);
+    ep=(entryType==='MARKET'||isRisky)?price:(fibEP||Math.min(r5H,price+aV*0.3));
+
+    // ── Stop Loss: above Fibonacci swing-high (trade invalidation) → OB high → ATR fallback
+    const fibSL=getFibSL(ep,fibonacci,'SHORT',aV);
     const obSL=mtfOBs?.nearestBearOB?mtfOBs.nearestBearOB.high+aV*0.3:null;
-    sl=obSL?Math.max(obSL,r10H+aV*0.2,ep+aV*slM):Math.max(r10H+aV*0.2,ep+aV*slM);
-    const risk=sl-ep;
-    if(fibonacci?.levels&&fibonacci.trend==='downtrend'){
-      const nextFib=fibonacci.levels.filter(l=>l.price<ep&&l.r>=0&&l.r<=1).sort((a,b)=>b.price-a.price)[0];
-      tp1=nextFib&&Math.abs(ep-nextFib.price)<risk*2?nextFib.price:ep-risk*1.2;
-    }else{tp1=ep-risk*1.2;}
-    const nextSupport=srZones?.below?.find(z=>z.price<tp1);
-    const fibExt=fibonacci?.levels?.find(l=>l.type==='extend'&&l.price<tp1);
-    tp2=nextSupport?Math.max(nextSupport.price,ep-risk*2.5):(fibExt?fibExt.price:ep-risk*2.5);
+    const rawSL=Math.max(r10H+aV*0.2,ep+aV*slM);
+    sl=fibSL?Math.min(fibSL,rawSL):(obSL?Math.max(obSL,rawSL):rawSL);
+
+    // ── TP1 & TP2: Fibonacci 100% level + 161.8% extension
+    ({tp1,tp2}=getFibTargets(ep,sl,fibonacci,'SHORT',srZones));
   }
 
   const risk=dir==='LONG'?ep-sl:sl-ep;

@@ -9,7 +9,7 @@ const WebSocket = require('ws');
 const https     = require('https');
 const mongoose  = require('mongoose');
 const jwt       = require('jsonwebtoken');
-const bcrypt    = require('bcryptjs');
+
 
 const app    = express();
 const server = http.createServer(app);
@@ -230,8 +230,13 @@ app.get('/api/admin/signals', adminAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 app.post('/api/admin/signals', adminAuth, async (req, res) => {
-  try { const s = await Signal.create({ ...req.body, postedBy:req.admin.username }); broadcastSignalUpdate(); res.json({ success:true, data:s }); }
-  catch (e) { res.status(400).json({ success:false, error:e.message }); }
+  try {
+    const s = await Signal.create({ ...req.body, postedBy:req.admin.username });
+    const today = new Date().toISOString().slice(0,10);
+    await Stats.findOneAndUpdate({ date:today }, { $inc:{ signalsSent:1 } }, { upsert:true });
+    broadcastSignalUpdate();
+    res.json({ success:true, data:s });
+  } catch (e) { res.status(400).json({ success:false, error:e.message }); }
 });
 app.put('/api/admin/signals/:id', adminAuth, async (req, res) => {
   try {
@@ -239,7 +244,15 @@ app.put('/api/admin/signals/:id', adminAuth, async (req, res) => {
     if (update.status==='CLOSED' && !update.closedAt) update.closedAt = new Date();
     const s = await Signal.findByIdAndUpdate(req.params.id, update, { new:true });
     if (!s) return res.status(404).json({ success:false, error:'Not found' });
-    broadcastSignalUpdate(); res.json({ success:true, data:s });
+    if (update.result === 'WIN' || update.result === 'LOSS' || update.result === 'BE') {
+      const today = new Date().toISOString().slice(0,10);
+      const inc = {};
+      if (update.result === 'WIN')  inc.wins   = 1;
+      if (update.result === 'LOSS') inc.losses  = 1;
+      await Stats.findOneAndUpdate({ date:today }, { $inc:inc }, { upsert:true });
+    }
+    broadcastSignalUpdate();
+    res.json({ success:true, data:s });
   } catch (e) { res.status(400).json({ success:false, error:e.message }); }
 });
 app.delete('/api/admin/signals/:id', adminAuth, async (req, res) => {
