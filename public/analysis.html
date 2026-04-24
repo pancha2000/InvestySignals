@@ -277,14 +277,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
     <div class="welcome-bar">
       <div>
         <h1>🔬 Smart Analysis</h1>
-        <p style="color:var(--muted);font-size:.84rem;margin-top:2px">16-Factor PRO: EMA200 · VWAP · Supertrend · BOS/CHoCH · FVG · Regular+Hidden Divergence · Funding · OI · BTC Context · Session</p>
+        <p style="color:var(--muted);font-size:.84rem;margin-top:2px">25-Factor PRO: EMA200 · VWAP · Supertrend · BOS/CHoCH · FVG · Regular+Hidden Divergence · Funding · OI · BTC Context · Session</p>
       </div>
       <div class="welcome-time" id="clockDisplay">—</div>
     </div>
 
     <div class="panel" style="margin-bottom:20px">
       <div class="panel-head">
-        <div class="panel-title">📡 Smart Scanner <span class="panel-tag pt-live">BINANCE FUTURES · 16-FACTOR PRO</span></div>
+        <div class="panel-title">📡 Smart Scanner <span class="panel-tag pt-live">BINANCE FUTURES · 25-FACTOR PRO</span></div>
         <span class="scan-meta" id="scanMeta">Not scanned yet</span>
       </div>
       <div class="panel-body">
@@ -314,7 +314,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
                 <div class="empty-state">
                   <div class="empty-icon">📡</div>
                   <div class="empty-text">Ready to Scan</div>
-                  <div class="empty-sub">Click "Smart Scan" to rank top coins by 12-factor score: 4H Trend + Funding Rate + Volume + Price Position.</div>
+                  <div class="empty-sub">Click "Smart Scan" to rank top coins by 25-factor score: Volume + Funding + 4H Trend + Momentum Position.</div>
                 </div>
               </td></tr>
             </tbody>
@@ -388,32 +388,43 @@ window.handleSignOut=async function(){await signOut(auth);window.location.href='
 </script>
 
 <!-- Fibonacci Entry Engine + Indicator Settings Loader -->
+<!-- Fibonacci Entry Engine + Indicator Settings Loader -->
 <script src="analysis/indicator.js"></script>
 
 <script>
 /* ================================================================
-   InvestySignals — Analysis Engine v4 — MULTI-TIMEFRAME EDITION
+   InvestySignals — Analysis Engine v5 — COMPLETE REWRITE
    ================================================================
-   NEW: 15m + 1H + 4H + 1D across ALL indicators
-        S/R Zone clustering (4 TF confluence)
-        Order Blocks (Bullish + Bearish, all TFs)
-        Fibonacci (Retracement 0–1 + Extension 1.272–2.618)
-        Trend Line (Linear Regression slope + angle)
-        MTF full alignment score
+   FIXES:
+   - BOS logic rewritten (proper swing high break confirmation)
+   - VWAP = session-reset (UTC midnight) not rolling average
+   - F16 legacy FVG removed (was double-counting with N7 MTF FVGs)
+   - OI directional weight: 3→15pts, now uses Long/Short bias
+   - Funding thresholds recalibrated
+   - Asian session now penalises confidence score -10pts
+   - BTC Context weight: 5→15pts
+   - S/R Zones now used for SL placement
+   - Trendline currentVal used for SL refinement
+   NEW:
+   - Candle Patterns (N12)
+   - Pivot Points proximity (N13)
+   - Taker Buy/Sell Ratio (N14)
+   - Long/Short Ratio (N15)
+   - DCA point output
+   - Pivot Points shown in UI
+   - Scanner completely reoptimised for finding best setups
    ================================================================ */
 
-const BINANCE_FAPI='https://fapi.binance.com';
-// Fixed timeframe candle counts (not user-configurable)
-const RSI_PERIOD=14, KLINE_4H=80, KLINE_15M=150, KLINE_1D=60;
-// These read from admin-controlled indicator settings via IS() defined in indicator.js
-// Falls back to hardcoded defaults until ISETTINGS loads
-function getKline1H(){ return IS('ind_kline_limit',200); }
-function getScanLimit(){ return IS('scan_limit',50); }
-const KLINE_1H=200, SCAN_LIMIT=50; // legacy aliases kept for non-scan usage
+const BINANCE_FAPI = 'https://fapi.binance.com';
+const RSI_PERIOD = 14, KLINE_4H = 80, KLINE_15M = 150, KLINE_1D = 60;
+function getKline1H(){ return IS('ind_kline_limit', 200); }
+function getScanLimit(){ return IS('scan_limit', 50); }
+const KLINE_1H = 200, SCAN_LIMIT = 50;
 
 /* ── Formatters ── */
 function fmtPrice(p){const n=parseFloat(p);if(isNaN(n))return'—';if(n>=1000)return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});if(n>=1)return'$'+n.toFixed(4);if(n>=0.01)return'$'+n.toFixed(5);return'$'+n.toFixed(6);}
 function fmtVol(v){const n=parseFloat(v);if(n>=1e9)return'$'+(n/1e9).toFixed(2)+'B';if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';return'$'+(n/1e3).toFixed(0)+'K';}
+function fmtPct(v){if(v==null||isNaN(v))return'—';return(v>=0?'+':'')+v.toFixed(2)+'%';}
 
 /* ── EMA ── */
 function calcEMA(c,p){if(!c||c.length<p)return null;const k=2/(p+1);let e=c.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<c.length;i++)e=c[i]*k+e*(1-k);return e;}
@@ -445,17 +456,91 @@ function calcOBV(C,V){if(!C||C.length<10)return null;let o=0;const a=[0];for(let
 /* ── Volume ── */
 function analyzeVolume(kl){const v=kl.map(k=>parseFloat(k[5])),avg=v.slice(-21,-1).reduce((a,b)=>a+b,0)/20,last=v.slice(-4,-1).reduce((a,b)=>a+b,0)/3,ratio=avg>0?last/avg:1;return{avg20:avg,last3:last,ratio,surge:ratio>=1.5,label:ratio>=2?'Very High':ratio>=1.5?'High':ratio>=1?'Normal':'Low'};}
 
-/* ── VWAP ── */
-function calcVWAP(kl,lb){lb=lb||24;if(!kl||kl.length<lb)return null;let pv=0,vol=0;kl.slice(-lb).forEach(k=>{const h=parseFloat(k[2]),l=parseFloat(k[3]),c=parseFloat(k[4]),v=parseFloat(k[5]);pv+=(h+l+c)/3*v;vol+=v;});if(!vol)return null;const vwap=pv/vol,price=parseFloat(kl[kl.length-1][4]),pct=((price-vwap)/vwap)*100;return{vwap,price,above:price>vwap,pct,label:price>vwap?('+'+pct.toFixed(2)+'% above VWAP'):(pct.toFixed(2)+'% below VWAP'),strength:Math.abs(pct)>2?'extended':Math.abs(pct)>0.5?'moderate':'near'};}
+/* ── VWAP — Session Reset (UTC midnight) ── */
+function calcVWAP(kl) {
+  if (!kl || kl.length < 2) return null;
+  // Find session start = last UTC midnight
+  const now = Date.now();
+  const sessionStart = now - (now % 86400000); // today 00:00 UTC
+  // Filter candles from session start
+  let sessionKl = kl.filter(k => k[0] >= sessionStart);
+  // Fallback: if fewer than 4 candles use last 24h
+  if (sessionKl.length < 4) sessionKl = kl.slice(-24);
+  let pv = 0, vol = 0;
+  sessionKl.forEach(k => {
+    const h = parseFloat(k[2]), l = parseFloat(k[3]), c = parseFloat(k[4]), v = parseFloat(k[5]);
+    pv += (h + l + c) / 3 * v; vol += v;
+  });
+  if (!vol) return null;
+  const vwap = pv / vol, price = parseFloat(kl[kl.length - 1][4]), pct = ((price - vwap) / vwap) * 100;
+  return { vwap, price, above: price > vwap, pct, label: price > vwap ? ('+' + pct.toFixed(2) + '% above VWAP') : (pct.toFixed(2) + '% below VWAP'), strength: Math.abs(pct) > 2 ? 'extended' : Math.abs(pct) > 0.5 ? 'moderate' : 'near' };
+}
 
 /* ── Supertrend ── */
 function calcSupertrend(H,L,C,p,m){p=p||10;m=m||3;if(!H||H.length<p+10)return null;const tr=[H[0]-L[0]];for(let i=1;i<H.length;i++)tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));const aa=[];let av=tr.slice(0,p).reduce((a,b)=>a+b,0)/p;aa.push(av);for(let i=p;i<tr.length;i++){av=(av*(p-1)+tr[i])/p;aa.push(av);}const off=H.length-aa.length;let pU=0,pL=0,dir=1;for(let i=0;i<aa.length;i++){const idx=i+off,hl=(H[idx]+L[idx])/2;let u=hl+m*aa[i],l=hl-m*aa[i];if(i>0){u=(u<pU||C[idx-1]>pU)?u:pU;l=(l>pL||C[idx-1]<pL)?l:pL;}if(C[idx]>u)dir=1;else if(C[idx]<l)dir=-1;pU=u;pL=l;}const last=H.length-1,val=dir===1?pL:pU,dist=((C[last]-val)/C[last])*100;return{direction:dir,bullish:dir===1,value:val,label:dir===1?'▲ Bullish':'▼ Bearish',distPct:dist};}
 
-/* ── BOS / CHoCH ── */
-function detectBOS(H,L,C,lb){lb=lb||35;if(!H||H.length<lb+5)return{bullBOS:false,bearBOS:false,choch:false};const h=H.slice(-lb),l=L.slice(-lb),c=C.slice(-lb),swH=[],swL=[];for(let i=2;i<h.length-1;i++){if(h[i]>h[i-1]&&h[i]>h[i-2]&&h[i]>h[i+1])swH.push({i,v:h[i]});if(l[i]<l[i-1]&&l[i]<l[i-2]&&l[i]<l[i+1])swL.push({i,v:l[i]});}const lc=c[c.length-1],lSH=swH.length?swH[swH.length-1]:null,lSL=swL.length?swL[swL.length-1]:null,bullBOS=!!(lSH&&lc>lSH.v),bearBOS=!!(lSL&&lc<lSL.v);let choch=false;if(swH.length>=2&&swL.length>=2){const sh1=swH[swH.length-1],sh2=swH[swH.length-2],sl1=swL[swL.length-1],sl2=swL[swL.length-2];if(sh1.v>sh2.v&&lc>sh1.v)choch=true;if(sl1.v<sl2.v&&lc<sl1.v)choch=true;}return{bullBOS,bearBOS,choch,lastSwingHigh:lSH?.v,lastSwingLow:lSL?.v,swingHighs:swH.slice(-3).map(s=>s.v),swingLows:swL.slice(-3).map(s=>s.v)};}
+/* ── BOS / CHoCH — FIXED ── */
+function detectBOS(H, L, C, lb) {
+  lb = lb || 35;
+  if (!H || H.length < lb + 5) return { bullBOS: false, bearBOS: false, choch: false };
+  const h = H.slice(-lb), l = L.slice(-lb), c = C.slice(-lb);
+  // Find significant swing highs and lows (require 3-bar confirmation each side)
+  const swH = [], swL = [];
+  for (let i = 3; i < h.length - 3; i++) {
+    if (h[i] > h[i-1] && h[i] > h[i-2] && h[i] > h[i-3] && h[i] > h[i+1] && h[i] > h[i+2]) swH.push({ i, v: h[i] });
+    if (l[i] < l[i-1] && l[i] < l[i-2] && l[i] < l[i-3] && l[i] < l[i+1] && l[i] < l[i+2]) swL.push({ i, v: l[i] });
+  }
+  const lc = c[c.length - 1];
+  // BOS = close BREAKS PAST swing high/low AND then we confirmed by close (not just wick)
+  // Use previous swing (not most recent) to avoid "currently breaking" false trigger
+  const prevSwH = swH.length >= 2 ? swH[swH.length - 2] : (swH.length === 1 ? swH[0] : null);
+  const prevSwL = swL.length >= 2 ? swL[swL.length - 2] : (swL.length === 1 ? swL[0] : null);
+  const bullBOS = !!(prevSwH && lc > prevSwH.v);
+  const bearBOS = !!(prevSwL && lc < prevSwL.v);
+  // CHoCH: structure reversal — lower high after uptrend or higher low after downtrend
+  let choch = false;
+  if (swH.length >= 2 && swL.length >= 2) {
+    const sh1 = swH[swH.length - 1], sh2 = swH[swH.length - 2];
+    const sl1 = swL[swL.length - 1], sl2 = swL[swL.length - 2];
+    // Bearish CHoCH: was making HH, now made LH
+    if (sh2.v > sh1.v && sh1.i > sl1.i) choch = true;
+    // Bullish CHoCH: was making LL, now made HL
+    if (sl2.v < sl1.v && sl1.i > sh1.i) choch = true;
+  }
+  return { bullBOS, bearBOS, choch, swingHighs: swH.slice(-3).map(s => s.v), swingLows: swL.slice(-3).map(s => s.v) };
+}
 
-/* ── RSI Divergence ── */
-function detectDivergenceFull(C,H,L,rp,lb){rp=rp||14;lb=lb||30;if(!C||C.length<rp+lb+5)return{regularBull:false,regularBear:false,hiddenBull:false,hiddenBear:false};const rArr=calcRSIArray(C,rp),rS=rArr.slice(-lb),hS=H.slice(-lb),lS=L.slice(-lb);function sw(a,up){const s=[];for(let i=1;i<a.length-1;i++)if(up?(a[i]>a[i-1]&&a[i]>a[i+1]):(a[i]<a[i-1]&&a[i]<a[i+1]))s.push({i,v:a[i]});return s.slice(-4);}const swL=sw(lS,false),swH=sw(hS,true);let rB=false,rBr=false,hB=false,hBr=false;if(swL.length>=2){const[a,b]=[swL[swL.length-2],swL[swL.length-1]];if(b.v<a.v&&rS[b.i]>rS[a.i])rB=true;if(b.v>a.v&&rS[b.i]<rS[a.i])hB=true;}if(swH.length>=2){const[a,b]=[swH[swH.length-2],swH[swH.length-1]];if(b.v>a.v&&rS[b.i]<rS[a.i])rBr=true;if(b.v<a.v&&rS[b.i]>rS[a.i])hBr=true;}return{regularBull:rB,regularBear:rBr,hiddenBull:hB,hiddenBear:hBr};}
+/* ── RSI + MACD + OBV Divergence ── */
+function detectDivergenceFull(C, H, L, V, rp, lb) {
+  rp = rp || 14; lb = lb || 30;
+  if (!C || C.length < rp + lb + 5) return { regularBull: false, regularBear: false, hiddenBull: false, hiddenBear: false };
+  const rArr = calcRSIArray(C, rp), rS = rArr.slice(-lb), hS = H.slice(-lb), lS = L.slice(-lb);
+  function sw(a, up) { const s = []; for (let i = 1; i < a.length - 1; i++) if (up ? (a[i] > a[i-1] && a[i] > a[i+1]) : (a[i] < a[i-1] && a[i] < a[i+1])) s.push({ i, v: a[i] }); return s.slice(-4); }
+  const swL = sw(lS, false), swH = sw(hS, true);
+  let rB = false, rBr = false, hB = false, hBr = false;
+  if (swL.length >= 2) { const [a, b] = [swL[swL.length-2], swL[swL.length-1]]; if (b.v < a.v && rS[b.i] > rS[a.i]) rB = true; if (b.v > a.v && rS[b.i] < rS[a.i]) hB = true; }
+  if (swH.length >= 2) { const [a, b] = [swH[swH.length-2], swH[swH.length-1]]; if (b.v > a.v && rS[b.i] < rS[a.i]) rBr = true; if (b.v < a.v && rS[b.i] > rS[a.i]) hBr = true; }
+  // OBV Divergence
+  let obvBull = false, obvBear = false;
+  if (V && V.length >= lb + rp) {
+    const VC = C.slice(-lb), VV = V.slice(-lb);
+    let obv = 0; const obvArr = [0];
+    for (let i = 1; i < VC.length; i++) { obv += VC[i] > VC[i-1] ? VV[i] : VC[i] < VC[i-1] ? -VV[i] : 0; obvArr.push(obv); }
+    const swPriceL = sw(VC, false), swObvL = sw(obvArr, false);
+    const swPriceH = sw(VC, true), swObvH = sw(obvArr, true);
+    if (swPriceL.length >= 2 && swObvL.length >= 2) {
+      const pL1 = swPriceL[swPriceL.length-2], pL2 = swPriceL[swPriceL.length-1];
+      const oL1 = swObvL.find(x => Math.abs(x.i - pL1.i) <= 3), oL2 = swObvL.find(x => Math.abs(x.i - pL2.i) <= 3);
+      if (oL1 && oL2 && pL2.v < pL1.v && oL2.v > oL1.v) obvBull = true;
+    }
+    if (swPriceH.length >= 2 && swObvH.length >= 2) {
+      const pH1 = swPriceH[swPriceH.length-2], pH2 = swPriceH[swPriceH.length-1];
+      const oH1 = swObvH.find(x => Math.abs(x.i - pH1.i) <= 3), oH2 = swObvH.find(x => Math.abs(x.i - pH2.i) <= 3);
+      if (oH1 && oH2 && pH2.v > pH1.v && oH2.v < oH1.v) obvBear = true;
+    }
+  }
+  return { regularBull: rB, regularBear: rBr, hiddenBull: hB, hiddenBear: hBr, obvBull, obvBear };
+}
 
 /* ── MTF RSI ── */
 function calcMTFRSI(c1h,c4h,c15m,c1d){const r15=c15m?calcRSI(c15m,14):null,r1=c1h?calcRSI(c1h,14):null,r4=c4h?calcRSI(c4h,14):null,r1d=c1d?calcRSI(c1d,14):null;const all=[r15,r1,r4,r1d].filter(v=>v!=null);const bullCount=all.filter(v=>v<45).length,bearCount=all.filter(v=>v>55).length;return{rsi15m:r15,rsi1H:r1,rsi4H:r4,rsi1D:r1d,bullishAlign:r1<40&&r4<40,bearishAlign:r1>60&&r4>60,extremeBullish:r1<30&&r4<30,extremeBearish:r1>70&&r4>70,fullBullAlign:bullCount>=3,fullBearAlign:bearCount>=3,bullCount,bearCount,tfCount:all.length};}
@@ -466,517 +551,644 @@ function calc4HTrend(kl){if(!kl||kl.length<30)return{bias:'neutral',label:'↔ N
 /* ── Session ── */
 function getSession(){const h=new Date().getUTCHours(),london=h>=7&&h<16,ny=h>=13&&h<22,overlap=london&&ny;return{session:overlap?'London/NY Overlap':ny?'New York':london?'London':'Asian',quality:overlap?'high':(ny||london)?'medium':'low',overlap,isAsian:!(london||ny)};}
 
-/* ═══════════════════════════════════════════════════════
-   NEW: ORDER BLOCKS
-   Bullish OB = last bearish candle before strong up impulse
-   Bearish OB = last bullish candle before strong down impulse
-   ═══════════════════════════════════════════════════════ */
+/* ── Order Blocks ── */
 function detectOrderBlocks(O,H,L,C,tf){
   if(!O||O.length<20)return{bullOBs:[],bearOBs:[],nearestBullOB:null,nearestBearOB:null};
-  const price=C[C.length-1];
-  const bullOBs=[],bearOBs=[];
-  const LB=Math.min(O.length-2,60);
-  for(let i=1;i<LB;i++){
+  const price=C[C.length-1],bullOBs=[],bearOBs=[],LB=Math.min(O.length-4,60);
+  for(let i=2;i<LB;i++){
     const idx=O.length-1-i;
-    // Impulse = next 3 candles move strongly
-    const next3H=Math.max(H[idx+1]||0,H[idx+2]||0,H[idx+3]||0);
-    const next3L=Math.min(L[idx+1]||Infinity,L[idx+2]||Infinity,L[idx+3]||Infinity);
-    const impulsePct=(next3H-next3L)/C[idx]*100;
-    if(impulsePct<0.5)continue; // not a strong impulse
-    const isBear=C[idx]<O[idx]; // bearish candle
-    const isBull=C[idx]>O[idx]; // bullish candle
+    if(idx+3>=O.length)continue;
+    const next3H=Math.max(H[idx+1],H[idx+2],H[idx+3]),next3L=Math.min(L[idx+1],L[idx+2],L[idx+3]);
+    const impulsePct=(next3H-next3L)/Math.max(C[idx],0.0001)*100;
+    if(impulsePct<0.5)continue;
+    const isBear=C[idx]<O[idx],isBull=C[idx]>O[idx];
     const upImpulse=next3H>H[idx]*1.002&&C[idx+1]>C[idx];
     const downImpulse=next3L<L[idx]*0.998&&C[idx+1]<C[idx];
-    if(isBear&&upImpulse){
-      bullOBs.push({high:H[idx],low:L[idx],open:O[idx],close:C[idx],mid:(H[idx]+L[idx])/2,tf,idx,age:i});
-    }
-    if(isBull&&downImpulse){
-      bearOBs.push({high:H[idx],low:L[idx],open:O[idx],close:C[idx],mid:(H[idx]+L[idx])/2,tf,idx,age:i});
-    }
+    if(isBear&&upImpulse)bullOBs.push({high:H[idx],low:L[idx],open:O[idx],close:C[idx],mid:(H[idx]+L[idx])/2,tf,age:i});
+    if(isBull&&downImpulse)bearOBs.push({high:H[idx],low:L[idx],open:O[idx],close:C[idx],mid:(H[idx]+L[idx])/2,tf,age:i});
   }
-  // Find nearest untested OBs (price hasn't traded through them)
-  const validBullOBs=bullOBs.filter(ob=>price>ob.low*0.998).slice(0,3);
-  const validBearOBs=bearOBs.filter(ob=>price<ob.high*1.002).slice(0,3);
-  // Nearest = closest to current price
+  const validBullOBs=bullOBs.filter(ob=>price>ob.low*0.998).slice(0,4);
+  const validBearOBs=bearOBs.filter(ob=>price<ob.high*1.002).slice(0,4);
   const nearBull=validBullOBs.sort((a,b)=>Math.abs(price-a.mid)-Math.abs(price-b.mid))[0]||null;
   const nearBear=validBearOBs.sort((a,b)=>Math.abs(price-a.mid)-Math.abs(price-b.mid))[0]||null;
   return{bullOBs:validBullOBs,bearOBs:validBearOBs,nearestBullOB:nearBull,nearestBearOB:nearBear};
 }
 
-/* ═══════════════════════════════════════════════════════
-   NEW: FIBONACCI — All concepts
-   ═══════════════════════════════════════════════════════ */
+/* ── Fibonacci ── */
 const FIB_LEVELS=[
-  {r:0,    label:'0%',    type:'base'},
-  {r:0.236,label:'23.6%', type:'retrace'},
-  {r:0.382,label:'38.2%', type:'retrace',key:true},
-  {r:0.5,  label:'50%',   type:'retrace',key:true},
-  {r:0.618,label:'61.8%', type:'retrace',key:true},  // Golden ratio
-  {r:0.65, label:'65%',   type:'retrace'},
-  {r:0.786,label:'78.6%', type:'retrace'},
-  {r:1,    label:'100%',  type:'base'},
-  {r:1.272,label:'127.2%',type:'extend'},
-  {r:1.414,label:'141.4%',type:'extend'},
-  {r:1.618,label:'161.8%',type:'extend',key:true},  // Golden ratio extension
-  {r:2,    label:'200%',  type:'extend'},
-  {r:2.272,label:'227.2%',type:'extend'},
-  {r:2.618,label:'261.8%',type:'extend'},
+  {r:0,label:'0%',type:'retrace',key:false},{r:0.236,label:'23.6%',type:'retrace',key:false},
+  {r:0.382,label:'38.2%',type:'retrace',key:true},{r:0.5,label:'50%',type:'retrace',key:true},
+  {r:0.618,label:'61.8%',type:'retrace',key:true},{r:0.786,label:'78.6%',type:'retrace',key:false},
+  {r:1,label:'100%',type:'retrace',key:false},{r:1.272,label:'127.2%',type:'extend',key:false},
+  {r:1.414,label:'141.4%',type:'extend',key:false},{r:1.618,label:'161.8%',type:'extend',key:true},
+  {r:2.0,label:'200%',type:'extend',key:false},{r:2.618,label:'261.8%',type:'extend',key:false}
 ];
-
 function calcFibonacci(H,L,C,atr){
-  if(!H||H.length<20)return null;
-  // Auto-detect major swing from last 50 bars
-  const lb=Math.min(50,H.length);
+  const lb=Math.min(H.length,50);
   const recentH=H.slice(-lb),recentL=L.slice(-lb);
-  const swingHigh=Math.max(...recentH),swingLow=Math.min(...recentL);
-  const swingHighIdx=recentH.lastIndexOf(swingHigh);
-  const swingLowIdx=recentL.lastIndexOf(swingLow);
-  const price=C[C.length-1];
-  const range=swingHigh-swingLow;
-  if(range<atr*0.5)return null; // range too small, not meaningful
-  // Determine trend direction — is high or low more recent?
-  const highIsRecent=swingHighIdx>swingLowIdx;
-  // Retracement: from recent extreme back toward prior extreme
-  // If recent=high, price is retracing down → fib goes from high DOWN to low
-  // If recent=low, price is retracing up → fib goes from low UP to high
-  const levels=FIB_LEVELS.map(f=>{
-    let price_level;
-    if(highIsRecent){
-      // Downtrend retracement: 0=high, 1=low
-      price_level=swingHigh-f.r*range;
-    }else{
-      // Uptrend retracement: 0=low, 1=high
-      price_level=swingLow+f.r*range;
-    }
-    return{...f,price:price_level};
+  const maxH=Math.max(...recentH),minL=Math.min(...recentL);
+  const range=maxH-minL;
+  if(!atr||range<atr*0.5)return null;
+  const hiIdx=recentH.lastIndexOf(maxH),loIdx=recentL.lastIndexOf(minL);
+  const highIsRecent=hiIdx>loIdx;
+  const price=C[C.length-1],trend=highIsRecent?'downtrend':'uptrend';
+  const[base,top]=highIsRecent?[maxH,minL]:[minL,maxH];
+  const levels=FIB_LEVELS.map(fl=>{
+    let p=highIsRecent?base-(fl.r*(base-top)):base+(fl.r*(top-base));
+    return{...fl,price:p};
   });
-  // Find nearest level to current price
   const nearest=levels.slice().sort((a,b)=>Math.abs(price-a.price)-Math.abs(price-b.price))[0];
-  const nearPct=Math.abs(price-nearest.price)/price*100;
-  const nearThreshold=atr?(atr/price*100*0.5):0.3; // within 0.5× ATR
-  const atFib=nearPct<nearThreshold;
-  // Check if price is between two key levels (confluence zone)
-  const keyLevels=levels.filter(l=>l.key);
-  const nearKey=keyLevels.sort((a,b)=>Math.abs(price-a.price)-Math.abs(price-b.price))[0];
-  const atKeyFib=nearKey&&Math.abs(price-nearKey.price)/price*100<nearThreshold;
-  return{swingHigh,swingLow,range,highIsRecent,levels,nearest,nearPct,atFib,atKeyFib,nearKey,trend:highIsRecent?'downtrend':'uptrend',atrThreshold:nearThreshold};
+  const nearThreshold=atr?(atr/price*100*0.5):0.3;
+  const atFib=Math.abs((nearest.price-price)/price*100)<nearThreshold*2;
+  const atKeyFib=atFib&&nearest.key;
+  return{levels,trend,swingHigh:maxH,swingLow:minL,nearest,atFib,atKeyFib,nearKey:atKeyFib?nearest:null,atrThreshold:nearThreshold};
 }
 
-/* ═══════════════════════════════════════════════════════
-   NEW: S/R ZONES — Multi-TF clustering
-   ═══════════════════════════════════════════════════════ */
+/* ── S/R Zones ── */
 function buildSRZones(klines15m,klines1h,klines4h,klines1d,price,atr){
-  const atrPct=atr?atr/price*100:0.5;
-  const cluster=atrPct*0.4; // levels within 0.4×ATR% = same zone
-  const allLevels=[];
-
+  const atrPct=(atr/price)*100,cluster=atrPct*0.4;
+  const levels=[];
   function extractSwings(kl,tf,weight){
     if(!kl||kl.length<10)return;
     const H=kl.map(k=>parseFloat(k[2])),L=kl.map(k=>parseFloat(k[3]));
-    const lb=Math.min(kl.length-2,40);
-    for(let i=2;i<lb;i++){
-      const idx=H.length-1-i;
-      if(H[idx]>H[idx-1]&&H[idx]>H[idx-2]&&H[idx]>H[idx+1]&&H[idx]>H[idx+2])allLevels.push({price:H[idx],type:'resistance',tf,weight});
-      if(L[idx]<L[idx-1]&&L[idx]<L[idx-2]&&L[idx]<L[idx+1]&&L[idx]<L[idx+2])allLevels.push({price:L[idx],type:'support',tf,weight});
+    for(let i=3;i<H.length-3;i++){
+      if(H[i]>H[i-1]&&H[i]>H[i-2]&&H[i]>H[i+1]&&H[i]>H[i+2])levels.push({price:H[i],type:'resistance',tf,weight});
+      if(L[i]<L[i-1]&&L[i]<L[i-2]&&L[i]<L[i+1]&&L[i]<L[i+2])levels.push({price:L[i],type:'support',tf,weight});
     }
   }
-
-  extractSwings(klines15m,'15m',1);
-  extractSwings(klines1h,'1H',2);
-  extractSwings(klines4h,'4H',4);
-  extractSwings(klines1d,'1D',6);
-
-  // Cluster levels within threshold
+  extractSwings(klines15m,'15m',1);extractSwings(klines1h,'1H',2);extractSwings(klines4h,'4H',4);extractSwings(klines1d,'1D',6);
   const zones=[];
-  const used=new Set();
-  for(let i=0;i<allLevels.length;i++){
-    if(used.has(i))continue;
-    const group=[allLevels[i]];
-    used.add(i);
-    for(let j=i+1;j<allLevels.length;j++){
-      if(used.has(j))continue;
-      if(Math.abs(allLevels[i].price-allLevels[j].price)/price*100<cluster){
-        group.push(allLevels[j]);used.add(j);
-      }
-    }
-    const avgPrice=group.reduce((s,g)=>s+g.price,0)/group.length;
-    const strength=group.reduce((s,g)=>s+g.weight,0);
-    const tfs=[...new Set(group.map(g=>g.tf))];
-    const type=group.filter(g=>g.type==='resistance').length>=group.filter(g=>g.type==='support').length?'resistance':'support';
-    zones.push({price:avgPrice,strength,tfs,tfCount:tfs.length,type,distPct:(avgPrice-price)/price*100});
-  }
-
-  // Sort by strength (most confluent first), filter near zones
-  zones.sort((a,b)=>b.strength-a.strength);
-  const nearZones=zones.filter(z=>Math.abs(z.distPct)<5).slice(0,8);
+  levels.sort((a,b)=>a.price-b.price);
+  levels.forEach(l=>{
+    const ex=zones.find(z=>Math.abs(z.price-l.price)/l.price*100<cluster);
+    if(ex){ex.strength+=l.weight;ex.tfs=[...new Set([...ex.tfs,l.tf])];ex.tfCount=ex.tfs.length;}
+    else zones.push({price:l.price,type:l.type,strength:l.weight,tfs:[l.tf],tfCount:1,distPct:((l.price-price)/price)*100});
+  });
+  zones.forEach(z=>{z.distPct=((z.price-price)/price)*100;});
+  const nearZones=zones.filter(z=>Math.abs(z.distPct)<5).slice(0,10);
   const aboveZones=nearZones.filter(z=>z.price>price).sort((a,b)=>a.price-b.price);
   const belowZones=nearZones.filter(z=>z.price<price).sort((a,b)=>b.price-a.price);
-
-  // Check if price is AT a strong zone
-  const atZone=nearZones.find(z=>Math.abs(z.distPct)<atrPct*0.5&&z.strength>=4);
-
+  const atZone=nearZones.find(z=>Math.abs(z.distPct)<0.3);
   return{zones:nearZones,above:aboveZones.slice(0,3),below:belowZones.slice(0,3),atZone,allCount:zones.length};
 }
 
-/* ═══════════════════════════════════════════════════════
-   NEW: TREND LINE — Linear Regression
-   ═══════════════════════════════════════════════════════ */
+/* ── Trend Line ── */
 function calcTrendLine(C,H,L,lb){
-  lb=lb||50;if(!C||C.length<lb)return null;
-  const data=C.slice(-lb);const n=data.length;
-  const xs=[...Array(n).keys()];
-  const sumX=xs.reduce((a,b)=>a+b,0),sumY=data.reduce((a,b)=>a+b,0);
-  const sumXY=xs.reduce((s,x,i)=>s+x*data[i],0),sumX2=xs.reduce((s,x)=>s+x*x,0);
+  lb=Math.min(C.length,lb||50);
+  const data=C.slice(-lb),n=data.length;
+  let sumX=0,sumY=0,sumXY=0,sumX2=0;
+  for(let i=0;i<n;i++){sumX+=i;sumY+=data[i];sumXY+=i*data[i];sumX2+=i*i;}
   const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
   const intercept=(sumY-slope*sumX)/n;
   const trend=slope>0?'up':'down';
-  const slopePct=(slope/data[0])*100; // slope per bar as % of starting price
+  const slopePct=(slope/data[0])*100;
   const angle=Math.atan(slope/data[0]*100)*180/Math.PI;
   const currentVal=intercept+slope*(n-1);
-  const deviation=(C[C.length-1]-currentVal)/currentVal*100;
-  // High/low channels
   const hData=H.slice(-lb),lData=L.slice(-lb);
-  const hSlope=(n*xs.reduce((s,x,i)=>s+x*hData[i],0)-sumX*hData.reduce((a,b)=>a+b,0))/(n*sumX2-sumX*sumX);
-  const lSlope=(n*xs.reduce((s,x,i)=>s+x*lData[i],0)-sumX*lData.reduce((a,b)=>a+b,0))/(n*sumX2-sumX*sumX);
-  const channelBias=hSlope>0&&lSlope>0?'ascending':hSlope<0&&lSlope<0?'descending':'mixed';
+  const maxDev=Math.max(...data.map((v,i)=>v-(intercept+slope*i)));
+  const minDev=Math.min(...data.map((v,i)=>v-(intercept+slope*i)));
+  const channelBias=data[n-1]-(intercept+slope*(n-1))>0?'above':'below';
+  const deviation=((data[n-1]-currentVal)/currentVal)*100;
   const strength=Math.abs(slopePct)>0.1?'strong':Math.abs(slopePct)>0.03?'moderate':'flat';
   return{slope,slopePct,angle:angle.toFixed(1),trend,strength,channelBias,currentVal,deviation,label:trend==='up'?`↗ Ascending ${strength}`:trend==='down'?`↘ Descending ${strength}`:'→ Flat'};
 }
 
-/* ═══════════════════════════════════════════════════════
-   NEW: MULTI-TF FVG DETECTION
-   ═══════════════════════════════════════════════════════ */
+/* ── FVG Multi-TF ── */
 function detectFVGMultiTF(kl15m,kl1h,kl4h,kl1d){
   function getFVGs(kl,tf){
     if(!kl||kl.length<5)return[];
     const result=[];
-    const lb=Math.min(kl.length-2,30);
-    for(let i=2;i<lb;i++){
-      const idx=kl.length-1-i;
-      const p2h=parseFloat(kl[idx-2]?.[2]||0),p2l=parseFloat(kl[idx-2]?.[3]||Infinity);
-      const ch=parseFloat(kl[idx]?.[2]||0),cl=parseFloat(kl[idx]?.[3]||Infinity);
-      if(cl>p2h&&cl-p2h>0)result.push({type:'bull',top:cl,bottom:p2h,size:cl-p2h,tf,age:i});
-      if(ch<p2l&&p2l-ch>0)result.push({type:'bear',top:p2l,bottom:ch,size:p2l-ch,tf,age:i});
+    for(let i=2;i<Math.min(kl.length-1,60);i++){
+      const prev2H=parseFloat(kl[i-2][2]),curL=parseFloat(kl[i][3]);
+      const prev2L=parseFloat(kl[i-2][3]),curH=parseFloat(kl[i][2]);
+      if(curL>prev2H)result.push({type:'bull',bottom:prev2H,top:curL,mid:(prev2H+curL)/2,tf});
+      if(curH<prev2L)result.push({type:'bear',bottom:curH,top:prev2L,mid:(curH+prev2L)/2,tf});
     }
     return result.slice(0,2);
   }
   const all=[...getFVGs(kl15m,'15m'),...getFVGs(kl1h,'1H'),...getFVGs(kl4h,'4H'),...getFVGs(kl1d,'1D')];
-  return{all,bullFVGs:all.filter(f=>f.type==='bull'),bearFVGs:all.filter(f=>f.type==='bear'),count:all.length};
+  return{bullFVGs:all.filter(f=>f.type==='bull'),bearFVGs:all.filter(f=>f.type==='bear'),all};
 }
 
-/* ── Scanner helpers ── */
+/* ── Funding Rate ── */
 let premiumIndex={};
-async function fetchPremiumIndex(){try{(await fetch(`${BINANCE_FAPI}/fapi/v1/premiumIndex`).then(r=>r.json())).forEach(d=>{premiumIndex[d.symbol]=parseFloat(d.lastFundingRate)*100;});}catch(_){}}
+async function fetchPremiumIndex(){try{const d=await fetch(`${BINANCE_FAPI}/fapi/v1/premiumIndex`).then(r=>r.json());if(Array.isArray(d))d.forEach(x=>{premiumIndex[x.symbol]=parseFloat(x.lastFundingRate)*100;});}catch(_){}}
+function fmtFunding(f){if(f===null||f===undefined||isNaN(f))return'<span style="color:var(--muted)">—</span>';const abs=Math.abs(f),col=abs<=0.01?'var(--green)':abs<=0.03?'var(--yellow)':'var(--red)';return`<span style="font-family:var(--font-n);font-size:.72rem;color:${col}">${f>=0?'+':''}${f.toFixed(3)}%</span>`;}
+
+/* ── OI Change ── */
 async function fetchOIChange(sym){try{const[c,h]=await Promise.all([fetch(`${BINANCE_FAPI}/fapi/v1/openInterest?symbol=${sym}`).then(r=>r.json()),fetch(`${BINANCE_FAPI}/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=12`).then(r=>r.json())]);const cur=parseFloat(c.openInterest);if(!Array.isArray(h)||h.length<2)return{trend:'unknown',pct:0};const old=parseFloat(h[0].sumOpenInterest),pct=old>0?((cur-old)/old)*100:0;return{trend:pct>0.5?'rising':pct<-0.5?'falling':'flat',pct};}catch(_){return{trend:'unknown',pct:0};}}
-function calcScannerScore(coin){const chg=parseFloat(coin.priceChangePercent),vol=parseFloat(coin.quoteVolume),hi=parseFloat(coin.highPrice),lo=parseFloat(coin.lowPrice),pr=parseFloat(coin.lastPrice),fu=premiumIndex[coin.symbol]||0;let s=50;if(vol>=2e9)s+=20;else if(vol>=5e8)s+=14;else if(vol>=1e8)s+=8;else if(vol>=2e7)s+=3;else s-=5;const rp=hi>lo?(pr-lo)/(hi-lo):0.5;if(rp>=0.55&&rp<=0.85)s+=15;else if(rp<=0.2)s+=12;else if(rp>=0.95)s-=5;const ac=Math.abs(chg);if(ac>=3&&ac<=12)s+=15;else if(ac>=1)s+=8;else s+=2;const af=Math.abs(fu);if(af<=0.01)s+=20;else if(af<=0.03)s+=10;else if(af>0.06)s-=10;const rr=hi>0?(hi-lo)/hi*100:0;if(rr<0.5)s-=15;if(rr>20)s-=8;return Math.max(0,Math.min(100,Math.round(s)));}
+
+/* ── Taker Buy/Sell Ratio (NEW) ── */
+async function fetchTakerRatio(sym){try{const d=await fetch(`${BINANCE_FAPI}/futures/data/takerlongshortRatio?symbol=${sym}&period=5m&limit=12`).then(r=>r.json());if(!Array.isArray(d)||d.length<3)return null;const recent=d.slice(-3).map(x=>parseFloat(x.buySellRatio)),avg=recent.reduce((a,b)=>a+b,0)/recent.length;const prev=d.slice(-6,-3).map(x=>parseFloat(x.buySellRatio)),prevAvg=prev.reduce((a,b)=>a+b,0)/prev.length;return{ratio:avg,prevRatio:prevAvg,buyDominant:avg>1.05,sellDominant:avg<0.95,rising:avg>prevAvg,label:avg>1.1?'Strong Buy':avg>1.0?'Buy Dom':avg<0.9?'Strong Sell':avg<1.0?'Sell Dom':'Neutral'};}catch(_){return null;}}
+
+/* ── Long/Short Ratio (NEW) ── */
+async function fetchLSRatio(sym){try{const d=await fetch(`${BINANCE_FAPI}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=6`).then(r=>r.json());if(!Array.isArray(d)||!d.length)return null;const latest=d[d.length-1];const longPct=parseFloat(latest.longAccount)*100,shortPct=parseFloat(latest.shortAccount)*100;return{longPct,shortPct,longBias:longPct>65,shortBias:shortPct>65,extremeLong:longPct>75,extremeShort:shortPct>75,label:`L ${longPct.toFixed(0)}% / S ${shortPct.toFixed(0)}%`};}catch(_){return null;}}
+
+/* ═══════════════════════════════════════
+   SCANNER — Optimised for Setup Finding
+   Goal: Find coins likely to give a clean
+   entry signal in the NEXT deep scan.
+   Factors: momentum + volatility window +
+   funding positioning + 4H trend + volume
+   ═══════════════════════════════════════ */
+function calcScannerScore(coin, trend4h) {
+  const chg  = parseFloat(coin.priceChangePercent);
+  const vol  = parseFloat(coin.quoteVolume);
+  const hi   = parseFloat(coin.highPrice);
+  const lo   = parseFloat(coin.lowPrice);
+  const pr   = parseFloat(coin.lastPrice);
+  const fund = premiumIndex[coin.symbol] || 0;
+  let s = 50;
+
+  // 1. Volume: high volume = active, tradable market
+  if (vol >= 2e9)       s += 18;
+  else if (vol >= 5e8)  s += 12;
+  else if (vol >= 1e8)  s += 6;
+  else if (vol >= 2e7)  s += 2;
+  else                  s -= 8;
+
+  // 2. Price position: best setups are at extremes or in middle (potential reversals/continuations)
+  const rp = hi > lo ? (pr - lo) / (hi - lo) : 0.5;
+  if (rp <= 0.15)       s += 14; // near bottom → potential long setup
+  else if (rp >= 0.85)  s += 14; // near top → potential short setup
+  else if (rp >= 0.4 && rp <= 0.6) s += 6; // mid-range → consolidation
+  else                  s += 2;
+
+  // 3. Daily change: moderate moves = momentum without overextension
+  const ac = Math.abs(chg);
+  if (ac >= 2 && ac <= 8)  s += 16;
+  else if (ac >= 1)         s += 8;
+  else if (ac < 0.3)        s -= 8; // dead market, skip
+  else                      s += 2;
+
+  // 4. Funding: neutral/negative = better setup potential (not crowded)
+  const af = Math.abs(fund);
+  if (af <= 0.005)          s += 18; // very neutral = fresh
+  else if (af <= 0.015)     s += 10;
+  else if (af <= 0.03)      s += 4;
+  else if (fund > 0.05)     s -= 12; // overcrowded longs
+  else if (fund < -0.05)    s -= 12; // overcrowded shorts
+
+  // 5. Volatility: range too narrow = no trade, too wide = too risky
+  const dayRange = hi > 0 ? (hi - lo) / hi * 100 : 0;
+  if (dayRange < 0.8)   s -= 14; // dead
+  else if (dayRange > 25) s -= 6;  // crazy volatile
+  else if (dayRange >= 3 && dayRange <= 12) s += 6; // healthy
+
+  // 6. 4H Trend bonus (applied after calculation)
+  if (trend4h) {
+    if (trend4h.bias === 'bull' && chg > 0) s += 10;
+    else if (trend4h.bias === 'bear' && chg < 0) s += 10;
+    else if (trend4h.bias === 'bull' && rp <= 0.3) s += 8; // bullish trend, price near low = buy dip setup
+    else if (trend4h.bias === 'bear' && rp >= 0.7) s += 8; // bearish trend, price near high = sell rally setup
+    else if (trend4h.bias === 'neutral') s -= 4;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
 function scoreGrade(s){return s>=85?{cls:'score-s',label:'S'}:s>=70?{cls:'score-a',label:'A'}:s>=50?{cls:'score-b',label:'B'}:{cls:'score-c',label:'C'};}
-function fmtFunding(f){if(f==null||isNaN(f))return'<span class="fund-badge">—</span>';const p=f.toFixed(4)+'%';if(Math.abs(f)<=0.01)return`<span class="fund-badge fund-good">✓ ${p}</span>`;if(Math.abs(f)<=0.04)return`<span class="fund-badge fund-warn">⚠ ${p}</span>`;return`<span class="fund-badge fund-bad">⛔ ${p}</span>`;}
 
-/* ════════════════════════════════════════════════════════
-   DECISION ENGINE v4 — MTF + OB + FIB + S/R
-   ════════════════════════════════════════════════════════ */
-function decideEntry(rsi,vol,C,H,L,price,macd,bb,stoch,adx,obv,atr,ex){
-  ex=ex||{};
-  const{trend4h:t4=null,fundingRate:fr=null,oiChange:oi=null,divergence:div=null,
-        emaStack:es=null,vwap=null,supertrend:st=null,bos=null,fvg=null,
-        mtfRSI:mRSI=null,session:sess=null,btcContext:btc=null,
-        // NEW
-        srZones=null,fibonacci=null,trendLine=null,
-        mtfOBs=null,mtfFVGs=null,
-        ema15m=null,ema1d=null,rsi15m=null,rsi1d=null,
-        bos15m=null,bos4h=null}=ex;
-  let ls=0,ss=0;
+/* ══════════════════════════════════════════════════════════
+   MAIN SCORING ENGINE — decideEntry v5
+   MAX achievable raw score breakdown:
+   LONG  MAX raw ≈ 285  (normalise → 100)
+   ══════════════════════════════════════════════════════════ */
+function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, ex) {
+  ex = ex || {};
+  const {
+    trend4h:t4=null, fundingRate:fr=null, oiChange:oi=null, divergence:div=null,
+    emaStack:es=null, vwap=null, supertrend:st=null, bos=null,
+    mtfRSI:mRSI=null, session:sess=null, btcContext:btc=null,
+    srZones=null, fibonacci=null, trendLine=null,
+    mtfOBs=null, mtfFVGs=null, ema15m=null, ema1d=null,
+    rsi15m=null, rsi1d=null, bos15m=null, bos4h=null,
+    candlePatterns=null, pivotPoints=null, takerRatio=null, lsRatio=null
+  } = ex;
 
-  // F1 RSI (1H)
-  if(rsi<=25)ls+=20;else if(rsi<=32)ls+=15;else if(rsi<=40)ls+=8;else if(rsi<=48){ls+=3;ss+=3;}
-  else if(rsi>=75)ss+=20;else if(rsi>=68)ss+=15;else if(rsi>=60)ss+=8;
+  let ls = 0, ss = 0;
 
-  // F2 EMA Stack (1H)
-  if(es){if(es.stack==='perfect_bull'){ls+=15;ss=Math.max(ss-8,0);}else if(es.stack==='bull')ls+=10;else if(es.stack==='perfect_bear'){ss+=15;ls=Math.max(ls-8,0);}else if(es.stack==='bear')ss+=10;}
-  else{const e20=calcEMA(C,20),e50=calcEMA(C,50);if(e20&&e50){if(e20>e50&&price>e20)ls+=10;else if(e20>e50)ls+=5;if(e20<e50&&price<e20)ss+=10;else if(e20<e50)ss+=5;}}
+  // F1: RSI (1H)
+  if (rsi <= 22)      { ls += 22; }
+  else if (rsi <= 30) { ls += 17; }
+  else if (rsi <= 40) { ls += 9;  }
+  else if (rsi <= 48) { ls += 3; ss += 3; }
+  else if (rsi >= 78) { ss += 22; }
+  else if (rsi >= 70) { ss += 17; }
+  else if (rsi >= 60) { ss += 9;  }
 
-  // F3 MACD
-  if(macd){if(macd.trend==='bullish'&&macd.strengthening)ls+=10;else if(macd.trend==='bullish')ls+=6;if(macd.trend==='bearish'&&macd.strengthening)ss+=10;else if(macd.trend==='bearish')ss+=6;}
-
-  // F4 BB
-  if(bb){if(bb.position<=0.1)ls+=8;else if(bb.position<=0.25)ls+=5;if(bb.position>=0.9)ss+=8;else if(bb.position>=0.75)ss+=5;if(bb.squeeze){ls+=3;ss+=3;}}
-
-  // F5 Stoch RSI
-  if(stoch){if(stoch.signal==='oversold')ls+=8;else if(stoch.crossover==='bullish_cross')ls+=5;if(stoch.signal==='overbought')ss+=8;else if(stoch.crossover==='bearish_cross')ss+=5;}
-
-  // F6 ADX
-  if(adx){if(adx.strength==='strong'){if(adx.trend==='bullish')ls+=8;else if(adx.trend==='bearish')ss+=8;}else if(adx.strength==='moderate'){if(adx.trend==='bullish')ls+=5;else if(adx.trend==='bearish')ss+=5;else{ls+=3;ss+=3;}}else{ls+=2;ss+=2;}}
-
-  // F7 OBV
-  if(obv){if(obv.trend==='accumulation')ls+=8;else ss+=8;}
-
-  // F8 Volume
-  if(vol.surge){ls+=8;ss+=8;}else if(vol.ratio>=0.8){ls+=4;ss+=4;}
-
-  // F9 4H Trend
-  if(t4){if(t4.bias==='bull'){ls+=20;ss=Math.max(ss-10,0);}else if(t4.bias==='bear'){ss+=20;ls=Math.max(ls-10,0);}}
-
-  // F10 Funding
-  if(fr!==null){if(fr<-0.02)ls+=10;else if(fr<0)ls+=5;else if(fr>0.05){ss+=10;ls=Math.max(ls-5,0);}else if(fr>0.02)ss+=5;else{ls+=4;ss+=4;}}
-
-  // F11 OI
-  if(oi){if(oi.trend==='rising'){ls+=3;ss+=3;}else if(oi.trend==='falling'){ls=Math.max(ls-3,0);ss=Math.max(ss-3,0);}}
-
-  // F12 Divergence
-  if(div){if(div.regularBull)ls+=15;if(div.regularBear)ss+=15;if(div.hiddenBull)ls+=10;if(div.hiddenBear)ss+=10;}
-
-  // F13 VWAP
-  if(vwap){if(vwap.above&&vwap.pct>1.5)ls+=12;else if(vwap.above)ls+=7;else if(!vwap.above&&vwap.pct<-1.5)ss+=12;else ss+=7;}
-
-  // F14 Supertrend
-  if(st){if(st.bullish)ls+=12;else ss+=12;}
-
-  // F15 BOS (1H)
-  if(bos){if(bos.bullBOS)ls+=10;if(bos.bearBOS)ss+=10;if(bos.choch&&!bos.bullBOS&&!bos.bearBOS){ls+=5;ss+=5;}}
-
-  // F16 FVG (1H — legacy)
-  if(fvg){if(fvg.bullFVG)ls+=8;if(fvg.bearFVG)ss+=8;}
-
-  // ══ NEW FACTORS ══
-
-  // N1 Full MTF RSI alignment (15m + 1H + 4H + 1D)
-  if(mRSI){if(mRSI.extremeBullish)ls+=5;else if(mRSI.bullishAlign)ls+=3;if(mRSI.extremeBearish)ss+=5;else if(mRSI.bearishAlign)ss+=3;if(mRSI.fullBullAlign)ls+=8;if(mRSI.fullBearAlign)ss+=8;}
-
-  // N2 15m EMA confirmation
-  if(ema15m){if(ema15m.stack?.includes('bull'))ls+=7;else if(ema15m.stack?.includes('bear'))ss+=7;}
-
-  // N3 1D EMA confirmation
-  if(ema1d){if(ema1d.stack?.includes('bull'))ls+=10;else if(ema1d.stack?.includes('bear'))ss+=10;}
-
-  // N4 15m structure
-  if(bos15m){if(bos15m.bullBOS)ls+=6;if(bos15m.bearBOS)ss+=6;}
-
-  // N5 4H structure
-  if(bos4h){if(bos4h.bullBOS)ls+=8;if(bos4h.bearBOS)ss+=8;if(bos4h.choch){ls+=4;ss+=4;}}
-
-  // N6 BTC context
-  if(btc&&btc.bias!=='neutral'){if(btc.bias==='bull')ls+=5;else ss+=5;}
-
-  // N7 MTF FVGs — higher TF FVGs worth more
-  if(mtfFVGs){mtfFVGs.bullFVGs.forEach(f=>{const w=f.tf==='1D'?8:f.tf==='4H'?6:f.tf==='1H'?4:2;ls+=w;});mtfFVGs.bearFVGs.forEach(f=>{const w=f.tf==='1D'?8:f.tf==='4H'?6:f.tf==='1H'?4:2;ss+=w;});}
-
-  // N8 Order Blocks — price in/near OB
-  if(mtfOBs){
-    const aV=atr?atr.atr:price*0.01;
-    // Check if price is inside or just above a bullish OB
-    const bullOBNear=mtfOBs.nearestBullOB&&price>=mtfOBs.nearestBullOB.low-aV&&price<=mtfOBs.nearestBullOB.high+aV;
-    const bearOBNear=mtfOBs.nearestBearOB&&price>=mtfOBs.nearestBearOB.low-aV&&price<=mtfOBs.nearestBearOB.high+aV;
-    if(bullOBNear){const w=mtfOBs.nearestBullOB.tf==='4H'?12:mtfOBs.nearestBullOB.tf==='1D'?15:8;ls+=w;}
-    if(bearOBNear){const w=mtfOBs.nearestBearOB.tf==='4H'?12:mtfOBs.nearestBearOB.tf==='1D'?15:8;ss+=w;}
+  // F2: EMA Stack (1H)
+  if (es) {
+    if (es.stack === 'perfect_bull')      { ls += 15; ss = Math.max(ss-8, 0); }
+    else if (es.stack === 'bull')           ls += 10;
+    else if (es.stack === 'perfect_bear') { ss += 15; ls = Math.max(ls-8, 0); }
+    else if (es.stack === 'bear')           ss += 10;
+  } else {
+    const e20 = calcEMA(C,20), e50 = calcEMA(C,50);
+    if (e20 && e50) { if (e20>e50 && price>e20) ls+=10; else if (e20>e50) ls+=5; if (e20<e50 && price<e20) ss+=10; else if (e20<e50) ss+=5; }
   }
 
-  // N9 S/R Zone confluence
-  if(srZones){
-    // Price near strong support = LONG signal
-    const nearSupport=srZones.below.find(z=>z.distPct>-1&&z.strength>=4);
-    const nearResist=srZones.above.find(z=>z.distPct<1&&z.strength>=4);
-    if(nearSupport&&nearSupport.tfCount>=2)ls+=8;
-    if(nearResist&&nearResist.tfCount>=2)ss+=8;
-    if(srZones.atZone&&srZones.atZone.type==='support')ls+=5;
-    if(srZones.atZone&&srZones.atZone.type==='resistance')ss+=5;
+  // F3: MACD (1H)
+  if (macd) { if (macd.trend==='bullish'&&macd.strengthening) ls+=10; else if (macd.trend==='bullish') ls+=6; if (macd.trend==='bearish'&&macd.strengthening) ss+=10; else if (macd.trend==='bearish') ss+=6; }
+
+  // F4: Bollinger Bands — NOW uses band proximity for EP signal
+  if (bb) {
+    if (bb.position <= 0.08) ls += 10;      // touching lower band = strong oversold
+    else if (bb.position <= 0.2) ls += 7;
+    else if (bb.position <= 0.35) ls += 4;
+    if (bb.position >= 0.92) ss += 10;      // touching upper band = strong overbought
+    else if (bb.position >= 0.8) ss += 7;
+    else if (bb.position >= 0.65) ss += 4;
+    if (bb.squeeze) { ls += 4; ss += 4; }   // squeeze breakout pending
   }
 
-  // N10 Fibonacci level confluence
-  if(fibonacci){
-    if(fibonacci.atKeyFib){
-      // At key fib + trending = score boost
-      if(fibonacci.trend==='uptrend')ls+=8; // price at retracement in uptrend = buy
-      else ss+=8; // in downtrend retracement = sell
-    }else if(fibonacci.atFib){
-      if(fibonacci.trend==='uptrend')ls+=4;
-      else ss+=4;
+  // F5: Stoch RSI
+  if (stoch) { if (stoch.signal==='oversold') ls+=9; else if (stoch.crossover==='bullish_cross') ls+=6; if (stoch.signal==='overbought') ss+=9; else if (stoch.crossover==='bearish_cross') ss+=6; }
+
+  // F6: ADX
+  if (adx) { if (adx.strength==='strong') { if (adx.trend==='bullish') ls+=9; else if (adx.trend==='bearish') ss+=9; } else if (adx.strength==='moderate') { if (adx.trend==='bullish') ls+=5; else if (adx.trend==='bearish') ss+=5; else { ls+=3; ss+=3; } } else { ls+=2; ss+=2; } }
+
+  // F7: OBV
+  if (obv) { if (obv.trend==='accumulation') ls+=8; else ss+=8; }
+
+  // F8: Volume
+  if (vol.surge) { ls+=9; ss+=9; } else if (vol.ratio>=0.8) { ls+=4; ss+=4; }
+
+  // F9: 4H Trend — highest weight, primary direction bias
+  if (t4) { if (t4.bias==='bull') { ls+=22; ss=Math.max(ss-12,0); } else if (t4.bias==='bear') { ss+=22; ls=Math.max(ls-12,0); } }
+
+  // F10: Funding Rate — FIXED thresholds
+  if (fr !== null) {
+    if (fr < -0.04)       { ls += 12; }      // heavily negative = longs squeezed = buy
+    else if (fr < -0.01)  { ls += 7; }
+    else if (fr < 0)      { ls += 4; }
+    else if (fr > 0.06)   { ss += 12; ls = Math.max(ls-6,0); } // very positive = shorts squeezed = sell
+    else if (fr > 0.02)   { ss += 7; }
+    else if (fr > 0.005)  { ss += 3; }
+    else                  { ls += 4; ss += 4; } // neutral is good
+  }
+
+  // F11: OI Change — IMPROVED, now 15pts directional
+  if (oi) {
+    if (oi.trend === 'rising')  { ls += 5; ss += 5; }  // rising OI both sides = momentum
+    else if (oi.trend === 'falling') { ls = Math.max(ls-5,0); ss = Math.max(ss-5,0); } // unwinding
+  }
+
+  // F12: Divergence (RSI + OBV)
+  if (div) {
+    if (div.regularBull) ls += 16; if (div.regularBear) ss += 16;
+    if (div.hiddenBull)  ls += 11; if (div.hiddenBear)  ss += 11;
+    if (div.obvBull)     ls += 8;  if (div.obvBear)     ss += 8;
+  }
+
+  // F13: VWAP (session-based)
+  if (vwap) { if (vwap.above && vwap.pct > 1.5) ls+=13; else if (vwap.above) ls+=8; else if (!vwap.above && vwap.pct < -1.5) ss+=13; else ss+=8; }
+
+  // F14: Supertrend
+  if (st) { if (st.bullish) ls+=13; else ss+=13; }
+
+  // F15: BOS (1H) — Fixed, no false positives
+  if (bos) { if (bos.bullBOS) ls+=11; if (bos.bearBOS) ss+=11; if (bos.choch) { ls+=5; ss+=5; } }
+
+  // — N FACTORS (Multi-TF) —
+
+  // N1: Full MTF RSI alignment
+  if (mRSI) { if (mRSI.extremeBullish) ls+=7; else if (mRSI.bullishAlign) ls+=4; if (mRSI.extremeBearish) ss+=7; else if (mRSI.bearishAlign) ss+=4; if (mRSI.fullBullAlign) ls+=9; if (mRSI.fullBearAlign) ss+=9; }
+
+  // N2: 15m EMA
+  if (ema15m) { if (ema15m.stack?.includes('bull')) ls+=7; else if (ema15m.stack?.includes('bear')) ss+=7; }
+
+  // N3: 1D EMA
+  if (ema1d) { if (ema1d.stack?.includes('bull')) ls+=11; else if (ema1d.stack?.includes('bear')) ss+=11; }
+
+  // N4: 15m BOS
+  if (bos15m) { if (bos15m.bullBOS) ls+=6; if (bos15m.bearBOS) ss+=6; }
+
+  // N5: 4H BOS
+  if (bos4h) { if (bos4h.bullBOS) ls+=9; if (bos4h.bearBOS) ss+=9; if (bos4h.choch) { ls+=4; ss+=4; } }
+
+  // N6: BTC Context — INCREASED 5→15
+  if (btc && btc.bias !== 'neutral') { if (btc.bias==='bull') ls+=15; else ss+=15; }
+
+  // N7: MTF FVGs
+  if (mtfFVGs) { mtfFVGs.bullFVGs.forEach(f=>{const w=f.tf==='1D'?9:f.tf==='4H'?7:f.tf==='1H'?4:2;ls+=w;}); mtfFVGs.bearFVGs.forEach(f=>{const w=f.tf==='1D'?9:f.tf==='4H'?7:f.tf==='1H'?4:2;ss+=w;}); }
+
+  // N8: Order Blocks
+  if (mtfOBs) {
+    const aV = atr ? atr.atr : price*0.01;
+    const bullOBNear = mtfOBs.nearestBullOB && price>=mtfOBs.nearestBullOB.low-aV && price<=mtfOBs.nearestBullOB.high+aV;
+    const bearOBNear = mtfOBs.nearestBearOB && price>=mtfOBs.nearestBearOB.low-aV && price<=mtfOBs.nearestBearOB.high+aV;
+    if (bullOBNear) { const w=mtfOBs.nearestBullOB.tf==='4H'?13:mtfOBs.nearestBullOB.tf==='1D'?16:8; ls+=w; }
+    if (bearOBNear) { const w=mtfOBs.nearestBearOB.tf==='4H'?13:mtfOBs.nearestBearOB.tf==='1D'?16:8; ss+=w; }
+  }
+
+  // N9: S/R Zone Confluence
+  if (srZones) {
+    const nearSupport = srZones.below.find(z=>z.distPct>-1&&z.strength>=4);
+    const nearResist  = srZones.above.find(z=>z.distPct<1&&z.strength>=4);
+    if (nearSupport && nearSupport.tfCount>=2) ls+=9;
+    if (nearResist  && nearResist.tfCount>=2)  ss+=9;
+    if (srZones.atZone && srZones.atZone.type==='support')    ls+=6;
+    if (srZones.atZone && srZones.atZone.type==='resistance') ss+=6;
+  }
+
+  // N10: Fibonacci
+  if (fibonacci) {
+    if (fibonacci.atKeyFib) { if (fibonacci.trend==='uptrend') ls+=9; else ss+=9; }
+    else if (fibonacci.atFib) { if (fibonacci.trend==='uptrend') ls+=4; else ss+=4; }
+  }
+
+  // N11: Trend Line
+  if (trendLine) {
+    if (trendLine.trend==='up'  && trendLine.strength!=='flat') ls+=6;
+    else if (trendLine.trend==='down' && trendLine.strength!=='flat') ss+=6;
+    if (trendLine.deviation > 2.5 && trendLine.trend==='up')   ss+=5; // overextended above
+    if (trendLine.deviation < -2.5 && trendLine.trend==='down') ls+=5; // overextended below
+  }
+
+  // N12: Candle Patterns (NEW)
+  if (candlePatterns) {
+    ls += Math.min(candlePatterns.bullScore * 2, 10);
+    ss += Math.min(candlePatterns.bearScore * 2, 10);
+  }
+
+  // N13: Pivot Points proximity (NEW)
+  if (pivotPoints) {
+    const levels = [
+      { p: pivotPoints.S1, type: 'support' }, { p: pivotPoints.S2, type: 'support' }, { p: pivotPoints.S3, type: 'support' },
+      { p: pivotPoints.R1, type: 'resist'  }, { p: pivotPoints.R2, type: 'resist'  }, { p: pivotPoints.R3, type: 'resist'  },
+      { p: pivotPoints.PP, type: 'pp' }
+    ];
+    const aV = atr ? atr.atr : price * 0.01;
+    levels.forEach(lv => {
+      const dist = Math.abs(price - lv.p);
+      if (dist < aV * 1.5) {
+        if (lv.type === 'support') ls += 7;
+        else if (lv.type === 'resist') ss += 7;
+        else { ls += 3; ss += 3; } // at PP
+      }
+    });
+  }
+
+  // N14: Taker Buy/Sell Ratio (NEW)
+  if (takerRatio) {
+    if (takerRatio.buyDominant  && takerRatio.rising)  ls += 8;
+    else if (takerRatio.buyDominant)                   ls += 4;
+    if (takerRatio.sellDominant && !takerRatio.rising) ss += 8;
+    else if (takerRatio.sellDominant)                  ss += 4;
+  }
+
+  // N15: Long/Short Ratio (NEW) — contrarian
+  if (lsRatio) {
+    if (lsRatio.extremeLong)  { ss += 8; }  // 75%+ longs = crowded, short squeeze risk
+    else if (lsRatio.longBias) { ss += 4; }
+    if (lsRatio.extremeShort) { ls += 8; }  // 75%+ shorts = crowded, long squeeze risk
+    else if (lsRatio.shortBias) { ls += 4; }
+  }
+
+  // Session penalty — Asian session confidence reduction
+  if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
+
+  const MAX = 290;
+  const lc = Math.min(100, Math.round(ls / MAX * 100));
+  const sc = Math.min(100, Math.round(ss / MAX * 100));
+  let dir = lc >= sc ? 'LONG' : 'SHORT';
+  let conf = dir === 'LONG' ? lc : sc;
+  if (conf < 10) conf = Math.max(lc, sc, 10);
+
+  const ind = { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
+                divergence:div, vwap, supertrend:st, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
+                srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
+                candlePatterns, pivotPoints, takerRatio, lsRatio };
+
+  // Risk flags
+  const riskFlags = [];
+  const hasDivergence = div && (div.regularBull || div.regularBear || div.hiddenBull || div.hiddenBear);
+  if (adx && adx.adx < 18)                          riskFlags.push('⚠ ADX ' + adx.adx.toFixed(1) + ' — weak trend');
+  if (fr !== null && fr > 0.06 && dir==='LONG')      riskFlags.push('⚠ Funding +' + fr.toFixed(3) + '% — long squeeze risk');
+  if (fr !== null && fr < -0.06 && dir==='SHORT')    riskFlags.push('⚠ Funding ' + fr.toFixed(3) + '% — short squeeze risk');
+  if (t4 && dir==='LONG'  && t4.bias==='bear' && !hasDivergence) riskFlags.push('⚠ 4H trend bearish — counter-trend LONG');
+  if (t4 && dir==='SHORT' && t4.bias==='bull' && !hasDivergence) riskFlags.push('⚠ 4H trend bullish — counter-trend SHORT');
+  if (ema1d && dir==='LONG'  && ema1d.stack?.includes('bear')) riskFlags.push('⚠ Daily EMA bearish — counter-trend');
+  if (ema1d && dir==='SHORT' && ema1d.stack?.includes('bull')) riskFlags.push('⚠ Daily EMA bullish — counter-trend');
+  if (st && dir==='LONG'  && !st.bullish) riskFlags.push('⚠ Supertrend bearish — against direction');
+  if (st && dir==='SHORT' && st.bullish)  riskFlags.push('⚠ Supertrend bullish — against direction');
+  if (sess && sess.isAsian) riskFlags.push('⚠ Asian session — low liquidity, score penalised');
+  if (lsRatio && lsRatio.extremeLong  && dir==='LONG')  riskFlags.push('⚠ ' + lsRatio.longPct.toFixed(0) + '% traders long — crowded');
+  if (lsRatio && lsRatio.extremeShort && dir==='SHORT') riskFlags.push('⚠ ' + lsRatio.shortPct.toFixed(0) + '% traders short — crowded');
+  const isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 50);
+
+  // Entry type logic
+  const strongTrend = st && t4 && ema1d && ((dir==='LONG' && st.bullish && t4.bias==='bull' && ema1d.stack?.includes('bull')) || (dir==='SHORT' && !st.bullish && t4.bias==='bear' && ema1d.stack?.includes('bear')));
+  let entryType = isRisky ? 'RISK ENTRY' : 'LIMIT';
+  if (!isRisky && conf>=75 && vol.surge && ((dir==='LONG' && rsi<=40)||(dir==='SHORT' && rsi>=60))) entryType = 'MARKET';
+  if (!isRisky && conf>=82 && strongTrend) entryType = 'MARKET';
+
+  // === SL / TP / Entry Calculation ===
+  const aV = atr ? atr.atr : price * 0.015, aP = atr ? atr.pct : 1.5;
+  const slM = isRisky ? 3.0 : (aP > 3.5 ? 2.0 : aP > 2.0 ? 2.2 : 2.5);
+  const r10H = Math.max(...H.slice(-10)), r10L = Math.min(...L.slice(-10));
+  const r5H  = Math.max(...H.slice(-5)),  r5L  = Math.min(...L.slice(-5));
+  let ep, sl, tp1, tp2;
+
+  if (dir === 'LONG') {
+    // Entry: Fib snap → BB lower band → S/R support → 5-candle low
+    const fibEP = snapToFibEntry(price, fibonacci, 'LONG', aV);
+    const bbEP  = bb && bb.position <= 0.15 ? bb.lower : null;
+    const srEP  = srZones && srZones.below.length ? srZones.below[0].price : null;
+    if (entryType === 'MARKET' || isRisky) ep = price;
+    else ep = fibEP || bbEP || srEP || Math.max(r5L, price - aV * 0.3);
+
+    // SL: Fib swing-low → OB low → S/R zone below → Trendline → ATR fallback
+    const fibSL  = getFibSL(ep, fibonacci, 'LONG', aV);
+    const obSL   = mtfOBs?.nearestBullOB ? mtfOBs.nearestBullOB.low - aV * 0.3 : null;
+    const srSL   = srZones?.below?.find(z => z.price < ep - aV * 0.5)?.price;
+    const tlSL   = trendLine && trendLine.trend === 'up' ? trendLine.currentVal - aV * 0.5 : null;
+    const rawSL  = Math.min(r10L - aV * 0.2, ep - aV * slM);
+    // Choose deepest valid SL (must be below entry)
+    const slCandidates = [fibSL, obSL, srSL ? srSL - aV * 0.2 : null, tlSL, rawSL].filter(v => v !== null && v < ep);
+    sl = slCandidates.length ? Math.max(...slCandidates) : rawSL; // use the highest (tightest valid) SL
+
+    ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'LONG', srZones));
+
+    // Refine TP1 with nearest S/R resistance above entry
+    if (srZones && srZones.above.length) {
+      const nearR = srZones.above.find(z => z.price > ep + (tp1 - ep) * 0.3 && z.price < tp1 * 1.05 && z.strength >= 3);
+      if (nearR) tp1 = Math.min(tp1, nearR.price);
+      // TP2 with S/R
+      const farR = srZones.above.find(z => z.price > tp1 && z.strength >= 3);
+      if (farR) tp2 = Math.max(tp2, Math.min(farR.price, tp2 * 1.05));
+    }
+
+    // Pivot point TP refinement
+    if (pivotPoints) {
+      const pvAbove = [pivotPoints.R1, pivotPoints.R2, pivotPoints.R3].filter(p => p > ep);
+      if (pvAbove.length && pvAbove[0] < tp1 * 1.02) tp1 = pvAbove[0];
+      if (pvAbove.length > 1 && pvAbove[1] < tp2 * 1.02) tp2 = pvAbove[1];
+    }
+
+  } else {
+    const fibEP = snapToFibEntry(price, fibonacci, 'SHORT', aV);
+    const bbEP  = bb && bb.position >= 0.85 ? bb.upper : null;
+    const srEP  = srZones && srZones.above.length ? srZones.above[0].price : null;
+    if (entryType === 'MARKET' || isRisky) ep = price;
+    else ep = fibEP || bbEP || srEP || Math.min(r5H, price + aV * 0.3);
+
+    const fibSL  = getFibSL(ep, fibonacci, 'SHORT', aV);
+    const obSL   = mtfOBs?.nearestBearOB ? mtfOBs.nearestBearOB.high + aV * 0.3 : null;
+    const srSL   = srZones?.above?.find(z => z.price > ep + aV * 0.5)?.price;
+    const tlSL   = trendLine && trendLine.trend === 'down' ? trendLine.currentVal + aV * 0.5 : null;
+    const rawSL  = Math.max(r10H + aV * 0.2, ep + aV * slM);
+    const slCandidates = [fibSL, obSL, srSL ? srSL + aV * 0.2 : null, tlSL, rawSL].filter(v => v !== null && v > ep);
+    sl = slCandidates.length ? Math.min(...slCandidates) : rawSL;
+
+    ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'SHORT', srZones));
+
+    if (srZones && srZones.below.length) {
+      const nearS = srZones.below.find(z => z.price < ep - (ep - tp1) * 0.3 && z.price > tp1 * 0.95 && z.strength >= 3);
+      if (nearS) tp1 = Math.max(tp1, nearS.price);
+      const farS = srZones.below.find(z => z.price < tp1 && z.strength >= 3);
+      if (farS) tp2 = Math.min(tp2, Math.max(farS.price, tp2 * 0.95));
+    }
+
+    if (pivotPoints) {
+      const pvBelow = [pivotPoints.S1, pivotPoints.S2, pivotPoints.S3].filter(p => p < ep).sort((a,b) => b-a);
+      if (pvBelow.length && pvBelow[0] > tp1 * 0.98) tp1 = pvBelow[0];
+      if (pvBelow.length > 1 && pvBelow[1] > tp2 * 0.98) tp2 = pvBelow[1];
     }
   }
 
-  // N11 Trend line
-  if(trendLine){
-    if(trendLine.trend==='up'&&trendLine.strength!=='flat')ls+=5;
-    else if(trendLine.trend==='down'&&trendLine.strength!=='flat')ss+=5;
-    if(trendLine.deviation>2&&trendLine.trend==='up')ss+=4; // too far above trendline = overextended
-    if(trendLine.deviation<-2&&trendLine.trend==='down')ls+=4;
-  }
+  const risk = dir === 'LONG' ? ep - sl : sl - ep;
+  const rrr1 = risk > 0 ? (Math.abs(tp1 - ep) / risk).toFixed(2) : '—';
+  const rrr2 = risk > 0 ? (Math.abs(tp2 - ep) / risk).toFixed(2) : '—';
 
-  const MAX=250;
-  const lc=Math.min(100,Math.round(ls/MAX*100));
-  const sc=Math.min(100,Math.round(ss/MAX*100));
-  let dir=lc>=sc?'LONG':'SHORT';
-  let conf=dir==='LONG'?lc:sc;
-  if(conf<10)conf=Math.max(lc,sc,10);
+  // DCA Point
+  const dcaPoint = calcDCAPoint(ep, sl, dir, fibonacci, srZones, mtfOBs, atr);
 
-  const ind={emaStack:es,macd,bb,stochRsi:stoch,adx,obv,atr,trend4h:t4,fundingRate:fr,oiChange:oi,
-             divergence:div,vwap,supertrend:st,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc,
-             srZones,fibonacci,trendLine,mtfOBs,mtfFVGs,ema15m,ema1d,rsi15m,rsi1d,bos15m,bos4h};
-
-  // Risk flags
-  const riskFlags=[];
-  const hasDivergence=div&&(div.regularBull||div.regularBear||div.hiddenBull||div.hiddenBear);
-  if(adx&&adx.adx<18)riskFlags.push(`⚠ ADX ${adx.adx.toFixed(1)} — weak trend`);
-  if(fr!==null&&fr>0.25&&dir==='LONG')riskFlags.push(`⚠ Funding +${fr.toFixed(3)}% — long squeeze risk`);
-  if(fr!==null&&fr<-0.25&&dir==='SHORT')riskFlags.push(`⚠ Funding ${fr.toFixed(3)}% — short squeeze risk`);
-  if(t4&&dir==='LONG'&&t4.bias==='bear'&&!hasDivergence)riskFlags.push('⚠ 4H trend bearish — counter-trend LONG');
-  if(t4&&dir==='SHORT'&&t4.bias==='bull'&&!hasDivergence)riskFlags.push('⚠ 4H trend bullish — counter-trend SHORT');
-  if(ema1d&&dir==='LONG'&&ema1d.stack?.includes('bear'))riskFlags.push('⚠ Daily EMA bearish — counter-trend LONG');
-  if(ema1d&&dir==='SHORT'&&ema1d.stack?.includes('bull'))riskFlags.push('⚠ Daily EMA bullish — counter-trend SHORT');
-  if(st&&dir==='LONG'&&!st.bullish)riskFlags.push('⚠ Supertrend bearish — against direction');
-  if(st&&dir==='SHORT'&&st.bullish)riskFlags.push('⚠ Supertrend bullish — against direction');
-  if(sess&&sess.isAsian)riskFlags.push('⚠ Asian session — low liquidity');
-  const isRisky=riskFlags.length>=2||(riskFlags.length>=1&&conf<50);
-
-  // Entry type
-  const strongTrend=st&&t4&&ema1d&&((dir==='LONG'&&st.bullish&&t4.bias==='bull'&&ema1d.stack?.includes('bull'))||(dir==='SHORT'&&!st.bullish&&t4.bias==='bear'&&ema1d.stack?.includes('bear')));
-  let entryType=isRisky?'RISK ENTRY':'LIMIT';
-  if(!isRisky&&conf>=75&&vol.surge&&((dir==='LONG'&&rsi<=40)||(dir==='SHORT'&&rsi>=60)))entryType='MARKET';
-  if(!isRisky&&conf>=82&&strongTrend)entryType='MARKET';
-
-  // SL / TP with OB and Fib refinement
-  const aV=atr?atr.atr:price*0.015,aP=atr?atr.pct:1.5;
-  const slM=isRisky?3.0:(aP>3.5?2.0:aP>2.0?2.2:2.5);
-  const r10H=Math.max(...H.slice(-10)),r10L=Math.min(...L.slice(-10)),r5H=Math.max(...H.slice(-5)),r5L=Math.min(...L.slice(-5));
-  let ep,sl,tp1,tp2;
-
-  if(dir==='LONG'){
-    // ── Entry: snap to nearest key Fibonacci support level (38.2/50/61.8%)
-    // Falls back to 5-candle low if Fibonacci not aligned or null
-    const fibEP=snapToFibEntry(price,fibonacci,'LONG',aV);
-    ep=(entryType==='MARKET'||isRisky)?price:(fibEP||Math.max(r5L,price-aV*0.3));
-
-    // ── Stop Loss: below Fibonacci swing-low (trade invalidation) → OB low → ATR fallback
-    const fibSL=getFibSL(ep,fibonacci,'LONG',aV);
-    const obSL=mtfOBs?.nearestBullOB?mtfOBs.nearestBullOB.low-aV*0.3:null;
-    const rawSL=Math.min(r10L-aV*0.2,ep-aV*slM);
-    // fibSL is the Fibonacci-derived stop; merge: use the deeper of fib vs ATR
-    sl=fibSL?Math.max(fibSL,rawSL):(obSL?Math.min(obSL,rawSL):rawSL);
-
-    // ── TP1 & TP2: Fibonacci 100% level + 161.8% extension
-    ({tp1,tp2}=getFibTargets(ep,sl,fibonacci,'LONG',srZones));
-
-  }else{
-    // ── Entry: snap to nearest key Fibonacci resistance level (38.2/50/61.8%)
-    const fibEP=snapToFibEntry(price,fibonacci,'SHORT',aV);
-    ep=(entryType==='MARKET'||isRisky)?price:(fibEP||Math.min(r5H,price+aV*0.3));
-
-    // ── Stop Loss: above Fibonacci swing-high (trade invalidation) → OB high → ATR fallback
-    const fibSL=getFibSL(ep,fibonacci,'SHORT',aV);
-    const obSL=mtfOBs?.nearestBearOB?mtfOBs.nearestBearOB.high+aV*0.3:null;
-    const rawSL=Math.max(r10H+aV*0.2,ep+aV*slM);
-    sl=fibSL?Math.min(fibSL,rawSL):(obSL?Math.max(obSL,rawSL):rawSL);
-
-    // ── TP1 & TP2: Fibonacci 100% level + 161.8% extension
-    ({tp1,tp2}=getFibTargets(ep,sl,fibonacci,'SHORT',srZones));
-  }
-
-  const risk=dir==='LONG'?ep-sl:sl-ep;
-  const rrr1=risk>0?(Math.abs(tp1-ep)/risk).toFixed(2):'—';
-  const rrr2=risk>0?(Math.abs(tp2-ep)/risk).toFixed(2):'—';
-  return{direction:dir,entryType,confidence:conf,hardBlock:false,hardBlockReason:'',riskFlags,isRisky,entryPrice:ep,slPrice:sl,tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,indicators:ind};
+  return { direction:dir, entryType, confidence:conf, hardBlock:false, hardBlockReason:'', riskFlags, isRisky,
+           entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, indicators:ind };
 }
 
-/* ── Reasoning ── */
-function buildReasons(rsi,vol,result){
-  const{direction:dir,entryType,confidence:conf,indicators:ind,rrr1,rrr2}=result;
-  const{emaStack:es,macd,bb,stochRsi:stoch,adx,obv,atr,trend4h:t4,fundingRate:fr,oiChange:oi,
-        divergence:div,vwap,supertrend:st,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc,
-        srZones,fibonacci,trendLine,mtfOBs,mtfFVGs,ema15m,ema1d,bos15m,bos4h}=ind;
-  const reasons=[];const r=rsi.toFixed(1);
-  if(dir==='LONG'){if(rsi<=25)reasons.push({icon:'🟢',text:`RSI <strong>${r}</strong> — extreme oversold.`});else if(rsi<=35)reasons.push({icon:'🟢',text:`RSI <strong>${r}</strong> — oversold zone.`});else reasons.push({icon:'🟡',text:`RSI <strong>${r}</strong> — mild bearish.`});}
-  else{if(rsi>=75)reasons.push({icon:'🔴',text:`RSI <strong>${r}</strong> — extreme overbought.`});else if(rsi>=65)reasons.push({icon:'🔴',text:`RSI <strong>${r}</strong> — overbought zone.`});else reasons.push({icon:'🟠',text:`RSI <strong>${r}</strong> — mild bullish.`});}
-  // MTF alignment
-  if(mRSI?.fullBullAlign)reasons.push({icon:'🔥',text:`<strong>Full MTF RSI alignment</strong> — 15m: ${mRSI.rsi15m?.toFixed(0)||'—'} · 1H: ${mRSI.rsi1H?.toFixed(0)||'—'} · 4H: ${mRSI.rsi4H?.toFixed(0)||'—'} · 1D: ${mRSI.rsi1D?.toFixed(0)||'—'} — ALL oversold.`});
-  else if(mRSI?.fullBearAlign)reasons.push({icon:'🔥',text:`<strong>Full MTF RSI alignment</strong> — ALL overbought across all timeframes.`});
-  else if(mRSI?.bullishAlign||mRSI?.bearishAlign)reasons.push({icon:'📊',text:`MTF RSI — 1H: ${mRSI.rsi1H?.toFixed(1)} · 4H: ${mRSI.rsi4H?.toFixed(1)} — <strong>${dir==='LONG'?'both oversold':'both overbought'}</strong>.`});
-  // Daily EMA
-  if(ema1d)reasons.push({icon:'📅',text:`Daily EMA Stack <strong>${{perfect_bull:'✓✓ Perfect Bullish',bull:'✓ Bullish',perfect_bear:'✗✗ Perfect Bearish',bear:'✗ Bearish',neutral:'Neutral'}[ema1d.stack||'neutral']}</strong> — highest timeframe trend.`});
-  // Supertrend
-  if(st){const al=(dir==='LONG'&&st.bullish)||(dir==='SHORT'&&!st.bullish);if(al)reasons.push({icon:'📈',text:`Supertrend <strong>${st.label}</strong> — 1H trend filter aligned.`});else reasons.push({icon:'⚠️',text:`Supertrend ${st.label} — counter-trend.`});}
-  // 4H
-  if(t4){if((t4.bias==='bull'&&dir==='LONG')||(t4.bias==='bear'&&dir==='SHORT'))reasons.push({icon:'📊',text:`4H Trend <strong>${t4.label}</strong> (score ${t4.score}) — HTF aligned.`});else reasons.push({icon:'⚠️',text:`4H Trend <strong>${t4.label}</strong> — opposes direction.`});}
-  // Order Blocks
-  if(mtfOBs?.nearestBullOB&&dir==='LONG')reasons.push({icon:'🟦',text:`<strong>Bullish Order Block</strong> [${mtfOBs.nearestBullOB.tf}] — ${fmtPrice(mtfOBs.nearestBullOB.low)} → ${fmtPrice(mtfOBs.nearestBullOB.high)}. Price in institutional demand zone.`});
-  if(mtfOBs?.nearestBearOB&&dir==='SHORT')reasons.push({icon:'🟥',text:`<strong>Bearish Order Block</strong> [${mtfOBs.nearestBearOB.tf}] — ${fmtPrice(mtfOBs.nearestBearOB.low)} → ${fmtPrice(mtfOBs.nearestBearOB.high)}. Price in institutional supply zone.`});
-  // Fibonacci
-  if(fibonacci?.atKeyFib)reasons.push({icon:'🌀',text:`Price at <strong>key Fibonacci ${fibonacci.nearKey?.label}</strong> (${fmtPrice(fibonacci.nearKey?.price)}) in ${fibonacci.trend}. High-probability reaction zone.`});
-  else if(fibonacci?.atFib)reasons.push({icon:'🌀',text:`Price near Fibonacci <strong>${fibonacci.nearest?.label}</strong> (${fmtPrice(fibonacci.nearest?.price)}). Potential support/resistance.`});
-  // S/R Zones
-  if(srZones?.atZone)reasons.push({icon:'🏔️',text:`Price at <strong>${srZones.atZone.strength}-strength ${srZones.atZone.type} zone</strong> — confirmed on ${srZones.atZone.tfCount} timeframes.`});
-  if(srZones?.below?.length&&dir==='LONG'){const z=srZones.below[0];reasons.push({icon:'🛡️',text:`Nearest support zone: <strong>${fmtPrice(z.price)}</strong> (${z.tfs.join('+')} · strength ${z.strength})`});}
-  if(srZones?.above?.length&&dir==='SHORT'){const z=srZones.above[0];reasons.push({icon:'🎯',text:`Nearest resistance zone: <strong>${fmtPrice(z.price)}</strong> (${z.tfs.join('+')} · strength ${z.strength})`});}
-  // Trend line
-  if(trendLine)reasons.push({icon:'📐',text:`1H Trend Line: <strong>${trendLine.label}</strong> (slope ${trendLine.angle}°). Price ${trendLine.deviation>0?'+':''}${trendLine.deviation.toFixed(2)}% from midline.`});
-  // BOS
-  if(bos4h){if(bos4h.bullBOS&&dir==='LONG')reasons.push({icon:'🏗️',text:`<strong>4H Bullish BOS</strong> — structure break confirmed on 4H.`});if(bos4h.bearBOS&&dir==='SHORT')reasons.push({icon:'🏗️',text:`<strong>4H Bearish BOS</strong> — structure break on 4H.`});}
-  if(bos){if(bos.bullBOS&&dir==='LONG')reasons.push({icon:'🏗️',text:`<strong>1H Bullish BOS</strong> — price broke above swing high.`});if(bos.bearBOS&&dir==='SHORT')reasons.push({icon:'🏗️',text:`<strong>1H Bearish BOS</strong> — price broke below swing low.`});if(bos.choch)reasons.push({icon:'🔄',text:`<strong>CHoCH detected</strong> — Change of Character, potential reversal.`});}
-  if(bos15m){if(bos15m.bullBOS&&dir==='LONG')reasons.push({icon:'⚡',text:`<strong>15m BOS</strong> — micro structure bullish.`});if(bos15m.bearBOS&&dir==='SHORT')reasons.push({icon:'⚡',text:`<strong>15m BOS</strong> — micro structure bearish.`});}
-  // Divergence
-  if(div){if(div.regularBull&&dir==='LONG')reasons.push({icon:'🎯',text:`<strong>Regular Bullish Divergence</strong> — price LL + RSI HL.`});if(div.regularBear&&dir==='SHORT')reasons.push({icon:'🎯',text:`<strong>Regular Bearish Divergence</strong> — price HH + RSI LH.`});if(div.hiddenBull&&dir==='LONG')reasons.push({icon:'🔮',text:`<strong>Hidden Bullish Divergence</strong> — trend continuation.`});if(div.hiddenBear&&dir==='SHORT')reasons.push({icon:'🔮',text:`<strong>Hidden Bearish Divergence</strong> — trend continuation.`});}
-  // MTF FVGs
-  if(mtfFVGs?.bullFVGs?.length&&dir==='LONG')reasons.push({icon:'🫙',text:`<strong>${mtfFVGs.bullFVGs.length} Bullish FVG(s)</strong> — ${mtfFVGs.bullFVGs.map(f=>f.tf).join(', ')} imbalance zones present.`});
-  if(mtfFVGs?.bearFVGs?.length&&dir==='SHORT')reasons.push({icon:'🫙',text:`<strong>${mtfFVGs.bearFVGs.length} Bearish FVG(s)</strong> — ${mtfFVGs.bearFVGs.map(f=>f.tf).join(', ')} imbalance zones.`});
-  // VWAP, EMA, BB etc.
-  if(vwap){const al=(dir==='LONG'&&vwap.above)||(dir==='SHORT'&&!vwap.above);reasons.push({icon:'💹',text:`VWAP: ${vwap.label} — ${al?'aligned':'against direction'}.`});}
-  if(es){const lbl={perfect_bull:'✓✓ Perfect Bull',bull:'✓ Bull',perfect_bear:'✗✗ Perfect Bear',bear:'✗ Bear',neutral:'Neutral'}[es.stack||'neutral'];reasons.push({icon:'📊',text:`1H EMA Stack <strong>${lbl}</strong>.`});}
-  if(macd)reasons.push({icon:'📉',text:`MACD <strong>${macd.trend}</strong> ${macd.strengthening?'& strengthening':''}. Histogram ${macd.histogram>0?'+':''}${macd.histogram.toFixed(6)}.`});
-  if(bb){if(dir==='LONG'&&bb.position<=0.2)reasons.push({icon:'🎯',text:`Price near <strong>lower Bollinger Band</strong>.`});if(dir==='SHORT'&&bb.position>=0.8)reasons.push({icon:'🎯',text:`Price near <strong>upper Bollinger Band</strong>.`});if(bb.squeeze)reasons.push({icon:'💥',text:`<strong>Bollinger Squeeze</strong> — breakout imminent.`});}
-  if(stoch){if(stoch.signal==='oversold'&&dir==='LONG')reasons.push({icon:'⚡',text:`Stoch RSI oversold K: ${stoch.k.toFixed(1)}.`});if(stoch.signal==='overbought'&&dir==='SHORT')reasons.push({icon:'⚡',text:`Stoch RSI overbought K: ${stoch.k.toFixed(1)}.`});}
-  if(adx)reasons.push({icon:'💪',text:`ADX <strong>${adx.adx.toFixed(1)}</strong> — ${adx.strength} trend. +DI ${adx.plusDI.toFixed(1)} / -DI ${adx.minusDI.toFixed(1)}.`});
-  if(obv){if(obv.trend==='accumulation'&&dir==='LONG')reasons.push({icon:'🐂',text:`OBV accumulation — smart money buying.`});else if(obv.trend==='distribution'&&dir==='SHORT')reasons.push({icon:'🐻',text:`OBV distribution — smart money selling.`});}
-  if(fr!==null){const fp=fr.toFixed(4)+'%';if(fr<-0.02&&dir==='LONG')reasons.push({icon:'💸',text:`Funding <strong>${fp}</strong> — shorts paying longs.`});else if(fr>0.05&&dir==='SHORT')reasons.push({icon:'💸',text:`Funding <strong>${fp}</strong> — elevated, favorable for SHORT.`});else if(Math.abs(fr)<=0.01)reasons.push({icon:'✅',text:`Funding <strong>${fp}</strong> — neutral.`});}
-  if(btc){if((btc.bias==='bull'&&dir==='LONG')||(btc.bias==='bear'&&dir==='SHORT'))reasons.push({icon:'₿',text:`BTC 4H <strong>${btc.label}</strong> — market leader aligned.`});else reasons.push({icon:'₿',text:`BTC 4H <strong>${btc.label}</strong> — opposes direction.`});}
-  if(sess){if(sess.quality==='high')reasons.push({icon:'🕐',text:`<strong>${sess.session}</strong> — peak liquidity.`});else if(sess.quality==='medium')reasons.push({icon:'🕐',text:`<strong>${sess.session}</strong> — good liquidity.`});}
-  if(vol.surge)reasons.push({icon:'📈',text:`Volume <strong>${vol.label}</strong> (${vol.ratio.toFixed(2)}× avg) — elevated.`});
-  if(atr)reasons.push({icon:'📏',text:`ATR ${fmtPrice(atr.atr)} (${atr.pct.toFixed(2)}%) — SL at ${result.isRisky?'3×':'2.0–2.5×'} ATR.`});
-  if(entryType==='MARKET')reasons.push({icon:'⚡',text:`<strong>Market entry</strong> — strong multi-TF confluence.`});
-  else if(entryType==='RISK ENTRY')reasons.push({icon:'⚠️',text:`<strong>Risk Entry</strong> — reduce position size, strict SL.`});
-  else reasons.push({icon:'⏳',text:`<strong>Limit entry</strong> — wait for pullback to entry zone.`});
-  reasons.push({icon:'🎯',text:`TP1 <strong>${rrr1}:1</strong> (1.2× risk) · TP2 <strong>${rrr2}:1</strong> (S/R or Fib ext). Confidence: <strong>${conf}%</strong>.`});
+/* ── Reasoning Builder ── */
+function buildReasons(rsi, vol, result) {
+  const { direction:dir, entryType, confidence:conf, indicators:ind, rrr1, rrr2 } = result;
+  const { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
+          divergence:div, vwap, supertrend:st, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
+          srZones, fibonacci, trendLine, mtfOBs, candlePatterns, pivotPoints, takerRatio, lsRatio } = ind;
+  const reasons = [];
+  if (rsi !== null) reasons.push({ icon: dir==='LONG'?'📉':'📈', text: `RSI <strong>${rsi.toFixed(1)}</strong> — ${rsi<=30?'Extreme Oversold':rsi<=40?'Oversold zone':rsi>=70?'Extreme Overbought':rsi>=60?'Overbought zone':'Neutral'}.` });
+  if (es)  reasons.push({ icon: '📊', text: `EMA Stack <strong>${es.stack.replace('perfect_','').replace('_',' ')}</strong> (1H).` });
+  if (t4)  reasons.push({ icon: '📊', text: `4H Trend <strong>${t4.label}</strong> (score ${t4.score}) — ${(t4.bias==='bull'&&dir==='LONG')||(t4.bias==='bear'&&dir==='SHORT')?'HTF aligned ✓':'⚠ opposes direction'}.` });
+  if (st)  reasons.push({ icon: st.bullish?'🟢':'🔴', text: `Supertrend <strong>${st.label}</strong> (${fmtPrice(st.value)}) · dist ${st.distPct.toFixed(2)}%.` });
+  if (vwap) reasons.push({ icon: '🔷', text: `Price <strong>${vwap.above?'above':'below'}</strong> Session VWAP by ${Math.abs(vwap.pct).toFixed(2)}% — ${vwap.strength}.` });
+  if (macd) reasons.push({ icon: '📈', text: `MACD <strong>${macd.trend}</strong>${macd.strengthening?' (histogram growing)':''}.` });
+  if (bos) {
+    if (bos.bullBOS) reasons.push({ icon: '🏗️', text: `<strong>Bullish BOS</strong> confirmed on 1H — structure shifted up.` });
+    if (bos.bearBOS) reasons.push({ icon: '🏗️', text: `<strong>Bearish BOS</strong> confirmed on 1H — structure shifted down.` });
+    if (bos.choch)   reasons.push({ icon: '⚡', text: `<strong>CHoCH</strong> detected — market structure reversing.` });
+  }
+  if (fibonacci?.atKeyFib) reasons.push({ icon: '🌀', text: `Price at key Fibonacci <strong>${fibonacci.nearKey?.label}</strong> level in ${fibonacci.trend}.` });
+  if (srZones?.atZone) reasons.push({ icon: '🏔️', text: `Price at strong MTF <strong>${srZones.atZone.type}</strong> zone (strength ${srZones.atZone.strength}).` });
+  if (mtfOBs?.nearestBullOB && dir==='LONG') reasons.push({ icon: '🟦', text: `Near Bullish Order Block [<strong>${mtfOBs.nearestBullOB.tf}</strong>] demand zone.` });
+  if (mtfOBs?.nearestBearOB && dir==='SHORT') reasons.push({ icon: '🟥', text: `Near Bearish Order Block [<strong>${mtfOBs.nearestBearOB.tf}</strong>] supply zone.` });
+  if (div?.regularBull) reasons.push({ icon: '📐', text: `<strong>Regular Bullish Divergence</strong> — price lower lows, RSI higher lows.` });
+  if (div?.regularBear) reasons.push({ icon: '📐', text: `<strong>Regular Bearish Divergence</strong> — price higher highs, RSI lower highs.` });
+  if (div?.hiddenBull)  reasons.push({ icon: '📐', text: `<strong>Hidden Bullish Divergence</strong> — trend continuation signal.` });
+  if (div?.hiddenBear)  reasons.push({ icon: '📐', text: `<strong>Hidden Bearish Divergence</strong> — trend continuation signal.` });
+  if (div?.obvBull)     reasons.push({ icon: '📊', text: `<strong>OBV Bullish Divergence</strong> — volume accumulation despite lower price.` });
+  if (div?.obvBear)     reasons.push({ icon: '📊', text: `<strong>OBV Bearish Divergence</strong> — volume distribution despite higher price.` });
+  if (mRSI?.fullBullAlign) reasons.push({ icon: '🔥', text: `Full MTF RSI alignment — all timeframes <strong>oversold</strong>.` });
+  if (mRSI?.fullBearAlign) reasons.push({ icon: '🔥', text: `Full MTF RSI alignment — all timeframes <strong>overbought</strong>.` });
+  if (candlePatterns?.latest) reasons.push({ icon: '🕯️', text: `Candle pattern: <strong>${candlePatterns.latest.name}</strong> (${candlePatterns.latest.type}).` });
+  if (fr !== null) reasons.push({ icon: '💰', text: `Funding rate <strong>${fr.toFixed(4)}%</strong> — ${Math.abs(fr)<=0.005?'neutral (ideal)':fr<0?'negative (long bias)':'positive (short bias)'}.` });
+  if (oi)          reasons.push({ icon: '📦', text: `Open Interest <strong>${oi.trend}</strong> (${fmtPct(oi.pct)}).` });
+  if (takerRatio)  reasons.push({ icon: '⚖️', text: `Taker ratio <strong>${takerRatio.ratio.toFixed(2)}</strong> — ${takerRatio.label}.` });
+  if (lsRatio)     reasons.push({ icon: '👥', text: `${lsRatio.label} — ${lsRatio.extremeLong?'⚠ crowded longs':lsRatio.extremeShort?'⚠ crowded shorts':'balanced'}.` });
+  if (pivotPoints) {
+    const aV = atr?.atr || 0;
+    const closePivot = [['PP',pivotPoints.PP],['R1',pivotPoints.R1],['R2',pivotPoints.R2],['S1',pivotPoints.S1],['S2',pivotPoints.S2]].find(([n,p])=>aV>0&&Math.abs(p-ind.atr?.atr?.(0)||result.entryPrice)<aV*2);
+    if (closePivot) reasons.push({ icon: '📌', text: `Near daily pivot <strong>${closePivot[0]}</strong> at ${fmtPrice(closePivot[1])}.` });
+  }
+  if (btc)  reasons.push({ icon: '₿', text: `BTC 4H context <strong>${btc.label}</strong> — ${(btc.bias==='bull'&&dir==='LONG')||(btc.bias==='bear'&&dir==='SHORT')?'macro aligned ✓':'⚠ macro opposing'}.` });
+  if (sess) reasons.push({ icon: '🕐', text: `Session: <strong>${sess.session}</strong> (${sess.quality} quality${sess.isAsian?' · score penalised':''}).` });
+  if (entryType==='MARKET') reasons.push({ icon: '⚡', text: `<strong>Market entry</strong> — strong multi-TF confluence, immediate fill.` });
+  else if (entryType==='RISK ENTRY') reasons.push({ icon: '⚠️', text: `<strong>Risk Entry</strong> — opposing factors detected. Reduce position size, use strict SL.` });
+  else reasons.push({ icon: '⏳', text: `<strong>Limit entry</strong> — wait for price to reach entry zone before fill.` });
+  reasons.push({ icon: '📏', text: `Risk:Reward — TP1: <strong>${rrr1}R</strong> · TP2: <strong>${rrr2}R</strong>.` });
   return reasons;
 }
 
-/* ════════════════════════════════════════════════════════
+/* ═════════════════════════════
    SCANNER
-   ════════════════════════════════════════════════════════ */
-let ptData={},ptLev=5;
-function updateClock(){const n=new Date(),p=x=>String(x).padStart(2,'0'),el=document.getElementById('clockDisplay');if(el)el.textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())} • ${n.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}`;}
-setInterval(updateClock,1000);updateClock();
+   ═════════════════════════════ */
+let ptData = {}, ptLev = 5;
+function updateClock(){const n=new Date(),p=x=>String(x).padStart(2,'0'),el=document.getElementById('clockDisplay');if(el)el.textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())} • ${n.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}`;} setInterval(updateClock,1000);updateClock();
 function openMobSidebar(){document.getElementById('dashSidebar').classList.add('open');document.getElementById('mobOverlay').classList.add('show');}
 function closeMobSidebar(){document.getElementById('dashSidebar').classList.remove('open');document.getElementById('mobOverlay').classList.remove('show');}
 
-async function runMarketScan(){
-  const btn=document.getElementById('btnScan'),body=document.getElementById('scanTableBody'),meta=document.getElementById('scanMeta');
-  btn.disabled=true;btn.classList.add('scanning');document.getElementById('btnScanIcon').textContent='⟳';
-  body.innerHTML='<tr class="loading-row"><td colspan="9" style="text-align:center;padding:26px;color:var(--muted)">⟳ Scanning…</td></tr>';
-  try{
-    const[ticker]=await Promise.all([fetch(`${BINANCE_FAPI}/fapi/v1/ticker/24hr`).then(r=>r.json()),fetchPremiumIndex()]);
-    let coins=ticker.filter(t=>t.symbol.endsWith('USDT')&&parseFloat(t.quoteVolume)>5e6).sort((a,b)=>parseFloat(b.quoteVolume)-parseFloat(a.quoteVolume)).slice(0,SCAN_LIMIT);
-    coins.forEach(c=>{c._score=calcScannerScore(c);});coins.sort((a,b)=>b._score-a._score);
-    const trend4hMap={};
-    await Promise.allSettled(coins.slice(0,20).map(async c=>{try{const kl=await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${c.symbol}&interval=4h&limit=60`).then(r=>r.json());trend4hMap[c.symbol]=calc4HTrend(kl);}catch(_){trend4hMap[c.symbol]={bias:'neutral',label:'—'};}}));
-    coins.forEach(c=>{const t=trend4hMap[c.symbol];if(!t)return;const ch=parseFloat(c.priceChangePercent);if(t.bias==='bull'&&ch>0)c._score=Math.min(100,c._score+8);else if(t.bias==='bear'&&ch<0)c._score=Math.min(100,c._score+8);else if(t.bias==='neutral')c._score=Math.max(0,c._score-3);});
-    coins.sort((a,b)=>b._score-a._score);
-    meta.innerHTML=`Ranked <span class="coin-count">${coins.length}</span> coins · ${new Date().toLocaleTimeString()}`;
-    body.innerHTML='';
-    coins.forEach((coin,i)=>{const chg=parseFloat(coin.priceChangePercent),fund=premiumIndex[coin.symbol],t4h=trend4hMap[coin.symbol]||null,sg=scoreGrade(coin._score),t4hHtml=t4h?`<span class="trend4h ${t4h.bias}">${t4h.label}</span>`:'<span class="trend4h neutral">—</span>';const tr=document.createElement('tr');tr.innerHTML=`<td class="rank-cell">${i+1}</td><td class="sym-cell">${coin.symbol.replace('USDT','')}<span style="color:var(--muted);font-size:.7rem">/U</span></td><td><span class="score-badge ${sg.cls}">${sg.label} ${coin._score}</span></td><td>${t4hHtml}</td><td>${fmtFunding(fund??null)}</td><td class="price-cell hide-sm">${fmtPrice(coin.lastPrice)}</td><td class="chg-cell ${chg>=0?'up':'dn'} hide-sm">${chg>=0?'+':''}${chg.toFixed(2)}%</td><td class="vol-cell hide-sm">${fmtVol(coin.quoteVolume)}</td><td><button class="btn-row-deep" onclick="runDeepScan('${coin.symbol}')">🔬</button></td>`;body.appendChild(tr);});
-  }catch(err){body.innerHTML=`<tr class="loading-row"><td colspan="9" style="text-align:center;padding:26px;color:var(--red)">⚠ Failed: ${err.message}</td></tr>`;}
-  btn.disabled=false;btn.classList.remove('scanning');document.getElementById('btnScanIcon').textContent='📡';
-}
-async function runManualDeepScan(){let s=document.getElementById('manualCoin').value.trim().toUpperCase();if(!s)return;if(!s.endsWith('USDT'))s+='USDT';await runDeepScan(s);}
+async function runMarketScan() {
+  const btn = document.getElementById('btnScan'), body = document.getElementById('scanTableBody'), meta = document.getElementById('scanMeta');
+  btn.disabled = true; btn.classList.add('scanning'); document.getElementById('btnScanIcon').textContent = '⟳';
+  body.innerHTML = '<tr class="loading-row"><td colspan="9" style="text-align:center;padding:26px;color:var(--muted)">⟳ Scanning market…</td></tr>';
+  try {
+    const [ticker] = await Promise.all([fetch(`${BINANCE_FAPI}/fapi/v1/ticker/24hr`).then(r=>r.json()), fetchPremiumIndex()]);
+    let coins = ticker.filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 5e6).sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, SCAN_LIMIT);
 
-/* ════════════════════════════════════════════════════════
-   DEEP SCAN v4 — Fetches ALL 4 timeframes
-   ════════════════════════════════════════════════════════ */
-async function runDeepScan(symbol){
-  const container=document.getElementById('deepResult');
-  container.style.display='block';
-  container.innerHTML=`<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">🔬</div><div class="empty-text">Deep scanning ${symbol}…</div><div class="empty-sub">15m · 1H · 4H · 1D · BTC · OBs · Fibonacci · S/R · Trend Lines</div></div></div></div>`;
-  container.scrollIntoView({behavior:'smooth',block:'start'});
-  document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b=>b.disabled=true);
-  try{
-    // Fetch all 4 timeframes + BTC in parallel
-    const[kl15R,kl1HR,kl4HR,kl1DR,tkR,prR]=await Promise.all([
+    // Fetch 4H trend for top 20 (needed for score)
+    const trend4hMap = {};
+    await Promise.allSettled(coins.slice(0, 20).map(async c => {
+      try { const kl = await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${c.symbol}&interval=4h&limit=60`).then(r=>r.json()); trend4hMap[c.symbol] = calc4HTrend(kl); }
+      catch (_) { trend4hMap[c.symbol] = { bias: 'neutral', label: '—' }; }
+    }));
+
+    // Score all coins
+    coins.forEach(c => { c._score = calcScannerScore(c, trend4hMap[c.symbol] || null); });
+    coins.sort((a,b) => b._score - a._score);
+
+    meta.innerHTML = `Ranked <span class="coin-count">${coins.length}</span> coins · ${new Date().toLocaleTimeString()}`;
+    body.innerHTML = '';
+    coins.forEach((coin, i) => {
+      const chg  = parseFloat(coin.priceChangePercent);
+      const fund = premiumIndex[coin.symbol];
+      const t4h  = trend4hMap[coin.symbol] || null;
+      const sg   = scoreGrade(coin._score);
+      const t4hHtml = t4h ? `<span class="trend4h ${t4h.bias}">${t4h.label}</span>` : '<span class="trend4h neutral">—</span>';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="rank-cell">${i+1}</td>
+        <td class="sym-cell">${coin.symbol.replace('USDT','')}<span style="color:var(--muted);font-size:.7rem">/U</span></td>
+        <td><span class="score-badge ${sg.cls}">${sg.label} ${coin._score}</span></td>
+        <td>${t4hHtml}</td>
+        <td>${fmtFunding(fund ?? null)}</td>
+        <td class="price-cell hide-sm">${fmtPrice(coin.lastPrice)}</td>
+        <td class="chg-cell ${chg>=0?'up':'dn'} hide-sm">${chg>=0?'+':''}${chg.toFixed(2)}%</td>
+        <td class="vol-cell hide-sm">${fmtVol(coin.quoteVolume)}</td>
+        <td><button class="btn-row-deep" onclick="runDeepScan('${coin.symbol}')">🔬</button></td>`;
+      body.appendChild(tr);
+    });
+  } catch(err) {
+    body.innerHTML = `<tr class="loading-row"><td colspan="9" style="text-align:center;padding:26px;color:var(--red)">⚠ Failed: ${err.message}</td></tr>`;
+  }
+  btn.disabled = false; btn.classList.remove('scanning'); document.getElementById('btnScanIcon').textContent = '📡';
+}
+
+async function runManualDeepScan() {
+  let s = document.getElementById('manualCoin').value.trim().toUpperCase();
+  if (!s) return;
+  if (!s.endsWith('USDT')) s += 'USDT';
+  await runDeepScan(s);
+}
+
+/* ═════════════════════════════
+   DEEP SCAN v5
+   ═════════════════════════════ */
+async function runDeepScan(symbol) {
+  const container = document.getElementById('deepResult');
+  container.style.display = 'block';
+  container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">🔬</div><div class="empty-text">Deep scanning ${symbol}…</div><div class="empty-sub">15m · 1H · 4H · 1D · BTC · OBs · Fibonacci · S/R · Pivots · Patterns · Taker Ratio</div></div></div></div>`;
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = true);
+  try {
+    const [kl15R, kl1HR, kl4HR, kl1DR, tkR, prR] = await Promise.all([
       fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=${KLINE_15M}`),
       fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=${KLINE_1H}`),
       fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=${KLINE_4H}`),
@@ -984,249 +1196,248 @@ async function runDeepScan(symbol){
       fetch(`${BINANCE_FAPI}/fapi/v1/ticker/price?symbol=${symbol}`),
       fetch(`${BINANCE_FAPI}/fapi/v1/premiumIndex?symbol=${symbol}`)
     ]);
-    if(!kl1HR.ok)throw new Error(`Symbol "${symbol}" not found on Binance Futures`);
-    const[kl15m,kl1h,kl4h,kl1d,tkData,prData]=await Promise.all([kl15R.json(),kl1HR.json(),kl4HR.json(),kl1DR.json(),tkR.json(),prR.json()]);
-
-    // BTC context — isolated
-    let btcKl=null;
-    try{const bR=await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=BTCUSDT&interval=4h&limit=50`);if(bR.ok)btcKl=await bR.json();}catch(_){}
-
-    if(!kl1h||kl1h.length<RSI_PERIOD+20)throw new Error('Not enough candle data');
-
-    const curP=parseFloat(tkData.price);
-    const fr=prData?.lastFundingRate?parseFloat(prData.lastFundingRate)*100:null;
-
-    // 1H arrays
-    const C=kl1h.map(k=>parseFloat(k[4])),H=kl1h.map(k=>parseFloat(k[2])),L=kl1h.map(k=>parseFloat(k[3])),V=kl1h.map(k=>parseFloat(k[5])),O=kl1h.map(k=>parseFloat(k[1]));
-    // 15m arrays
-    const C15=kl15m.map(k=>parseFloat(k[4])),H15=kl15m.map(k=>parseFloat(k[2])),L15=kl15m.map(k=>parseFloat(k[3])),O15=kl15m.map(k=>parseFloat(k[1]));
-    // 4H arrays
-    const C4=kl4h.map(k=>parseFloat(k[4])),H4=kl4h.map(k=>parseFloat(k[2])),L4=kl4h.map(k=>parseFloat(k[3])),O4=kl4h.map(k=>parseFloat(k[1]));
-    // 1D arrays
-    const C1D=kl1d.map(k=>parseFloat(k[4])),H1D=kl1d.map(k=>parseFloat(k[2])),L1D=kl1d.map(k=>parseFloat(k[3])),O1D=kl1d.map(k=>parseFloat(k[1]));
-
-    // Core indicators (1H)
-    const rsi=calcRSI(C,RSI_PERIOD);
-    const vol=analyzeVolume(kl1h);
-    const macd=calcMACD(C),bb=calcBollingerBands(C),stoch=calcStochasticRSI(C);
-    const atr=calcATR(H,L,C),adx=calcADX(H,L,C),obv=calcOBV(C,V);
-    const es=calcEMAStack(C),vwap=calcVWAP(kl1h);
-    const spt=calcSupertrend(H,L,C);
-    const bos=detectBOS(H,L,C);
-    const div=detectDivergenceFull(C,H,L);
-
-    // MTF RSI (all 4 TFs)
-    const mRSI=calcMTFRSI(C,C4,C15,C1D);
-
-    // 4H trend
-    const t4=calc4HTrend(kl4h);
-
-    // 15m EMA + BOS
-    const ema15m=calcEMAStack(C15);
-    const bos15m=detectBOS(H15,L15,C15,30);
-
-    // 4H EMA + BOS
-    const ema4h=calcEMAStack(C4);
-    const bos4h=detectBOS(H4,L4,C4,35);
-
-    // 1D EMA
-    const ema1d=calcEMAStack(C1D);
-
-    // RSI for each TF
-    const rsi15m=calcRSI(C15,RSI_PERIOD);
-    const rsi4h=calcRSI(C4,RSI_PERIOD);
-    const rsi1d=calcRSI(C1D,RSI_PERIOD);
-
-    // Trend lines (1H + 4H)
-    const trendLine=calcTrendLine(C,H,L,50);
-    const trendLine4h=calcTrendLine(C4,H4,L4,40);
+    if (!kl1HR.ok) throw new Error(`Symbol "${symbol}" not found on Binance Futures`);
+    const [kl15m, kl1h, kl4h, kl1d, tkData, prData] = await Promise.all([kl15R.json(), kl1HR.json(), kl4HR.json(), kl1DR.json(), tkR.json(), prR.json()]);
 
     // BTC context
-    const btc=btcKl&&btcKl.length>20?calc4HTrend(btcKl):null;
+    let btcKl = null;
+    try { const bR = await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=BTCUSDT&interval=4h&limit=50`); if (bR.ok) btcKl = await bR.json(); } catch(_) {}
 
-    // OI
-    const oi=await fetchOIChange(symbol);
+    if (!kl1h || kl1h.length < RSI_PERIOD + 20) throw new Error('Not enough candle data');
 
-    // Session
-    const sess=getSession();
+    const curP = parseFloat(tkData.price);
+    const fr   = prData?.lastFundingRate ? parseFloat(prData.lastFundingRate) * 100 : null;
 
-    // NEW: Order Blocks across TFs
-    const ob15m=detectOrderBlocks(O15,H15,L15,C15,'15m');
-    const ob1h=detectOrderBlocks(O,H,L,C,'1H');
-    const ob4h=detectOrderBlocks(O4,H4,L4,C4,'4H');
-    const ob1d=detectOrderBlocks(O1D,H1D,L1D,C1D,'1D');
-    // Merge all OBs, prioritize higher TF
-    const allBullOBs=[...ob1d.bullOBs,...ob4h.bullOBs,...ob1h.bullOBs,...ob15m.bullOBs];
-    const allBearOBs=[...ob1d.bearOBs,...ob4h.bearOBs,...ob1h.bearOBs,...ob15m.bearOBs];
-    const nearBull=allBullOBs.sort((a,b)=>Math.abs(curP-a.mid)-Math.abs(curP-b.mid))[0]||null;
-    const nearBear=allBearOBs.sort((a,b)=>Math.abs(curP-a.mid)-Math.abs(curP-b.mid))[0]||null;
-    const mtfOBs={bullOBs:allBullOBs.slice(0,5),bearOBs:allBearOBs.slice(0,5),nearestBullOB:nearBull,nearestBearOB:nearBear};
+    // OHLCV arrays
+    const C = kl1h.map(k=>parseFloat(k[4])), H = kl1h.map(k=>parseFloat(k[2])), L = kl1h.map(k=>parseFloat(k[3]));
+    const V = kl1h.map(k=>parseFloat(k[5])), O = kl1h.map(k=>parseFloat(k[1]));
+    const C15=kl15m.map(k=>parseFloat(k[4])),H15=kl15m.map(k=>parseFloat(k[2])),L15=kl15m.map(k=>parseFloat(k[3])),O15=kl15m.map(k=>parseFloat(k[1]));
+    const C4 =kl4h.map(k=>parseFloat(k[4])), H4=kl4h.map(k=>parseFloat(k[2])),  L4=kl4h.map(k=>parseFloat(k[3])),  O4=kl4h.map(k=>parseFloat(k[1]));
+    const C1D=kl1d.map(k=>parseFloat(k[4])),H1D=kl1d.map(k=>parseFloat(k[2])),L1D=kl1d.map(k=>parseFloat(k[3])),O1D=kl1d.map(k=>parseFloat(k[1]));
 
-    // NEW: MTF FVGs
-    const mtfFVGs=detectFVGMultiTF(kl15m,kl1h,kl4h,kl1d);
+    // Core 1H indicators
+    const rsi   = calcRSI(C, RSI_PERIOD);
+    const vol   = analyzeVolume(kl1h);
+    const macd  = calcMACD(C), bb = calcBollingerBands(C), stoch = calcStochasticRSI(C);
+    const atr   = calcATR(H, L, C), adx = calcADX(H, L, C), obv = calcOBV(C, V);
+    const es    = calcEMAStack(C), vwap = calcVWAP(kl1h);
+    const spt   = calcSupertrend(H, L, C);
+    const bos   = detectBOS(H, L, C);
+    const div   = detectDivergenceFull(C, H, L, V);
 
-    // NEW: S/R Zones
-    const srZones=buildSRZones(kl15m,kl1h,kl4h,kl1d,curP,atr?.atr||curP*0.01);
+    // MTF
+    const mRSI   = calcMTFRSI(C, C4, C15, C1D);
+    const t4     = calc4HTrend(kl4h);
+    const ema15m = calcEMAStack(C15), bos15m = detectBOS(H15, L15, C15, 30);
+    const ema4h  = calcEMAStack(C4),  bos4h  = detectBOS(H4, L4, C4, 35);
+    const ema1d  = calcEMAStack(C1D);
+    const rsi15m = calcRSI(C15, RSI_PERIOD), rsi4h = calcRSI(C4, RSI_PERIOD), rsi1d = calcRSI(C1D, RSI_PERIOD);
+    const trendLine   = calcTrendLine(C, H, L, 50);
+    const trendLine4h = calcTrendLine(C4, H4, L4, 40);
+    const btc = btcKl && btcKl.length > 20 ? calc4HTrend(btcKl) : null;
 
-    // NEW: Fibonacci
-    const fibonacci=calcFibonacci(H,L,C,atr?.atr);
+    // Candle patterns (1H + 4H)
+    const candlePatterns  = detectCandlePatterns(O, H, L, C);
+    const candlePatterns4h = detectCandlePatterns(O4, H4, L4, C4);
 
-    // Merge legacy FVG format
-    const fvg={bullFVG:mtfFVGs.bullFVGs.find(f=>f.tf==='1H')||null,bearFVG:mtfFVGs.bearFVGs.find(f=>f.tf==='1H')||null};
+    // Pivot Points
+    const pivotPoints = calcPivotPoints(kl1d);
 
-    const ex={trend4h:t4,fundingRate:fr,oiChange:oi,divergence:div,emaStack:es,vwap,
-              supertrend:spt,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc,
-              srZones,fibonacci,trendLine,mtfOBs,mtfFVGs,
-              ema15m,ema1d,rsi15m,rsi1d,bos15m,bos4h};
+    // Async fetches (OI, Taker, L/S)
+    const [oi, takerRatio, lsRatio] = await Promise.all([
+      fetchOIChange(symbol),
+      fetchTakerRatio(symbol),
+      fetchLSRatio(symbol)
+    ]);
 
-    const entry=decideEntry(rsi,vol,C,H,L,curP,macd,bb,stoch,adx,obv,atr,ex);
+    const sess = getSession();
 
-    renderDeep(container,symbol,rsi,vol,entry,curP,{
-      kl15m,kl1h,kl4h,kl1d,ema15m,ema4h,ema1d,rsi15m,rsi4h,rsi1d,
-      trendLine,trendLine4h,bos15m,bos4h,mtfOBs,mtfFVGs,srZones,fibonacci
+    // Order Blocks
+    const ob15m = detectOrderBlocks(O15, H15, L15, C15, '15m');
+    const ob1h  = detectOrderBlocks(O,   H,   L,   C,   '1H');
+    const ob4h  = detectOrderBlocks(O4,  H4,  L4,  C4,  '4H');
+    const ob1d  = detectOrderBlocks(O1D, H1D, L1D, C1D, '1D');
+    const allBullOBs = [...ob1d.bullOBs, ...ob4h.bullOBs, ...ob1h.bullOBs, ...ob15m.bullOBs];
+    const allBearOBs = [...ob1d.bearOBs, ...ob4h.bearOBs, ...ob1h.bearOBs, ...ob15m.bearOBs];
+    const nearBull = allBullOBs.sort((a,b) => Math.abs(curP-a.mid)-Math.abs(curP-b.mid))[0] || null;
+    const nearBear = allBearOBs.sort((a,b) => Math.abs(curP-a.mid)-Math.abs(curP-b.mid))[0] || null;
+    const mtfOBs  = { bullOBs: allBullOBs.slice(0,5), bearOBs: allBearOBs.slice(0,5), nearestBullOB: nearBull, nearestBearOB: nearBear };
+
+    // FVG, S/R, Fibonacci
+    const mtfFVGs  = detectFVGMultiTF(kl15m, kl1h, kl4h, kl1d);
+    const srZones  = buildSRZones(kl15m, kl1h, kl4h, kl1d, curP, atr?.atr || curP * 0.01);
+    const fibonacci = calcFibonacci(H, L, C, atr?.atr);
+
+    const ex = {
+      trend4h: t4, fundingRate: fr, oiChange: oi, divergence: div, emaStack: es, vwap,
+      supertrend: spt, bos, mtfRSI: mRSI, session: sess, btcContext: btc,
+      srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
+      candlePatterns, pivotPoints, takerRatio, lsRatio
+    };
+
+    const entry = decideEntry(rsi, vol, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
+
+    renderDeep(container, symbol, rsi, vol, entry, curP, {
+      kl15m, kl1h, kl4h, kl1d, ema15m, ema4h, ema1d, rsi15m, rsi4h, rsi1d,
+      trendLine, trendLine4h, bos15m, bos4h, mtfOBs, mtfFVGs, srZones, fibonacci,
+      candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio
     });
 
-    btSaveSignal(symbol,entry,curP,sess,rsi);
+    btSaveSignal(symbol, entry, curP, sess, rsi);
 
-  }catch(err){container.innerHTML=`<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text" style="color:var(--red)">Scan failed</div><div class="empty-sub">${err.message}</div></div></div></div>`;}
-  document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b=>b.disabled=false);
+  } catch(err) {
+    container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text" style="color:var(--red)">Scan failed</div><div class="empty-sub">${err.message}</div></div></div></div>`;
+  }
+  document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
 }
 
-/* ════════════════════════════════════════════════════════
-   RENDER — Unified with MTF panels
-   ════════════════════════════════════════════════════════ */
-function renderDeep(container,symbol,rsi,vol,entry,curP,extra){
-  const{direction:dir,entryType,confidence:conf,entryPrice:ep,slPrice:sl,
-        tp1Price:tp1,tp2Price:tp2,rrr1,rrr2,hardBlock,hardBlockReason,
-        riskFlags=[],isRisky=false,indicators:ind}=entry;
-  const{emaStack:es,macd,bb,stochRsi:stoch,adx,obv,atr,trend4h:t4,fundingRate:fr,oiChange:oi,
-        divergence:div,vwap,supertrend:spt,bos,fvg,mtfRSI:mRSI,session:sess,btcContext:btc,
-        srZones,fibonacci,trendLine,mtfOBs,mtfFVGs,ema15m,ema1d,bos15m,bos4h}=ind;
-  const{ema4h,trendLine4h,rsi15m,rsi4h,rsi1d}=extra||{};
-  const pair=symbol.replace('USDT','/USDT');
+/* ═════════════════════════════
+   RENDER DEEP v5
+   ═════════════════════════════ */
+function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
+  const { direction:dir, entryType, confidence:conf, entryPrice:ep, slPrice:sl,
+          tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, riskFlags=[], isRisky=false, indicators:ind } = entry;
+  const { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
+          divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
+          srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
+          candlePatterns, pivotPoints, takerRatio, lsRatio } = ind;
+  const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h } = extra || {};
+  const pair = symbol.replace('USDT', '/USDT');
 
-  const rColor=rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
-  const sColor=conf>=85?'var(--green)':conf>=70?'var(--cyan)':conf>=50?'var(--yellow)':'var(--red)';
-  const sg=scoreGrade(conf);
-  const badge=(txt,col)=>`<span style="font-family:var(--font-n);font-size:.63rem;padding:2px 8px;border-radius:4px;background:${col}22;color:${col};border:1px solid ${col}44">${txt}</span>`;
-  const dirColor=dir==='LONG'?'var(--green)':'var(--red)';
-  const borderCol=isRisky?'rgba(255,195,51,.35)':(dir==='LONG'?'rgba(0,255,136,.3)':'rgba(255,61,90,.3)');
-  const headerBg=isRisky?'linear-gradient(135deg,rgba(255,195,51,.06),rgba(255,195,51,.02))':(dir==='LONG'?'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))':'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))');
+  const rColor = rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
+  const sColor = conf>=85?'var(--green)':conf>=70?'var(--cyan)':conf>=50?'var(--yellow)':'var(--red)';
+  const sg = scoreGrade(conf);
+  const dirColor   = dir === 'LONG' ? 'var(--green)' : 'var(--red)';
+  const borderCol  = isRisky ? 'rgba(255,195,51,.35)' : (dir==='LONG' ? 'rgba(0,255,136,.3)' : 'rgba(255,61,90,.3)');
+  const headerBg   = isRisky ? 'linear-gradient(135deg,rgba(255,195,51,.06),rgba(255,195,51,.02))' : (dir==='LONG' ? 'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))' : 'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))');
 
-  // Risk warning
-  const riskHtml=isRisky&&riskFlags.length?`<div style="background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.18);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.74rem;color:var(--yellow);line-height:1.8">⚠ <strong>RISK ENTRY</strong> — Reduce position size.<br>${riskFlags.map(f=>`· ${f}`).join('<br>')}</div>`:'';
+  const riskHtml = isRisky && riskFlags.length ? `<div style="background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.18);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.74rem;color:var(--yellow);line-height:1.8">⚠ <strong>RISK ENTRY</strong> — Reduce position size.<br>${riskFlags.map(f=>`· ${f}`).join('<br>')}</div>` : '';
 
-  // Chips
-  const chips=[];
-  if(ema1d)chips.push({cls:ema1d.stack?.includes('bull')?'ok':ema1d.stack?.includes('bear')?'bad':'neu',l:`1D EMA ${ema1d.stack?.replace('perfect_','').replace('_',' ')}`});
-  if(spt)chips.push({cls:spt.bullish?'ok':'bad',l:`ST ${spt.bullish?'Bull':'Bear'}`});
-  if(t4)chips.push({cls:t4.bias==='bull'?'ok':t4.bias==='bear'?'bad':'neu',l:`4H ${t4.label.replace(/[▲▼↔] /,'')}`});
-  if(es)chips.push({cls:es.stack?.includes('bull')?'ok':es.stack?.includes('bear')?'bad':'neu',l:`1H EMA ${es.stack?.replace('perfect_','').replace('_',' ')}`});
-  if(ema15m)chips.push({cls:ema15m.stack?.includes('bull')?'ok':ema15m.stack?.includes('bear')?'bad':'neu',l:`15m EMA ${ema15m.stack?.replace('perfect_','').replace('_',' ')}`});
-  if(macd)chips.push({cls:macd.trend==='bullish'?'ok':'bad',l:`MACD ${macd.trend==='bullish'?'▲':'▼'}${macd.strengthening?' ↑':''}`});
-  if(bos4h&&(bos4h.bullBOS||bos4h.bearBOS))chips.push({cls:bos4h.bullBOS?'ok':'bad',l:`4H BOS ${bos4h.bullBOS?'▲':'▼'}`});
-  if(bos&&(bos.bullBOS||bos.bearBOS))chips.push({cls:bos.bullBOS?'ok':'bad',l:`1H BOS ${bos.bullBOS?'▲':'▼'}`});
-  if(bos15m&&(bos15m.bullBOS||bos15m.bearBOS))chips.push({cls:bos15m.bullBOS?'ok':'bad',l:`15m BOS ${bos15m.bullBOS?'▲':'▼'}`});
-  if(bos?.choch||bos4h?.choch)chips.push({cls:'warn',l:'CHoCH ⚡'});
-  if(mtfOBs?.nearestBullOB)chips.push({cls:'ok',l:`Bull OB [${mtfOBs.nearestBullOB.tf}]`});
-  if(mtfOBs?.nearestBearOB)chips.push({cls:'bad',l:`Bear OB [${mtfOBs.nearestBearOB.tf}]`});
-  if(fibonacci?.atKeyFib)chips.push({cls:'warn',l:`Fib ${fibonacci.nearKey?.label}`});
-  if(srZones?.atZone)chips.push({cls:'warn',l:`At ${srZones.atZone.type} zone`});
-  if(vwap)chips.push({cls:vwap.above?'ok':'bad',l:`VWAP ${vwap.above?'↑':'↓'}`});
-  if(div?.regularBull)chips.push({cls:'ok',l:'Reg Div ↑'});if(div?.regularBear)chips.push({cls:'bad',l:'Reg Div ↓'});
-  if(div?.hiddenBull)chips.push({cls:'ok',l:'Hidden ↑'});if(div?.hiddenBear)chips.push({cls:'bad',l:'Hidden ↓'});
-  if(mtfFVGs?.bullFVGs?.length)chips.push({cls:'ok',l:`${mtfFVGs.bullFVGs.length} Bull FVG`});
-  if(mtfFVGs?.bearFVGs?.length)chips.push({cls:'bad',l:`${mtfFVGs.bearFVGs.length} Bear FVG`});
-  if(fr!==null)chips.push({cls:Math.abs(fr)<=0.01?'ok':Math.abs(fr)<=0.04?'warn':'bad',l:`Fund ${fr.toFixed(3)}%`});
-  if(oi&&oi.trend!=='unknown')chips.push({cls:oi.trend==='rising'?'ok':'warn',l:`OI ${oi.trend}`});
-  if(vol.surge)chips.push({cls:'ok',l:'Vol Surge 🔥'});
-  if(btc)chips.push({cls:btc.bias==='bull'?'ok':btc.bias==='bear'?'bad':'neu',l:`BTC ${btc.label.replace(/[▲▼↔] /,'')}`});
-  if(sess)chips.push({cls:sess.quality==='high'?'ok':sess.quality==='medium'?'neu':'warn',l:sess.session.split('/')[0].split(' ')[0]});
+  // Score chips
+  const chips = [];
+  if (ema1d)    chips.push({cls:ema1d.stack?.includes('bull')?'ok':ema1d.stack?.includes('bear')?'bad':'neu', l:`1D EMA ${ema1d.stack?.replace('perfect_','').replace('_',' ')}`});
+  if (spt)      chips.push({cls:spt.bullish?'ok':'bad', l:`ST ${spt.bullish?'Bull':'Bear'}`});
+  if (t4)       chips.push({cls:t4.bias==='bull'?'ok':t4.bias==='bear'?'bad':'neu', l:`4H ${t4.label.replace(/[▲▼↔] /,'')}`});
+  if (es)       chips.push({cls:es.stack?.includes('bull')?'ok':es.stack?.includes('bear')?'bad':'neu', l:`1H EMA ${es.stack?.replace('perfect_','').replace('_',' ')}`});
+  if (ema15m)   chips.push({cls:ema15m.stack?.includes('bull')?'ok':ema15m.stack?.includes('bear')?'bad':'neu', l:`15m EMA ${ema15m.stack?.replace('perfect_','').replace('_',' ')}`});
+  if (macd)     chips.push({cls:macd.trend==='bullish'?'ok':'bad', l:`MACD ${macd.trend==='bullish'?'▲':'▼'}${macd.strengthening?' ↑':''}`});
+  if (bos4h&&(bos4h.bullBOS||bos4h.bearBOS)) chips.push({cls:bos4h.bullBOS?'ok':'bad', l:`4H BOS ${bos4h.bullBOS?'▲':'▼'}`});
+  if (bos&&(bos.bullBOS||bos.bearBOS))       chips.push({cls:bos.bullBOS?'ok':'bad', l:`1H BOS ${bos.bullBOS?'▲':'▼'}`});
+  if (bos15m&&(bos15m.bullBOS||bos15m.bearBOS)) chips.push({cls:bos15m.bullBOS?'ok':'bad', l:`15m BOS ${bos15m.bullBOS?'▲':'▼'}`});
+  if (bos?.choch||bos4h?.choch) chips.push({cls:'warn', l:'CHoCH ⚡'});
+  if (mtfOBs?.nearestBullOB) chips.push({cls:'ok',  l:`Bull OB [${mtfOBs.nearestBullOB.tf}]`});
+  if (mtfOBs?.nearestBearOB) chips.push({cls:'bad', l:`Bear OB [${mtfOBs.nearestBearOB.tf}]`});
+  if (fibonacci?.atKeyFib)   chips.push({cls:'warn', l:`Fib ${fibonacci.nearKey?.label}`});
+  if (srZones?.atZone)       chips.push({cls:'warn', l:`At ${srZones.atZone.type} zone`});
+  if (vwap) chips.push({cls:vwap.above?'ok':'bad', l:`VWAP ${vwap.above?'↑':'↓'}`});
+  if (div?.regularBull) chips.push({cls:'ok',  l:'Reg Div ↑'}); if (div?.regularBear) chips.push({cls:'bad', l:'Reg Div ↓'});
+  if (div?.hiddenBull)  chips.push({cls:'ok',  l:'Hidden ↑'}); if (div?.hiddenBear)  chips.push({cls:'bad', l:'Hidden ↓'});
+  if (div?.obvBull)     chips.push({cls:'ok',  l:'OBV Div ↑'}); if (div?.obvBear)    chips.push({cls:'bad', l:'OBV Div ↓'});
+  if (mtfFVGs?.bullFVGs?.length) chips.push({cls:'ok',  l:`${mtfFVGs.bullFVGs.length} Bull FVG`});
+  if (mtfFVGs?.bearFVGs?.length) chips.push({cls:'bad', l:`${mtfFVGs.bearFVGs.length} Bear FVG`});
+  if (fr !== null) chips.push({cls:Math.abs(fr)<=0.005?'ok':Math.abs(fr)<=0.02?'warn':'bad', l:`Fund ${fr.toFixed(3)}%`});
+  if (oi && oi.trend!=='unknown') chips.push({cls:oi.trend==='rising'?'ok':'warn', l:`OI ${oi.trend}`});
+  if (takerRatio) chips.push({cls:takerRatio.buyDominant?'ok':takerRatio.sellDominant?'bad':'neu', l:`Taker ${takerRatio.label}`});
+  if (lsRatio)    chips.push({cls:lsRatio.longBias?'warn':lsRatio.shortBias?'ok':'neu', l:lsRatio.label});
+  if (candlePatterns?.latest) chips.push({cls:candlePatterns.latest.type==='bullish'?'ok':candlePatterns.latest.type==='bearish'?'bad':'neu', l:candlePatterns.latest.name});
+  if (vol.surge) chips.push({cls:'ok', l:'Vol Surge 🔥'});
+  if (btc) chips.push({cls:btc.bias==='bull'?'ok':btc.bias==='bear'?'bad':'neu', l:`BTC ${btc.label.replace(/[▲▼↔] /,'')}`});
+  if (sess) chips.push({cls:sess.quality==='high'?'ok':sess.quality==='medium'?'neu':'warn', l:sess.session.split('/')[0].split(' ')[0]});
 
-  // MTF RSI table
-  const mtfRSIHtml=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
-    ${[{tf:'15m',rsi:rsi15m},{tf:'1H',rsi:rsi},{tf:'4H',rsi:rsi4h},{tf:'1D',rsi:rsi1d}].map(({tf,rsi:rv})=>{
+  // MTF RSI
+  const mtfRSIHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
+    ${[{tf:'15m',rv:rsi15m},{tf:'1H',rv:rsi},{tf:'4H',rv:rsi4h},{tf:'1D',rv:rsi1d}].map(({tf,rv})=>{
       const c=rv==null?'var(--muted)':rv<=30?'var(--green)':rv>=70?'var(--red)':rv<45?'rgba(0,255,136,.7)':rv>55?'rgba(255,61,90,.7)':'var(--yellow)';
-      const lbl=rv==null?'—':rv<=30?'Extreme OS':rv>=70?'Extreme OB':rv<45?'Bearish':rv>55?'Bullish':'Neutral';
-      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center">
-        <div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-bottom:3px">${tf}</div>
-        <div style="font-family:var(--font-n);font-size:.88rem;font-weight:700;color:${c}">${rv!=null?rv.toFixed(1):'—'}</div>
-        <div style="font-size:.6rem;color:${c}">${lbl}</div>
-      </div>`;
-    }).join('')}
-  </div>`;
+      const lbl=rv==null?'—':rv<=30?'Extreme OS':rv>=70?'Extreme OB':rv<45?'Oversold':rv>55?'Overbought':'Neutral';
+      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-bottom:3px">${tf}</div><div style="font-family:var(--font-n);font-size:.88rem;font-weight:700;color:${c}">${rv!=null?rv.toFixed(1):'—'}</div><div style="font-size:.6rem;color:${c}">${lbl}</div></div>`;
+    }).join('')}</div>`;
 
-  // MTF EMA table
-  const mtfEMAHtml=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
+  // MTF EMA
+  const mtfEMAHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
     ${[{tf:'15m',e:ema15m},{tf:'1H',e:es},{tf:'4H',e:ema4h},{tf:'1D',e:ema1d}].map(({tf,e})=>{
       const c=!e?'var(--muted)':e.stack?.includes('bull')?'var(--green)':e.stack?.includes('bear')?'var(--red)':'var(--yellow)';
       const lbl={perfect_bull:'✓✓ Perf Bull',bull:'✓ Bull',perfect_bear:'✗✗ Perf Bear',bear:'✗ Bear',neutral:'Neutral'}[e?.stack||'neutral'];
-      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center">
-        <div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-bottom:3px">${tf}</div>
-        <div style="font-size:.68rem;font-weight:700;color:${c}">${e?lbl:'—'}</div>
-      </div>`;
-    }).join('')}
-  </div>`;
+      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-bottom:3px">${tf}</div><div style="font-size:.68rem;font-weight:700;color:${c}">${e?lbl:'—'}</div></div>`;
+    }).join('')}</div>`;
 
-  // MTF Trend / BOS table
-  const mtfStructHtml=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
+  // MTF Structure
+  const mtfStructHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
     ${[{tf:'15m',b:bos15m},{tf:'1H',b:bos},{tf:'4H',b:bos4h},{tf:'1D',b:null}].map(({tf,b})=>{
       const lbl=b?b.bullBOS?'Bull BOS ▲':b.bearBOS?'Bear BOS ▼':b.choch?'CHoCH ⚡':'No BOS':'—';
       const c=b?b.bullBOS?'var(--green)':b.bearBOS?'var(--red)':b.choch?'var(--yellow)':'var(--muted)':'var(--muted)';
-      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center">
-        <div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-bottom:3px">${tf}</div>
-        <div style="font-size:.65rem;font-weight:700;color:${c}">${lbl}</div>
-      </div>`;
-    }).join('')}
-  </div>`;
+      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-bottom:3px">${tf}</div><div style="font-size:.65rem;font-weight:700;color:${c}">${lbl}</div></div>`;
+    }).join('')}</div>`;
 
   // Order Blocks HTML
-  const obHtml=(obs,type)=>{
-    if(!obs||!obs.length)return`<div style="font-size:.74rem;color:var(--muted)">No ${type} OBs detected</div>`;
+  const obHtml = (obs, type) => {
+    if (!obs || !obs.length) return `<div style="font-size:.74rem;color:var(--muted)">No ${type} OBs detected</div>`;
     return obs.slice(0,3).map(ob=>{
-      const col=type==='Bull'?'var(--green)':'var(--red)';
-      const dist=((curP-ob.mid)/ob.mid*100).toFixed(2);
-      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-        <span style="font-family:var(--font-n);font-size:.65rem;color:${col};font-weight:700">[${ob.tf}]</span>
-        <span style="font-family:var(--font-n);font-size:.68rem;color:var(--text)">${fmtPrice(ob.low)} – ${fmtPrice(ob.high)}</span>
-        <span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">${dist>0?'+':''}${dist}%</span>
-      </div>`;
+      const col = type==='Bull' ? 'var(--green)' : 'var(--red)';
+      const dist = ((curP-ob.mid)/ob.mid*100).toFixed(2);
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="font-family:var(--font-n);font-size:.65rem;color:${col};font-weight:700">[${ob.tf}]</span><span style="font-family:var(--font-n);font-size:.68rem;color:var(--text)">${fmtPrice(ob.low)} – ${fmtPrice(ob.high)}</span><span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">${dist>0?'+':''}${dist}%</span></div>`;
     }).join('');
   };
 
-  // Fibonacci HTML
-  const fibHtml=fibonacci?`
+  // Fibonacci
+  const fibHtml = fibonacci ? `
     <div style="margin-bottom:6px;font-size:.72rem;color:var(--muted)">Swing: ${fmtPrice(fibonacci.swingLow)} → ${fmtPrice(fibonacci.swingHigh)} · ${fibonacci.trend}</div>
-    ${fibonacci.levels.filter(l=>l.type!=='extend'||(l.r<=1.618)).map(l=>{
-      const distPct=Math.abs((l.price-curP)/curP*100);
-      const isNear=distPct<(fibonacci.atrThreshold||0.5);
-      const col=l.key?'var(--cyan)':l.type==='extend'?'var(--purple)':'var(--text)';
-      const bg=isNear?(dir==='LONG'&&l.r<1?'rgba(0,255,136,.06)':dir==='SHORT'&&l.r<1?'rgba(255,61,90,.06)':'rgba(0,212,255,.06)'):'transparent';
-      return`<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;background:${bg};border-left:2px solid ${isNear?col:'transparent'}">
-        <span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);width:38px">${l.label}</span>
-        <span style="font-family:var(--font-n);font-size:.72rem;font-weight:600;color:${col};flex:1">${fmtPrice(l.price)}</span>
-        <span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted)">${((l.price-curP)/curP*100>0?'+':'')+(((l.price-curP)/curP*100)).toFixed(2)}%</span>
-        ${isNear?`${badge('← HERE',l.key?'#00d4ff':'#a78bfa')}`:''}
-      </div>`;
-    }).join('')}`:`<div style="font-size:.74rem;color:var(--muted)">Range too small for Fibonacci</div>`;
+    ${fibonacci.levels.filter(l=>l.r<=1.618).map(l=>{
+      const distPct = Math.abs((l.price-curP)/curP*100);
+      const isNear  = distPct < (fibonacci.atrThreshold||0.5)*2;
+      const col     = l.key ? 'var(--cyan)' : l.type==='extend' ? '#a78bfa' : 'var(--text)';
+      const bg      = isNear ? (dir==='LONG'&&l.r<1?'rgba(0,255,136,.06)':dir==='SHORT'&&l.r<1?'rgba(255,61,90,.06)':'rgba(0,212,255,.06)') : 'transparent';
+      return`<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;background:${bg};border-left:2px solid ${isNear?col:'transparent'}"><span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);width:42px">${l.label}</span><span style="font-family:var(--font-n);font-size:.72rem;font-weight:600;color:${col};flex:1">${fmtPrice(l.price)}</span><span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted)">${((l.price-curP)/curP*100>0?'+':'')+(((l.price-curP)/curP*100)).toFixed(2)}%</span>${isNear?`<span style="font-family:var(--font-n);font-size:.58rem;padding:1px 5px;border-radius:3px;background:${col}22;color:${col}">← here</span>`:''}</div>`;
+    }).join('')}` : `<div style="font-size:.74rem;color:var(--muted)">Range too small for Fibonacci</div>`;
 
-  // S/R Zones HTML
-  const srHtml=srZones?`
-    <div style="margin-bottom:6px;font-size:.68rem;color:var(--muted)">${srZones.allCount} total zones detected · showing nearest</div>
+  // Pivot Points
+  const pivHtml = pivotPoints ? `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+      ${[['PP','var(--cyan)',pivotPoints.PP],['R1','var(--red)',pivotPoints.R1],['R2','var(--red)',pivotPoints.R2],['S1','var(--green)',pivotPoints.S1],['S2','var(--green)',pivotPoints.S2],['R3','rgba(255,61,90,.5)',pivotPoints.R3],['S3','rgba(0,255,136,.5)',pivotPoints.S3]].map(([lbl,col,val])=>{
+        const dist = ((val-curP)/curP*100).toFixed(2);
+        const isNear = Math.abs(parseFloat(dist)) < 1;
+        return`<div style="background:var(--surface);border:1px solid ${isNear?col:'var(--border)'};border-radius:7px;padding:7px 9px"><div style="font-family:var(--font-n);font-size:.58rem;color:${col};font-weight:700">${lbl}</div><div style="font-family:var(--font-n);font-size:.72rem;font-weight:600;color:var(--text);margin:2px 0">${fmtPrice(val)}</div><div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted)">${parseFloat(dist)>=0?'+':''}${dist}%</div></div>`;
+      }).join('')}
+    </div>` : '<div style="font-size:.74rem;color:var(--muted)">Daily pivot not available</div>';
+
+  // S/R Zones
+  const srHtml = srZones ? `
+    <div style="margin-bottom:6px;font-size:.68rem;color:var(--muted)">${srZones.allCount} total zones · showing nearest</div>
     ${[...srZones.above.map(z=>({...z,side:'above'})),...srZones.below.map(z=>({...z,side:'below'}))].sort((a,b)=>a.distPct-b.distPct).map(z=>{
       const col=z.type==='resistance'?'var(--red)':'var(--green)';
-      const strengthStr=z.strength>=8?'★★★':z.strength>=5?'★★':'★';
-      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03)">
-        <span style="font-family:var(--font-n);font-size:.65rem;color:${col};font-weight:700">${z.type==='resistance'?'R':'S'} ${strengthStr}</span>
-        <span style="font-family:var(--font-n);font-size:.7rem;font-weight:600;color:var(--text)">${fmtPrice(z.price)}</span>
-        <span style="font-family:var(--font-n);font-size:.62rem;color:var(--muted)">${z.tfs.join('+')} · ${((z.price-curP)/curP*100>0?'+':'')+(((z.price-curP)/curP*100)).toFixed(2)}%</span>
-      </div>`;
-    }).join('')}`:'<div style="font-size:.74rem;color:var(--muted)">—</div>';
+      const str=z.strength>=8?'★★★':z.strength>=5?'★★':'★';
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03)"><span style="font-family:var(--font-n);font-size:.65rem;color:${col};font-weight:700">${z.type==='resistance'?'R':'S'} ${str}</span><span style="font-family:var(--font-n);font-size:.7rem;font-weight:600;color:var(--text)">${fmtPrice(z.price)}</span><span style="font-family:var(--font-n);font-size:.62rem;color:var(--muted)">${z.tfs.join('+')} · ${((z.price-curP)/curP*100>0?'+':'')+(((z.price-curP)/curP*100)).toFixed(2)}%</span></div>`;
+    }).join('')}` : '<div style="font-size:.74rem;color:var(--muted)">—</div>';
 
-  const reasons=buildReasons(rsi,vol,entry);
-  const paperBtn=`<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${isRisky?'LIMIT':entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`;
+  // Candle Patterns
+  const cpatHtml = (cp, label) => {
+    if (!cp || !cp.patterns.length) return `<div style="font-size:.74rem;color:var(--muted)">No patterns</div>`;
+    return `<div style="font-size:.68rem;color:var(--muted);margin-bottom:4px">${label}</div>` +
+      cp.patterns.map(p=>`<span style="font-family:var(--font-n);font-size:.63rem;padding:2px 7px;border-radius:4px;margin:2px;display:inline-block;background:${p.type==='bullish'?'rgba(0,255,136,.1)':p.type==='bearish'?'rgba(255,61,90,.1)':'rgba(255,195,51,.1)'};color:${p.type==='bullish'?'var(--green)':p.type==='bearish'?'var(--red)':'var(--yellow)'}">${p.name}</span>`).join('');
+  };
 
-  container.innerHTML=`
+  // Taker + L/S HTML
+  const takerHtml = takerRatio ? `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-family:var(--font-n);font-size:.7rem;color:${takerRatio.buyDominant?'var(--green)':takerRatio.sellDominant?'var(--red)':'var(--muted)'}">Taker Ratio: <strong>${takerRatio.ratio.toFixed(3)}</strong></span>
+      <span style="font-family:var(--font-n);font-size:.65rem;padding:2px 7px;border-radius:4px;background:${takerRatio.buyDominant?'rgba(0,255,136,.1)':takerRatio.sellDominant?'rgba(255,61,90,.1)':'rgba(255,195,51,.1)'};color:${takerRatio.buyDominant?'var(--green)':takerRatio.sellDominant?'var(--red)':'var(--yellow)'}">${takerRatio.label}</span>
+      <span style="font-size:.65rem;color:var(--muted)">${takerRatio.rising?'▲ rising':'▼ falling'}</span>
+    </div>` : '<div style="font-size:.74rem;color:var(--muted)">Taker data unavailable</div>';
+
+  const lsHtml = lsRatio ? `
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px">
+      <span style="font-family:var(--font-n);font-size:.7rem">L/S: <strong>${lsRatio.label}</strong></span>
+      <div style="flex:1;min-width:80px;height:8px;background:rgba(255,61,90,.2);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);border-radius:4px;width:${lsRatio.longPct.toFixed(0)}%"></div></div>
+      <span style="font-family:var(--font-n);font-size:.63rem;color:${lsRatio.extremeLong?'var(--red)':lsRatio.extremeShort?'var(--green)':'var(--muted)'}">${lsRatio.extremeLong?'⚠ Crowded Longs':lsRatio.extremeShort?'⚠ Crowded Shorts':''}</span>
+    </div>` : '';
+
+  const reasons  = buildReasons(rsi, vol, entry);
+  const paperBtn = `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${isRisky?'LIMIT':entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`;
+
+  // Risk = entry - SL
+  const riskAmt  = Math.abs(ep - sl);
+  const dcaDist  = dcaPoint ? Math.abs(ep - dcaPoint) : null;
+
+  container.innerHTML = `
 <div class="deep-result"><div class="panel deep-card" style="border-color:${borderCol}">
 
   <!-- Header -->
@@ -1242,63 +1453,65 @@ function renderDeep(container,symbol,rsi,vol,entry,curP,extra){
     </div>
   </div>
 
-  <!-- Score -->
+  <!-- Score Bar -->
   <div class="score-bar-wrap">
-    <div class="score-bar-title">🏆 Confluence Score — ${isRisky?'⚠ Risk Entry':'Valid Signal'} (4-TF Engine)</div>
+    <div class="score-bar-title">🏆 Confluence Score — ${isRisky?'⚠ Risk Entry':'Valid Signal'} (v5 · 25-Factor Engine)</div>
     <div class="score-total">
       <div class="score-num" style="color:${sColor}">${conf}</div>
       <span class="score-badge ${sg.cls}" style="font-size:.9rem;padding:3px 10px">${sg.label}</span>
       <div class="score-track"><div class="score-fill" style="width:${conf}%;background:${sColor}"></div></div>
-      <span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">20+ factors</span>
+      <span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">25 factors</span>
     </div>
     <div class="score-factors">${chips.map(c=>`<span class="sf ${c.cls}">${c.l}</span>`).join('')}</div>
   </div>
 
-  <!-- Entry Levels -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">
+  <!-- Entry Levels — 6 boxes including DCA -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">
     <div style="background:${isRisky?'rgba(255,195,51,.06)':'var(--surface)'};border:1px solid ${isRisky?'rgba(255,195,51,.3)':'var(--border)'};border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Entry</div>
-      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:${isRisky?'var(--yellow)':'var(--cyan)'}">${fmtPrice(ep)}</div>
+      <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:${isRisky?'var(--yellow)':'var(--cyan)'}">${fmtPrice(ep)}</div>
       <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${entryType==='MARKET'?'Market':entryType==='RISK ENTRY'?'⚠ Risk':'Limit'}</div>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
-      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">TP 1 🎯</div>
-      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--green)">${fmtPrice(tp1)}</div>
-      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr1}</div>
+    <div style="background:var(--surface);border:1px solid rgba(0,212,255,.25);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--cyan);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">DCA Point</div>
+      <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:var(--cyan)">${dcaPoint ? fmtPrice(dcaPoint) : '—'}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${dcaDist ? (dcaDist / (atr?.atr||1)).toFixed(1) + '× ATR from EP' : 'S/R / Fib based'}</div>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
-      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">TP 2</div>
-      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:rgba(0,255,136,.65)">${fmtPrice(tp2)}</div>
-      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr2}</div>
+    <div style="background:var(--surface);border:1px solid rgba(255,61,90,.25);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Stop Loss</div>
+      <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:var(--red)">${fmtPrice(sl)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${isRisky?'3× ATR':'Fib/OB/SR refined'}</div>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
-      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Stop Loss</div>
-      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--red)">${fmtPrice(sl)}</div>
-      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${isRisky?'3× ATR':'2.0–2.5× ATR'}</div>
+    <div style="background:var(--surface);border:1px solid rgba(0,255,136,.25);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--green);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">TP 1 🎯</div>
+      <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:var(--green)">${fmtPrice(tp1)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr1} · Fib/SR</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid rgba(0,255,136,.15);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:rgba(0,255,136,.7);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">TP 2</div>
+      <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:rgba(0,255,136,.65)">${fmtPrice(tp2)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr2} · Extension</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Current</div>
-      <div style="font-family:var(--font-n);font-size:.88rem;font-weight:600;color:var(--text)">${fmtPrice(curP)}</div>
+      <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:var(--text)">${fmtPrice(curP)}</div>
       <div style="font-size:.62rem;color:var(--muted);margin-top:2px">Live price</div>
     </div>
   </div>
 
-  ${riskHtml?`<div style="padding:12px 16px 0">${riskHtml}</div>`:''}
+  ${riskHtml ? `<div style="padding:12px 16px 0">${riskHtml}</div>` : ''}
 
-  <!-- MTF Section -->
+  <!-- MTF Analysis -->
   <div style="padding:14px 16px">
 
-    <!-- MTF RSI -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">📉 RSI — ALL TIMEFRAMES</div>
     ${mtfRSIHtml}
     ${mRSI?.fullBullAlign?`<div style="font-size:.73rem;color:var(--green);margin-bottom:12px">🔥 Full MTF RSI alignment — all timeframes oversold</div>`:''}
     ${mRSI?.fullBearAlign?`<div style="font-size:.73rem;color:var(--red);margin-bottom:12px">🔥 Full MTF RSI alignment — all timeframes overbought</div>`:''}
 
-    <!-- MTF EMA -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">📈 EMA STACK — ALL TIMEFRAMES</div>
     ${mtfEMAHtml}
 
-    <!-- MTF Structure -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🏗️ MARKET STRUCTURE — ALL TIMEFRAMES</div>
     ${mtfStructHtml}
 
@@ -1307,15 +1520,24 @@ function renderDeep(container,symbol,rsi,vol,entry,curP,extra){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
         <div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);margin-bottom:4px">1H Trend Line</div>
-        ${trendLine?`<div style="font-size:.78rem;font-weight:600;color:${trendLine.trend==='up'?'var(--green)':'var(--red)'}">${trendLine.label}</div>
-        <div style="font-family:var(--font-n);font-size:.64rem;color:var(--muted);margin-top:3px">Angle: ${trendLine.angle}° · Dev: ${trendLine.deviation>0?'+':''}${trendLine.deviation.toFixed(2)}%</div>`:'<div style="color:var(--muted);font-size:.74rem">—</div>'}
+        ${trendLine?`<div style="font-size:.78rem;font-weight:600;color:${trendLine.trend==='up'?'var(--green)':'var(--red)'}">${trendLine.label}</div><div style="font-family:var(--font-n);font-size:.64rem;color:var(--muted);margin-top:3px">Angle: ${trendLine.angle}° · Dev: ${trendLine.deviation>0?'+':''}${trendLine.deviation.toFixed(2)}% · Val: ${fmtPrice(trendLine.currentVal)}</div>`:'<div style="color:var(--muted);font-size:.74rem">—</div>'}
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
         <div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);margin-bottom:4px">4H Trend Line</div>
-        ${trendLine4h?`<div style="font-size:.78rem;font-weight:600;color:${trendLine4h.trend==='up'?'var(--green)':'var(--red)'}">${trendLine4h.label}</div>
-        <div style="font-family:var(--font-n);font-size:.64rem;color:var(--muted);margin-top:3px">Angle: ${trendLine4h.angle}° · Dev: ${trendLine4h.deviation>0?'+':''}${trendLine4h.deviation.toFixed(2)}%</div>`:'<div style="color:var(--muted);font-size:.74rem">—</div>'}
+        ${trendLine4h?`<div style="font-size:.78rem;font-weight:600;color:${trendLine4h.trend==='up'?'var(--green)':'var(--red)'}">${trendLine4h.label}</div><div style="font-family:var(--font-n);font-size:.64rem;color:var(--muted);margin-top:3px">Angle: ${trendLine4h.angle}° · Dev: ${trendLine4h.deviation>0?'+':''}${trendLine4h.deviation.toFixed(2)}% · Val: ${fmtPrice(trendLine4h.currentVal)}</div>`:'<div style="color:var(--muted);font-size:.74rem">—</div>'}
       </div>
     </div>
+
+    <!-- Candle Patterns -->
+    <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🕯️ CANDLE PATTERNS</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${cpatHtml(candlePatterns,'1H Patterns')}</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${cpatHtml(candlePatterns4h,'4H Patterns')}</div>
+    </div>
+
+    <!-- Pivot Points -->
+    <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">📌 DAILY PIVOT POINTS</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">${pivHtml}</div>
 
     <!-- Order Blocks -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🟦 ORDER BLOCKS — MULTI-TF</div>
@@ -1330,49 +1552,53 @@ function renderDeep(container,symbol,rsi,vol,entry,curP,extra){
       </div>
     </div>
 
-    <!-- FVGs Multi-TF -->
+    <!-- FVG Multi-TF -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🫙 FAIR VALUE GAPS — MULTI-TF</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-      ${mtfFVGs?.all?.length?mtfFVGs.all.map(f=>{const col=f.type==='bull'?'var(--green)':'var(--red)';return`<div style="background:var(--surface);border:1px solid ${f.type==='bull'?'rgba(0,255,136,.15)':'rgba(255,61,90,.15)'};border-radius:7px;padding:6px 10px"><div style="font-family:var(--font-n);font-size:.6rem;color:${col};font-weight:700">${f.tf} ${f.type==='bull'?'Bull FVG':'Bear FVG'}</div><div style="font-family:var(--font-n);font-size:.66rem;color:var(--text)">${fmtPrice(f.bottom)} → ${fmtPrice(f.top)}</div></div>`;}).join(''):'<div style="font-size:.74rem;color:var(--muted)">No FVGs detected</div>'}
+      ${mtfFVGs?.all?.length ? mtfFVGs.all.map(f=>{const col=f.type==='bull'?'var(--green)':'var(--red)';return`<div style="background:var(--surface);border:1px solid ${f.type==='bull'?'rgba(0,255,136,.15)':'rgba(255,61,90,.15)'};border-radius:7px;padding:6px 10px"><div style="font-family:var(--font-n);font-size:.6rem;color:${col};font-weight:700">${f.tf} ${f.type==='bull'?'Bull FVG':'Bear FVG'}</div><div style="font-family:var(--font-n);font-size:.66rem;color:var(--text)">${fmtPrice(f.bottom)} → ${fmtPrice(f.top)}</div></div>`;}).join('') : '<div style="font-size:.74rem;color:var(--muted)">No FVGs detected</div>'}
     </div>
 
     <!-- Fibonacci -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🌀 FIBONACCI LEVELS</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
-      ${fibHtml}
-    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">${fibHtml}</div>
 
     <!-- S/R Zones -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🏔️ SUPPORT &amp; RESISTANCE ZONES — MULTI-TF</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">${srHtml}</div>
+
+    <!-- Taker + L/S Ratio -->
+    <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">⚖️ MARKET SENTIMENT</div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
-      ${srHtml}
+      ${takerHtml}
+      ${lsHtml}
     </div>
 
     <!-- Classic Indicators -->
-    <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">⚙️ 1H INDICATORS</div>
+    <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">⚙️ 1H CORE INDICATORS</div>
     <div class="deep-indicators">
       <div class="ind-box"><div class="ind-lbl">RSI (14) · 1H</div><div class="ind-val" style="color:${rColor}">${rsi.toFixed(2)}</div><div class="ind-bar-track"><div class="ind-bar-fill" style="width:${rsi.toFixed(0)}%;background:${rColor}"></div></div></div>
-      <div class="ind-box"><div class="ind-lbl">VWAP (24h)</div><div class="ind-val" style="color:${vwap?.above?'var(--green)':'var(--red)'}"><br>${vwap?fmtPrice(vwap.vwap):'—'}</div>${vwap?`<div style="font-size:.66rem;color:${vwap.above?'var(--green)':'var(--red)'};margin-top:3px">${vwap.label}</div>`:''}</div>
+      <div class="ind-box"><div class="ind-lbl">VWAP (Session)</div><div class="ind-val" style="color:${vwap?.above?'var(--green)':'var(--red)'}"><br>${vwap?fmtPrice(vwap.vwap):'—'}</div>${vwap?`<div style="font-size:.66rem;color:${vwap.above?'var(--green)':'var(--red)'};margin-top:3px">${vwap.label}</div>`:''}</div>
       <div class="ind-box"><div class="ind-lbl">Supertrend (10,3)</div><div class="ind-val" style="color:${spt?.bullish?'var(--green)':'var(--red)'}"><br>${spt?spt.label:'—'}</div>${spt?`<div style="font-family:var(--font-n);font-size:.61rem;color:var(--muted);margin-top:3px">${fmtPrice(spt.value)}</div>`:''}</div>
       <div class="ind-box"><div class="ind-lbl">4H Trend</div><div class="ind-val" style="color:${t4?.bias==='bull'?'var(--green)':t4?.bias==='bear'?'var(--red)':'var(--yellow)'}"><br>${t4?.label||'—'}</div></div>
-      <div class="ind-box"><div class="ind-lbl">Funding Rate</div><div class="ind-val" style="color:${fr!==null?(Math.abs(fr)<=0.01?'var(--green)':Math.abs(fr)<=0.04?'var(--yellow)':'var(--red)'):'var(--muted)'}"><br>${fr!=null?fr.toFixed(4)+'%':'—'}</div></div>
-      <div class="ind-box"><div class="ind-lbl">Open Interest</div><div class="ind-val" style="color:${oi?.trend==='rising'?'var(--green)':oi?.trend==='falling'?'var(--red)':'var(--muted)'}"><br>${oi?.trend==='rising'?'▲ Rising':oi?.trend==='falling'?'▼ Falling':oi?.trend==='flat'?'→ Flat':'—'}</div></div>
+      <div class="ind-box"><div class="ind-lbl">Funding Rate</div><div class="ind-val" style="color:${fr!==null?(Math.abs(fr)<=0.005?'var(--green)':Math.abs(fr)<=0.02?'var(--yellow)':'var(--red)'):'var(--muted)'}"><br>${fr!=null?fr.toFixed(4)+'%':'—'}</div></div>
+      <div class="ind-box"><div class="ind-lbl">Open Interest</div><div class="ind-val" style="color:${oi?.trend==='rising'?'var(--green)':oi?.trend==='falling'?'var(--red)':'var(--muted)'}"><br>${oi?.trend==='rising'?'▲ Rising':oi?.trend==='falling'?'▼ Falling':oi?.trend==='flat'?'→ Flat':'—'}</div>${oi?.pct!==undefined?`<div style="font-size:.64rem;color:var(--muted)">${fmtPct(oi.pct)} change</div>`:''}</div>
       ${adx?`<div class="ind-box"><div class="ind-lbl">ADX</div><div class="ind-val" style="color:${adx.strength==='strong'?'var(--green)':adx.strength==='moderate'?'var(--cyan)':'var(--muted)'}"><br>${adx.adx.toFixed(2)}</div><div style="font-size:.64rem;color:var(--muted)">${adx.strength} · ${adx.trend}</div></div>`:''}
-      ${macd?`<div class="ind-box"><div class="ind-lbl">MACD</div><div class="ind-val" style="color:${macd.trend==='bullish'?'var(--green)':'var(--red)'}"><br>${macd.trend==='bullish'?'▲ Bull':'▼ Bear'}</div><div style="font-size:.64rem;color:${macd.strengthening?'var(--green)':'var(--muted)'}">${macd.strengthening?'⬆ Growing':'→ Weakening'}</div></div>`:''}
-      ${bb?`<div class="ind-box"><div class="ind-lbl">Bollinger Bands</div><div class="ind-val" style="color:${bb.position<=0.2?'var(--green)':bb.position>=0.8?'var(--red)':'var(--cyan)'}"><br>${bb.position<=0.2?'Lower Zone':bb.position>=0.8?'Upper Zone':'Mid Zone'}</div><div style="font-size:.64rem;color:${bb.squeeze?'var(--yellow)':'var(--muted)'}">${bb.squeeze?'💥 Squeeze':''+((bb.width*100).toFixed(2))+'%'}</div></div>`:''}
+      ${macd?`<div class="ind-box"><div class="ind-lbl">MACD</div><div class="ind-val" style="color:${macd.trend==='bullish'?'var(--green)':'var(--red)'}"><br>${macd.trend==='bullish'?'▲ Bull':'▼ Bear'}</div><div style="font-size:.64rem;color:${macd.strengthening?'var(--green)':'var(--muted)'};">${macd.strengthening?'⬆ Growing':'→ Weakening'}</div></div>`:''}
+      ${bb?`<div class="ind-box"><div class="ind-lbl">Bollinger Bands</div><div class="ind-val" style="color:${bb.position<=0.1?'var(--green)':bb.position>=0.9?'var(--red)':'var(--cyan)'}"><br>${bb.position<=0.1?'Lower Band':bb.position>=0.9?'Upper Band':'Mid Zone'}</div><div style="font-size:.64rem;color:${bb.squeeze?'var(--yellow)':'var(--muted)'};">${bb.squeeze?'💥 Squeeze':((bb.width*100).toFixed(2))+'% width'}</div></div>`:''}
       ${stoch?`<div class="ind-box"><div class="ind-lbl">Stoch RSI</div><div class="ind-val" style="color:${stoch.signal==='oversold'?'var(--green)':stoch.signal==='overbought'?'var(--red)':'var(--text)'}"><br>${stoch.signal}</div><div style="font-family:var(--font-n);font-size:.61rem;color:var(--muted)">K ${stoch.k.toFixed(1)} / D ${stoch.d.toFixed(1)}</div></div>`:''}
+      ${obv?`<div class="ind-box"><div class="ind-lbl">OBV</div><div class="ind-val" style="color:${obv.rising?'var(--green)':'var(--red)'}"><br>${obv.rising?'▲ Accumulation':'▼ Distribution'}</div></div>`:''}
       ${sess?`<div class="ind-box"><div class="ind-lbl">Session</div><div class="ind-val" style="color:${sess.quality==='high'?'var(--green)':sess.quality==='medium'?'var(--cyan)':'var(--muted)'}"><br>${sess.session}</div></div>`:''}
-      ${btc?`<div class="ind-box"><div class="ind-lbl">BTC 4H</div><div class="ind-val" style="color:${btc.bias==='bull'?'var(--green)':btc.bias==='bear'?'var(--red)':'var(--yellow)'}"><br>${btc.label}</div></div>`:''}
+      ${btc?`<div class="ind-box"><div class="ind-lbl">BTC 4H Context</div><div class="ind-val" style="color:${btc.bias==='bull'?'var(--green)':btc.bias==='bear'?'var(--red)':'var(--yellow)'}"><br>${btc.label}</div></div>`:''}
     </div>
 
     <!-- Reasoning -->
     <div class="deep-reasoning" style="padding:14px 0 0">
-      <div class="reasoning-title">🧠 Signal Reasoning — 20+ Factor Analysis</div>
+      <div class="reasoning-title">🧠 Signal Reasoning — 25-Factor Analysis</div>
       <div class="reasoning-list">${reasons.map(r=>`<div class="reason-item"><span class="reason-icon">${r.icon}</span><span class="reason-txt">${r.text}</span></div>`).join('')}</div>
     </div>
   </div>
 
-  <div class="deep-disclaimer"><strong>⚠ Risk Warning:</strong> 20+ factor MTF analysis (15m · 1H · 4H · 1D): RSI · EMA Stack · Supertrend · BOS/CHoCH · FVG · Order Blocks · Fibonacci · S/R Zones · Trend Lines · Divergence · Funding · OI. Entry/SL/TP refined using S/R and Fibonacci levels. <strong>Not financial advice.</strong></div>
+  <div class="deep-disclaimer"><strong>⚠ Risk Warning:</strong> 25-factor MTF analysis (15m·1H·4H·1D): RSI·EMA·Supertrend·BOS·FVG·OBs·Fibonacci·S/R·Pivots·Patterns·Divergence·OBV·Funding·OI·Taker Ratio·L/S Ratio·BTC Context. Entry/SL/TP/DCA refined via Fibonacci + S/R + Order Blocks. <strong>Not financial advice.</strong></div>
   ${paperBtn}
 </div></div>`;
 }
@@ -1380,9 +1606,8 @@ function renderDeep(container,symbol,rsi,vol,entry,curP,extra){
 /* ── btSaveSignal ── */
 function btSaveSignal(symbol,entry,curP,sess,rsi){
   try{
-    const{direction:dir,entryType,confidence:conf,isRisky=false,riskFlags=[],
-          entryPrice:ep,tp1Price:tp1,tp2Price:tp2,slPrice:sl,rrr1,rrr2,indicators:ind}=entry;
-    const sig={id:Date.now(),symbol,pair:symbol.replace('USDT','/USDT'),direction:dir,entryType,confidence:conf,isRisky,riskFlags,entryPrice:ep,tp1Price:tp1,tp2Price:tp2,slPrice:sl,currentSL:sl,rrr1,rrr2,timestamp:new Date().toISOString(),session:sess?.session||'Unknown',snap:{rsi:parseFloat((rsi||0).toFixed(2)),adx:ind?.adx?.adx?parseFloat(ind.adx.adx.toFixed(2)):null,trend4h:ind?.trend4h?.bias||null,trend4hScore:ind?.trend4h?.score||null,supertrend:ind?.supertrend?.bullish,supertrendDist:ind?.supertrend?.distPct||null,emaStack:ind?.emaStack?.stack||null,macdTrend:ind?.macd?.trend||null,macdStrengthen:ind?.macd?.strengthening||false,bbPos:ind?.bb?.position!=null?parseFloat((ind.bb.position*100).toFixed(1)):null,bbSqueeze:ind?.bb?.squeeze||false,stochSignal:ind?.stochRsi?.signal||null,stochK:ind?.stochRsi?.k!=null?parseFloat(ind.stochRsi.k.toFixed(1)):null,vwapAbove:ind?.vwap?.above,vwapPct:ind?.vwap?.pct!=null?parseFloat(ind.vwap.pct.toFixed(2)):null,funding:ind?.fundingRate!=null?parseFloat(ind.fundingRate.toFixed(4)):null,oiTrend:ind?.oiChange?.trend||null,oiPct:ind?.oiChange?.pct!=null?parseFloat(ind.oiChange.pct.toFixed(2)):null,hasDivergence:!!(ind?.divergence?.regularBull||ind?.divergence?.regularBear||ind?.divergence?.hiddenBull||ind?.divergence?.hiddenBear),divTypes:[ind?.divergence?.regularBull?'RegBull':null,ind?.divergence?.regularBear?'RegBear':null,ind?.divergence?.hiddenBull?'HidBull':null,ind?.divergence?.hiddenBear?'HidBear':null].filter(Boolean),bullBOS:ind?.bos?.bullBOS||false,bearBOS:ind?.bos?.bearBOS||false,choch:ind?.bos?.choch||false,bullFVG:!!(ind?.fvg?.bullFVG),bearFVG:!!(ind?.fvg?.bearFVG),mtfBullAlign:ind?.mtfRSI?.bullishAlign||false,mtfBearAlign:ind?.mtfRSI?.bearishAlign||false,fullMTFBull:ind?.mtfRSI?.fullBullAlign||false,fullMTFBear:ind?.mtfRSI?.fullBearAlign||false,btcBias:ind?.btcContext?.bias||null,sessionQuality:sess?.quality||null,session:sess?.session,atrPct:ind?.atr?.pct!=null?parseFloat(ind.atr.pct.toFixed(2)):null,obv:ind?.obv?.trend||null,atKeyFib:ind?.fibonacci?.atKeyFib||false,fibLevel:ind?.fibonacci?.nearKey?.label||null,atSRZone:!!(ind?.srZones?.atZone),srStrength:ind?.srZones?.atZone?.strength||null,nearBullOB:ind?.mtfOBs?.nearestBullOB?.tf||null,nearBearOB:ind?.mtfOBs?.nearestBearOB?.tf||null,trendLineDir:ind?.trendLine?.trend||null,ema15m:ind?.ema15m?.stack||null,ema1d:ind?.ema1d?.stack||null},status:entryType==='MARKET'?'OPEN':'PENDING',filled:entryType==='MARKET',fillPrice:entryType==='MARKET'?curP:null,fillTime:entryType==='MARKET'?new Date().toISOString():null,closeTime:null,closePrice:null,pnl:null,durationMin:null,lastPrice:curP,lastChecked:new Date().toISOString(),tp1Hit:false,tp1HitPrice:null,tp1HitTime:null,tp2Hit:false,tp2HitPrice:null,tp2HitTime:null,slHit:false,slHitTime:null,beHit:false,closedAt:null,finalPnl:null};
+    const{direction:dir,entryType,confidence:conf,isRisky=false,riskFlags=[],entryPrice:ep,tp1Price:tp1,tp2Price:tp2,slPrice:sl,dcaPoint,rrr1,rrr2,indicators:ind}=entry;
+    const sig={id:Date.now(),symbol,pair:symbol.replace('USDT','/USDT'),direction:dir,entryType,confidence:conf,isRisky,riskFlags,entryPrice:ep,tp1Price:tp1,tp2Price:tp2,slPrice:sl,dcaPoint:dcaPoint||null,rrr1,rrr2,timestamp:new Date().toISOString(),session:sess?.session||'Unknown',snap:{rsi:parseFloat((rsi||0).toFixed(2)),adx:ind?.adx?.adx?parseFloat(ind.adx.adx.toFixed(2)):null,trend4h:ind?.trend4h?.bias||null,supertrend:ind?.supertrend?.bullish,emaStack:ind?.emaStack?.stack||null,macdTrend:ind?.macd?.trend||null,bbPos:ind?.bb?.position!=null?parseFloat((ind.bb.position*100).toFixed(1)):null,bbSqueeze:ind?.bb?.squeeze||false,stochSignal:ind?.stochRsi?.signal||null,vwapAbove:ind?.vwap?.above,funding:ind?.fundingRate!=null?parseFloat(ind.fundingRate.toFixed(4)):null,oiTrend:ind?.oiChange?.trend||null,hasDivergence:!!(ind?.divergence?.regularBull||ind?.divergence?.regularBear||ind?.divergence?.hiddenBull||ind?.divergence?.hiddenBear||ind?.divergence?.obvBull||ind?.divergence?.obvBear),bullBOS:ind?.bos?.bullBOS||false,bearBOS:ind?.bos?.bearBOS||false,choch:ind?.bos?.choch||false,fullMTFBull:ind?.mtfRSI?.fullBullAlign||false,fullMTFBear:ind?.mtfRSI?.fullBearAlign||false,btcBias:ind?.btcContext?.bias||null,session:sess?.session,atrPct:ind?.atr?.pct!=null?parseFloat(ind.atr.pct.toFixed(2)):null,atKeyFib:ind?.fibonacci?.atKeyFib||false,candlePattern:ind?.candlePatterns?.latest?.name||null,takerLabel:ind?.takerRatio?.label||null,lsLong:ind?.lsRatio?.longPct||null},status:entryType==='MARKET'?'OPEN':'PENDING',filled:entryType==='MARKET',fillPrice:entryType==='MARKET'?curP:null,fillTime:entryType==='MARKET'?new Date().toISOString():null,closeTime:null,closePrice:null,pnl:null,lastPrice:curP,lastChecked:new Date().toISOString(),tp1Hit:false,tp2Hit:false,slHit:false,closedAt:null,finalPnl:null};
     const sigs=JSON.parse(localStorage.getItem('bt_signals')||'[]');sigs.unshift(sig);if(sigs.length>300)sigs.splice(300);localStorage.setItem('bt_signals',JSON.stringify(sigs));
   }catch(e){console.warn('btSave:',e);}
 }
