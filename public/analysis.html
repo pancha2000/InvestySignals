@@ -987,8 +987,9 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // === SL / TP / Entry Calculation ===
   const aV = atr ? atr.atr : price * 0.015, aP = atr ? atr.pct : 1.5;
   const slM = isRisky ? 3.0 : (aP > 3.5 ? 2.0 : aP > 2.0 ? 2.2 : 2.5);
-  const r10H = Math.max(...H.slice(-10)), r10L = Math.min(...L.slice(-10));
-  const r5H  = Math.max(...H.slice(-5)),  r5L  = Math.min(...L.slice(-5));
+  const h10 = H.slice(-10), l10 = L.slice(-10), h5 = H.slice(-5), l5 = L.slice(-5);
+  const r10H = h10.length ? Math.max(...h10) : price, r10L = l10.length ? Math.min(...l10) : price;
+  const r5H  = h5.length  ? Math.max(...h5)  : price, r5L  = l5.length  ? Math.min(...l5)  : price;
   let ep, sl, tp1, tp2;
 
   if (dir === 'LONG') {
@@ -1105,8 +1106,9 @@ function buildReasons(rsi, vol, result) {
   if (takerRatio)  reasons.push({ icon: '⚖️', text: `Taker ratio <strong>${takerRatio.ratio.toFixed(2)}</strong> — ${takerRatio.label}.` });
   if (lsRatio)     reasons.push({ icon: '👥', text: `${lsRatio.label} — ${lsRatio.extremeLong?'⚠ crowded longs':lsRatio.extremeShort?'⚠ crowded shorts':'balanced'}.` });
   if (pivotPoints) {
-    const aV = atr?.atr || 0;
-    const closePivot = [['PP',pivotPoints.PP],['R1',pivotPoints.R1],['R2',pivotPoints.R2],['S1',pivotPoints.S1],['S2',pivotPoints.S2]].find(([n,p])=>aV>0&&Math.abs(p-ind.atr?.atr?.(0)||result.entryPrice)<aV*2);
+    const aV = (ind.atr && ind.atr.atr) ? ind.atr.atr : result.entryPrice * 0.01;
+    const refP = result.entryPrice || 0;
+    const closePivot = [['PP',pivotPoints.PP],['R1',pivotPoints.R1],['R2',pivotPoints.R2],['S1',pivotPoints.S1],['S2',pivotPoints.S2]].find(([n,p])=>refP>0&&aV>0&&Math.abs(p-refP)<aV*2);
     if (closePivot) reasons.push({ icon: '📌', text: `Near daily pivot <strong>${closePivot[0]}</strong> at ${fmtPrice(closePivot[1])}.` });
   }
   if (btc)  reasons.push({ icon: '₿', text: `BTC 4H context <strong>${btc.label}</strong> — ${(btc.bias==='bull'&&dir==='LONG')||(btc.bias==='bear'&&dir==='SHORT')?'macro aligned ✓':'⚠ macro opposing'}.` });
