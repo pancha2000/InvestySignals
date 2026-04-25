@@ -419,7 +419,9 @@ const BINANCE_FAPI = 'https://fapi.binance.com';
 const RSI_PERIOD = 14, KLINE_4H = 80, KLINE_15M = 150, KLINE_1D = 60;
 function getKline1H(){ return IS('ind_kline_limit', 200); }
 function getScanLimit(){ return IS('scan_limit', 50); }
-const KLINE_1H = 200, SCAN_LIMIT = 50;
+// Dynamic constants — read admin settings at runtime
+function KLINE_1H(){ return getKline1H(); }
+function SCAN_LIMIT(){ return getScanLimit(); }
 
 /* ── Formatters ── */
 function fmtPrice(p){const n=parseFloat(p);if(isNaN(n))return'—';if(n>=1000)return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});if(n>=1)return'$'+n.toFixed(4);if(n>=0.01)return'$'+n.toFixed(5);return'$'+n.toFixed(6);}
@@ -1167,11 +1169,11 @@ async function runMarketScan() {
   body.innerHTML = '<tr class="loading-row"><td colspan="9" style="text-align:center;padding:26px;color:var(--muted)">⟳ Scanning market…</td></tr>';
   try {
     const [ticker] = await Promise.all([fetch(`${BINANCE_FAPI}/fapi/v1/ticker/24hr`).then(r=>r.json()), fetchPremiumIndex()]);
-    let coins = ticker.filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 5e6).sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, SCAN_LIMIT);
+    let coins = ticker.filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 5e6).sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, SCAN_LIMIT());
 
     // Fetch 4H trend for top 20 (needed for score)
     const trend4hMap = {};
-    await Promise.allSettled(coins.slice(0, 20).map(async c => {
+    await Promise.allSettled(coins.map(async c => {
       try { const kl = await fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${c.symbol}&interval=4h&limit=60`).then(r=>r.json()); trend4hMap[c.symbol] = calc4HTrend(kl); }
       catch (_) { trend4hMap[c.symbol] = { bias: 'neutral', label: '—' }; }
     }));
@@ -1225,7 +1227,7 @@ async function runDeepScan(symbol) {
   try {
     const [kl15R, kl1HR, kl4HR, kl1DR, tkR, prR] = await Promise.all([
       fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=${KLINE_15M}`),
-      fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=${KLINE_1H}`),
+      fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=${KLINE_1H()}`),
       fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=${KLINE_4H}`),
       fetch(`${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${KLINE_1D}`),
       fetch(`${BINANCE_FAPI}/fapi/v1/ticker/price?symbol=${symbol}`),

@@ -165,14 +165,34 @@ async function seedDefaultSettings() {
 let firebaseAdmin = null, firebaseAdminReady = false;
 try {
   const admin = require('firebase-admin');
+  let credential = null;
+
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
+    // Option 1: JSON string in env var
+    try {
+      credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
+    } catch(parseErr) {
+      console.log('⚠️  FIREBASE_SERVICE_ACCOUNT JSON parse failed:', parseErr.message);
+    }
+  }
+
+  if (!credential && process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+    // Option 2: Path to JSON file
+    const saPath = require('path').resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+    try {
+      const saJson = require(saPath);
+      credential = admin.credential.cert(saJson);
+    } catch(fileErr) {
+      console.log('⚠️  Firebase service account file load failed:', fileErr.message);
+    }
+  }
+
+  if (credential) {
+    admin.initializeApp({ credential });
     firebaseAdmin = admin; firebaseAdminReady = true;
     console.log('✅ Firebase Admin initialized');
   } else {
-    console.log('⚠️  FIREBASE_SERVICE_ACCOUNT not set — Firebase Admin disabled');
-    console.log('   → Firebase Console → Project Settings → Service Accounts → Generate new private key');
-    console.log('   → Add to .env: FIREBASE_SERVICE_ACCOUNT={"type":"service_account",...}');
+    console.log('⚠️  Firebase Admin disabled — set FIREBASE_SERVICE_ACCOUNT or FIREBASE_SERVICE_ACCOUNT_PATH in .env');
   }
 } catch (e) { console.log('⚠️  firebase-admin not available:', e.message); }
 
