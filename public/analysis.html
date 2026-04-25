@@ -1321,9 +1321,8 @@ async function runDeepScan(symbol) {
       document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
       return;
     }
-      kl15m, kl1h, kl4h, kl1d, ema15m, ema4h, ema1d, rsi15m, rsi4h, rsi1d,
-      trendLine, trendLine4h, bos15m, bos4h, mtfOBs, mtfFVGs, srZones, fibonacci,
-      candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio
+    renderDeep(container, symbol, rsi, vol, entry, curP, {
+      ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h
     });
 
     btSaveSignal(symbol, entry, curP, sess, rsi);
