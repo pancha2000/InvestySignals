@@ -442,10 +442,11 @@ function calcMACD(c,f,s,sig){f=f||12;s=s||26;sig=sig||9;if(!c||c.length<s+sig)re
 function calcBollingerBands(c,p,m){p=p||20;m=m||2;if(!c||c.length<p)return null;const sl=c.slice(-p),mean=sl.reduce((a,b)=>a+b,0)/p,std=Math.sqrt(sl.reduce((s,v)=>s+(v-mean)**2,0)/p),upper=mean+m*std,lower=mean-m*std,width=(upper-lower)/mean,pos=(c[c.length-1]-lower)/(upper-lower);return{upper,middle:mean,lower,width,position:Math.max(0,Math.min(1,pos)),squeeze:width<0.04};}
 
 /* ── Stoch RSI ── */
-function calcStochasticRSI(c,rp,sp,ks,ds){rp=rp||14;sp=sp||14;ks=ks||3;ds=ds||3;if(!c||c.length<rp+sp+ks+ds)return null;const ra=[];for(let i=rp;i<c.length;i++)ra.push(calcRSI(c.slice(0,i+1),rp));if(ra.length<sp)return null;const st=[];for(let i=sp-1;i<ra.length;i++){const w=ra.slice(i-sp+1,i+1),lo=Math.min(...w),hi=Math.max(...w);st.push(hi===lo?50:((ra[i]-lo)/(hi-lo))*100);}const ka=calcEMAArray(st,ks),da=calcEMAArray(ka,ds),k=ka[ka.length-1],d=da[da.length-1],pk=ka[ka.length-2],pd=da[da.length-2];return{k,d,signal:k<20?'oversold':k>80?'overbought':'neutral',crossover:(k>d&&pk<=pd)?'bullish_cross':(k<d&&pk>=pd)?'bearish_cross':null};}
+function calcSMAArray(arr,p){const o=[];for(let i=p-1;i<arr.length;i++)o.push(arr.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p);return o;}
+function calcStochasticRSI(c,rp,sp,ks,ds){rp=rp||14;sp=sp||14;ks=ks||3;ds=ds||3;if(!c||c.length<rp+sp+ks+ds)return null;const ra=[];for(let i=rp;i<c.length;i++)ra.push(calcRSI(c.slice(0,i+1),rp));if(ra.length<sp)return null;const st=[];for(let i=sp-1;i<ra.length;i++){const w=ra.slice(i-sp+1,i+1),lo=Math.min(...w),hi=Math.max(...w);st.push(hi===lo?50:((ra[i]-lo)/(hi-lo))*100);}// Use SMA (TradingView standard) not EMA for K/D smoothing\nconst ka=calcSMAArray(st,ks),da=calcSMAArray(ka,ds),k=ka[ka.length-1],d=da[da.length-1],pk=ka[ka.length-2],pd=da[da.length-2];return{k,d,signal:k<20?'oversold':k>80?'overbought':'neutral',crossover:(k>d&&pk<=pd)?'bullish_cross':(k<d&&pk>=pd)?'bearish_cross':null};}
 
 /* ── ATR ── */
-function calcATR(H,L,C,p){p=p||14;if(!H||H.length<p+1)return null;const tr=[];for(let i=1;i<H.length;i++)tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));let a=tr.slice(0,p).reduce((x,y)=>x+y,0)/p;for(let i=p;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return{atr:a,pct:(a/C[C.length-1])*100};}
+function calcATR(H,L,C,p){p=p||14;if(!H||H.length<p+1)return null;const tr=[];for(let i=1;i<H.length;i++)tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));let a=tr.slice(0,p).reduce((x,y)=>x+y,0)/p;for(let i=p;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;const lastC=C[C.length-1];// Safety floor: ATR must be ≥0.15% of price to prevent SL/TP collapse\nif(!isFinite(a)||a<lastC*0.0015)a=lastC*0.0015;return{atr:a,pct:(a/lastC)*100};}
 
 /* ── ADX ── */
 function calcADX(H,L,C,p){p=p||14;if(!H||H.length<p*2)return null;const pm=[],mm=[],tr=[];for(let i=1;i<H.length;i++){const up=H[i]-H[i-1],dn=L[i-1]-L[i];pm.push(up>dn&&up>0?up:0);mm.push(dn>up&&dn>0?dn:0);tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));}const ws=(a,n)=>{let s=a.slice(0,n).reduce((x,y)=>x+y,0);const r=[s];for(let i=n;i<a.length;i++){s=s-s/n+a[i];r.push(s);}return r;};const sT=ws(tr,p),sP=ws(pm,p),sM=ws(mm,p),di=sT.map((t,i)=>({plus:t>0?(sP[i]/t)*100:0,minus:t>0?(sM[i]/t)*100:0})),dx=di.map(d=>{const s=d.plus+d.minus;return s>0?(Math.abs(d.plus-d.minus)/s)*100:0;});let adx=dx.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<dx.length;i++)adx=(adx*(p-1)+dx[i])/p;const last=di[di.length-1];return{adx,plusDI:last.plus,minusDI:last.minus,trend:adx>25?(last.plus>last.minus?'bullish':'bearish'):'ranging',strength:adx>50?'strong':adx>25?'moderate':'weak'};}
@@ -828,10 +829,15 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     else                  { ls += 4; ss += 4; } // neutral is good
   }
 
-  // F11: OI Change — IMPROVED, now 15pts directional
+  // F11: OI Change — directional (uses MACD as momentum direction proxy)
   if (oi) {
-    if (oi.trend === 'rising')  { ls += 5; ss += 5; }  // rising OI both sides = momentum
-    else if (oi.trend === 'falling') { ls = Math.max(ls-5,0); ss = Math.max(ss-5,0); } // unwinding
+    if (oi.trend === 'rising') {
+      const mBull = macd && macd.trend === 'bull';
+      const mBear = macd && macd.trend === 'bear';
+      if (mBull)      { ls += 10; }          // rising OI + bullish momentum = long
+      else if (mBear) { ss += 10; }          // rising OI + bearish momentum = short
+      else            { ls += 3; ss += 3; }  // ambiguous: small split
+    } else if (oi.trend === 'falling') { ls = Math.max(ls-5,0); ss = Math.max(ss-5,0); } // unwinding
   }
 
   // F12: Divergence (RSI + OBV)
@@ -870,8 +876,13 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // N6: BTC Context — INCREASED 5→15
   if (btc && btc.bias !== 'neutral') { if (btc.bias==='bull') ls+=15; else ss+=15; }
 
-  // N7: MTF FVGs
-  if (mtfFVGs) { mtfFVGs.bullFVGs.forEach(f=>{const w=f.tf==='1D'?9:f.tf==='4H'?7:f.tf==='1H'?4:2;ls+=w;}); mtfFVGs.bearFVGs.forEach(f=>{const w=f.tf==='1D'?9:f.tf==='4H'?7:f.tf==='1H'?4:2;ss+=w;}); }
+  // N7: MTF FVGs — capped at 18pts per direction to prevent unbounded stacking
+  if (mtfFVGs) {
+    let fvgL=0, fvgS=0;
+    mtfFVGs.bullFVGs.forEach(f=>{const w=f.tf==='1D'?9:f.tf==='4H'?7:f.tf==='1H'?4:2; fvgL+=w;});
+    mtfFVGs.bearFVGs.forEach(f=>{const w=f.tf==='1D'?9:f.tf==='4H'?7:f.tf==='1H'?4:2; fvgS+=w;});
+    ls += Math.min(fvgL, 18); ss += Math.min(fvgS, 18);
+  }
 
   // N8: Order Blocks
   if (mtfOBs) {
@@ -912,7 +923,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     ss += Math.min(candlePatterns.bearScore * 2, 10);
   }
 
-  // N13: Pivot Points proximity (NEW)
+  // N13: Pivot Points proximity — capped at 2 levels per direction (max 14pts)
   if (pivotPoints) {
     const levels = [
       { p: pivotPoints.S1, type: 'support' }, { p: pivotPoints.S2, type: 'support' }, { p: pivotPoints.S3, type: 'support' },
@@ -920,12 +931,13 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
       { p: pivotPoints.PP, type: 'pp' }
     ];
     const aV = atr ? atr.atr : price * 0.01;
+    let pvSupHits=0, pvResHits=0;
     levels.forEach(lv => {
       const dist = Math.abs(price - lv.p);
       if (dist < aV * 1.5) {
-        if (lv.type === 'support') ls += 7;
-        else if (lv.type === 'resist') ss += 7;
-        else { ls += 3; ss += 3; } // at PP
+        if (lv.type === 'support' && pvSupHits < 2) { ls += 7; pvSupHits++; }
+        else if (lv.type === 'resist' && pvResHits < 2) { ss += 7; pvResHits++; }
+        else if (lv.type === 'pp') { ls += 3; ss += 3; }
       }
     });
   }
@@ -949,10 +961,10 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
-  const MAX = 290;
+  const MAX = 340; // Calibrated to realistic capped max (FVG+Pivot now capped)
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
-  let dir = lc >= sc ? 'LONG' : 'SHORT';
+  let dir = lc > sc ? 'LONG' : sc > lc ? 'SHORT' : (macd && macd.trend==='bull' ? 'LONG' : 'SHORT'); // tie-break via MACD
   let conf = dir === 'LONG' ? lc : sc;
   if (conf < 10) conf = Math.max(lc, sc, 10);
 
@@ -976,7 +988,18 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   if (sess && sess.isAsian) riskFlags.push('⚠ Asian session — low liquidity, score penalised');
   if (lsRatio && lsRatio.extremeLong  && dir==='LONG')  riskFlags.push('⚠ ' + lsRatio.longPct.toFixed(0) + '% traders long — crowded');
   if (lsRatio && lsRatio.extremeShort && dir==='SHORT') riskFlags.push('⚠ ' + lsRatio.shortPct.toFixed(0) + '% traders short — crowded');
-  const isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 50);
+  // SMC Order Block conflict checks
+  if (dir === 'SHORT' && mtfOBs?.nearestBullOB) {
+    const ob = mtfOBs.nearestBullOB;
+    if (price >= ob.low && price <= ob.high) riskFlags.push(`⚠ Entry inside ${ob.tf} Bull OB — selling in demand zone`);
+  }
+  if (dir === 'LONG' && mtfOBs?.nearestBearOB) {
+    const ob = mtfOBs.nearestBearOB;
+    if (price >= ob.low && price <= ob.high) riskFlags.push(`⚠ Entry inside ${ob.tf} Bear OB — buying in supply zone`);
+  }
+  // Any single major structural flag = Risk Entry
+  const majorFlags = riskFlags.filter(f => f.includes('counter-trend') || f.includes('Daily EMA') || f.includes('OB —'));
+  const isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 60) || majorFlags.length >= 1;
 
   // Entry type logic
   const strongTrend = st && t4 && ema1d && ((dir==='LONG' && st.bullish && t4.bias==='bull' && ema1d.stack?.includes('bull')) || (dir==='SHORT' && !st.bullish && t4.bias==='bear' && ema1d.stack?.includes('bear')));
@@ -1027,6 +1050,11 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
       if (pvAbove.length && pvAbove[0] < tp1 * 1.02) tp1 = pvAbove[0];
       if (pvAbove.length > 1 && pvAbove[1] < tp2 * 1.02) tp2 = pvAbove[1];
     }
+    // Validate TP ordering: for LONG, tp1 must be closer (lower) than tp2
+    if (tp1 >= tp2) { const tmp=tp1; tp1=tp2; tp2=tmp; }
+    // Final safety: both TPs must be above entry
+    if (tp1 <= ep) tp1 = ep + aV * 2;
+    if (tp2 <= tp1) tp2 = tp1 + aV * 3;
 
   } else {
     const fibEP = snapToFibEntry(price, fibonacci, 'SHORT', aV);
@@ -1057,6 +1085,11 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
       if (pvBelow.length && pvBelow[0] > tp1 * 0.98) tp1 = pvBelow[0];
       if (pvBelow.length > 1 && pvBelow[1] > tp2 * 0.98) tp2 = pvBelow[1];
     }
+    // Validate TP ordering: for SHORT, tp1 must be closer (higher) than tp2
+    if (tp1 <= tp2) { const tmp=tp1; tp1=tp2; tp2=tmp; }
+    // Final safety: both TPs must be below entry
+    if (tp1 >= ep) tp1 = ep - aV * 2;
+    if (tp2 >= tp1) tp2 = tp1 - aV * 3;
   }
 
   const risk = dir === 'LONG' ? ep - sl : sl - ep;
@@ -1104,7 +1137,7 @@ function buildReasons(rsi, vol, result) {
   if (fr !== null) reasons.push({ icon: '💰', text: `Funding rate <strong>${fr.toFixed(4)}%</strong> — ${Math.abs(fr)<=0.005?'neutral (ideal)':fr<0?'negative (long bias)':'positive (short bias)'}.` });
   if (oi)          reasons.push({ icon: '📦', text: `Open Interest <strong>${oi.trend}</strong> (${fmtPct(oi.pct)}).` });
   if (takerRatio)  reasons.push({ icon: '⚖️', text: `Taker ratio <strong>${takerRatio.ratio.toFixed(2)}</strong> — ${takerRatio.label}.` });
-  if (lsRatio)     reasons.push({ icon: '👥', text: `${lsRatio.label} — ${lsRatio.extremeLong?'⚠ crowded longs':lsRatio.extremeShort?'⚠ crowded shorts':'balanced'}.` });
+  if (lsRatio)     reasons.push({ icon: '👥', text: `${lsRatio.label} — ${lsRatio.extremeLong?'⚠ crowded longs':lsRatio.extremeShort?'⚠ crowded shorts':lsRatio.longBias?'Long biased':lsRatio.shortBias?'Short biased':'balanced'}.` });
   if (pivotPoints) {
     const aV = (ind.atr && ind.atr.atr) ? ind.atr.atr : result.entryPrice * 0.01;
     const refP = result.entryPrice || 0;
@@ -1279,7 +1312,13 @@ async function runDeepScan(symbol) {
 
     const entry = decideEntry(rsi, vol, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
 
-    renderDeep(container, symbol, rsi, vol, entry, curP, {
+    // Minimum confidence gate — block sub-threshold signals
+    const minConf = IS('ind_min_confidence', 62);
+    if (entry.confidence < minConf) {
+      container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text">No Valid Signal — ${symbol}</div><div class="empty-sub">Confluence score <strong style="color:var(--yellow)">${entry.confidence}%</strong> is below the minimum required <strong>${minConf}%</strong>.<br>Direction bias: <strong>${entry.direction}</strong> — but too many opposing factors.<br><span style="font-size:.74rem;color:var(--dim)">Adjust minimum confidence in Admin Settings or wait for a better setup.</span></div></div></div></div>`;
+      document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
+      return;
+    }
       kl15m, kl1h, kl4h, kl1d, ema15m, ema4h, ema1d, rsi15m, rsi4h, rsi1d,
       trendLine, trendLine4h, bos15m, bos4h, mtfOBs, mtfFVGs, srZones, fibonacci,
       candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio
