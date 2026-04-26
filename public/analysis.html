@@ -445,10 +445,10 @@ function calcBollingerBands(c,p,m){p=p||20;m=m||2;if(!c||c.length<p)return null;
 
 /* ── Stoch RSI ── */
 function calcSMAArray(arr,p){const o=[];for(let i=p-1;i<arr.length;i++)o.push(arr.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p);return o;}
-function calcStochasticRSI(c,rp,sp,ks,ds){rp=rp||14;sp=sp||14;ks=ks||3;ds=ds||3;if(!c||c.length<rp+sp+ks+ds)return null;const ra=[];for(let i=rp;i<c.length;i++)ra.push(calcRSI(c.slice(0,i+1),rp));if(ra.length<sp)return null;const st=[];for(let i=sp-1;i<ra.length;i++){const w=ra.slice(i-sp+1,i+1),lo=Math.min(...w),hi=Math.max(...w);st.push(hi===lo?50:((ra[i]-lo)/(hi-lo))*100);}// Use SMA (TradingView standard) not EMA for K/D smoothing\nconst ka=calcSMAArray(st,ks),da=calcSMAArray(ka,ds),k=ka[ka.length-1],d=da[da.length-1],pk=ka[ka.length-2],pd=da[da.length-2];return{k,d,signal:k<20?'oversold':k>80?'overbought':'neutral',crossover:(k>d&&pk<=pd)?'bullish_cross':(k<d&&pk>=pd)?'bearish_cross':null};}
+function calcStochasticRSI(c,rp,sp,ks,ds){rp=rp||14;sp=sp||14;ks=ks||3;ds=ds||3;if(!c||c.length<rp+sp+ks+ds)return null;const ra=[];for(let i=rp;i<c.length;i++)ra.push(calcRSI(c.slice(0,i+1),rp));if(ra.length<sp)return null;const st=[];for(let i=sp-1;i<ra.length;i++){const w=ra.slice(i-sp+1,i+1),lo=Math.min(...w),hi=Math.max(...w);st.push(hi===lo?50:((ra[i]-lo)/(hi-lo))*100);}/* SMA smoothing-TradingView standard */ const ka=calcSMAArray(st,ks),da=calcSMAArray(ka,ds),k=ka[ka.length-1],d=da[da.length-1],pk=ka[ka.length-2],pd=da[da.length-2];return{k,d,signal:k<20?'oversold':k>80?'overbought':'neutral',crossover:(k>d&&pk<=pd)?'bullish_cross':(k<d&&pk>=pd)?'bearish_cross':null};}
 
 /* ── ATR ── */
-function calcATR(H,L,C,p){p=p||14;if(!H||H.length<p+1)return null;const tr=[];for(let i=1;i<H.length;i++)tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));let a=tr.slice(0,p).reduce((x,y)=>x+y,0)/p;for(let i=p;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;const lastC=C[C.length-1];// Safety floor: ATR must be ≥0.15% of price to prevent SL/TP collapse\nif(!isFinite(a)||a<lastC*0.0015)a=lastC*0.0015;return{atr:a,pct:(a/lastC)*100};}
+function calcATR(H,L,C,p){p=p||14;if(!H||H.length<p+1)return null;const tr=[];for(let i=1;i<H.length;i++)tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));let a=tr.slice(0,p).reduce((x,y)=>x+y,0)/p;for(let i=p;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;const lastC=C[C.length-1];/* ATR floor ≥0.15% of price */ if(!isFinite(a)||a<lastC*0.0015)a=lastC*0.0015;return{atr:a,pct:(a/lastC)*100};}
 
 /* ── ADX ── */
 function calcADX(H,L,C,p){p=p||14;if(!H||H.length<p*2)return null;const pm=[],mm=[],tr=[];for(let i=1;i<H.length;i++){const up=H[i]-H[i-1],dn=L[i-1]-L[i];pm.push(up>dn&&up>0?up:0);mm.push(dn>up&&dn>0?dn:0);tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));}const ws=(a,n)=>{let s=a.slice(0,n).reduce((x,y)=>x+y,0);const r=[s];for(let i=n;i<a.length;i++){s=s-s/n+a[i];r.push(s);}return r;};const sT=ws(tr,p),sP=ws(pm,p),sM=ws(mm,p),di=sT.map((t,i)=>({plus:t>0?(sP[i]/t)*100:0,minus:t>0?(sM[i]/t)*100:0})),dx=di.map(d=>{const s=d.plus+d.minus;return s>0?(Math.abs(d.plus-d.minus)/s)*100:0;});let adx=dx.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<dx.length;i++)adx=(adx*(p-1)+dx[i])/p;const last=di[di.length-1];return{adx,plusDI:last.plus,minusDI:last.minus,trend:adx>25?(last.plus>last.minus?'bullish':'bearish'):'ranging',strength:adx>50?'strong':adx>25?'moderate':'weak'};}
@@ -1321,6 +1321,8 @@ async function runDeepScan(symbol) {
       document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
       return;
     }
+
+    renderDeep(container, symbol, rsi, vol, entry, curP, {
       kl15m, kl1h, kl4h, kl1d, ema15m, ema4h, ema1d, rsi15m, rsi4h, rsi1d,
       trendLine, trendLine4h, bos15m, bos4h, mtfOBs, mtfFVGs, srZones, fibonacci,
       candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio
