@@ -1003,27 +1003,87 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   const majorFlags = riskFlags.filter(f => f.includes('counter-trend') || f.includes('Daily EMA') || f.includes('OB —'));
   const isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 60) || majorFlags.length >= 1;
 
-  // Entry type logic
-  const strongTrend = st && t4 && ema1d && ((dir==='LONG' && st.bullish && t4.bias==='bull' && ema1d.stack?.includes('bull')) || (dir==='SHORT' && !st.bullish && t4.bias==='bear' && ema1d.stack?.includes('bear')));
-  let entryType = isRisky ? 'RISK ENTRY' : 'LIMIT';
-  if (!isRisky && conf>=75 && vol.surge && ((dir==='LONG' && rsi<=40)||(dir==='SHORT' && rsi>=60))) entryType = 'MARKET';
-  if (!isRisky && conf>=82 && strongTrend) entryType = 'MARKET';
-
   // === SL / TP / Entry Calculation ===
   const aV = atr ? atr.atr : price * 0.015, aP = atr ? atr.pct : 1.5;
   const slM = isRisky ? 3.0 : (aP > 3.5 ? 2.0 : aP > 2.0 ? 2.2 : 2.5);
   const h10 = H.slice(-10), l10 = L.slice(-10), h5 = H.slice(-5), l5 = L.slice(-5);
   const r10H = h10.length ? Math.max(...h10) : price, r10L = l10.length ? Math.min(...l10) : price;
   const r5H  = h5.length  ? Math.max(...h5)  : price, r5L  = l5.length  ? Math.min(...l5)  : price;
-  let ep, sl, tp1, tp2;
+  let ep, sl, tp1, tp2, entryType;
+
+  /* ── Smart Entry Finder ──────────────────────────────────────────
+     Score every candidate level by confluence + proximity.
+     Best score wins. If best score >= 60 AND candidate is within
+     0.4×ATR of current price → treat as MARKET (already at key level).
+     ─────────────────────────────────────────────────────────────── */
+  function scoreEntry(candidate, dir) {
+    if (candidate == null || isNaN(candidate)) return -999;
+    const dist = Math.abs(candidate - price);
+    const distAtr = dist / aV;
+    if (distAtr > 3.0) return -999; // too far — won't fill quickly
+    let score = 100 - distAtr * 28; // closer = higher base score
+
+    // Confluence bonuses
+    const tol = aV * 0.35;
+    if (fibonacci?.levels?.some(l => l.key && Math.abs(l.price - candidate) < tol)) score += 22;
+    if (srZones?.below?.some(z => Math.abs(z.price - candidate) < tol && z.strength >= 3)) score += dir==='LONG' ? 18 : 8;
+    if (srZones?.above?.some(z => Math.abs(z.price - candidate) < tol && z.strength >= 3)) score += dir==='SHORT' ? 18 : 8;
+    if (mtfOBs?.nearestBullOB && dir==='LONG') {
+      const ob = mtfOBs.nearestBullOB;
+      if (candidate >= ob.low - tol && candidate <= ob.high + tol) score += 20;
+    }
+    if (mtfOBs?.nearestBearOB && dir==='SHORT') {
+      const ob = mtfOBs.nearestBearOB;
+      if (candidate >= ob.low - tol && candidate <= ob.high + tol) score += 20;
+    }
+    if (pivotPoints) {
+      const pvLevels = [pivotPoints.PP, pivotPoints.S1, pivotPoints.S2, pivotPoints.R1, pivotPoints.R2];
+      if (pvLevels.some(p => p && Math.abs(p - candidate) < tol)) score += 12;
+    }
+    if (bb && dir==='LONG' && Math.abs(bb.lower - candidate) < tol) score += 14;
+    if (bb && dir==='SHORT' && Math.abs(bb.upper - candidate) < tol) score += 14;
+    if (vwap && Math.abs(vwap.vwap - candidate) < tol) score += 10;
+    // Penalty if wrong side of price for quick fill
+    if (dir === 'LONG' && candidate > price + aV * 0.15) score -= 40;
+    if (dir === 'SHORT' && candidate < price - aV * 0.15) score -= 40;
+    return Math.round(score);
+  }
+
+  const strongTrend = st && t4 && ema1d && ((dir==='LONG' && st.bullish && t4.bias==='bull' && ema1d.stack?.includes('bull')) || (dir==='SHORT' && !st.bullish && t4.bias==='bear' && ema1d.stack?.includes('bear')));
 
   if (dir === 'LONG') {
-    // Entry: Fib snap → BB lower band → S/R support → 5-candle low
+    // Collect all LONG entry candidates
     const fibEP = snapToFibEntry(price, fibonacci, 'LONG', aV);
-    const bbEP  = bb && bb.position <= 0.15 ? bb.lower : null;
-    const srEP  = srZones && srZones.below.length ? srZones.below[0].price : null;
-    if (entryType === 'MARKET' || isRisky) ep = price;
-    else ep = fibEP || bbEP || srEP || Math.max(r5L, price - aV * 0.3);
+    const bbEP  = bb?.lower || null;
+    const srEP  = srZones?.below?.[0]?.price || null;
+    const obEP  = mtfOBs?.nearestBullOB ? (mtfOBs.nearestBullOB.high * 0.998) : null; // just above OB top
+    const pvEP  = pivotPoints ? [pivotPoints.S1, pivotPoints.PP].filter(p => p && p <= price + aV * 0.3 && p >= price - aV * 2)[0] : null;
+    const atrEP = price - aV * 0.25;
+    const candidates = [
+      { label:'fib',  price: fibEP },
+      { label:'bb',   price: bbEP  },
+      { label:'sr',   price: srEP  },
+      { label:'ob',   price: obEP  },
+      { label:'piv',  price: pvEP  },
+      { label:'mkt',  price: price },
+      { label:'atr',  price: atrEP },
+    ].filter(c => c.price != null && c.price > 0);
+
+    // Score all candidates
+    candidates.forEach(c => { c.score = scoreEntry(c.price, 'LONG'); });
+    candidates.sort((a,b) => b.score - a.score);
+    const best = candidates[0];
+
+    // Decide entry type
+    const atMarket = Math.abs(best.price - price) <= aV * 0.4;
+    const highConf  = conf >= 75 && (vol.surge || strongTrend);
+    if (isRisky) {
+      ep = best.price; entryType = 'RISK ENTRY';
+    } else if (atMarket && (highConf || best.score >= 75)) {
+      ep = price; entryType = 'MARKET';
+    } else {
+      ep = best.price; entryType = best.price < price ? 'LIMIT' : 'MARKET';
+    }
 
     // SL: Fib swing-low → OB low → S/R zone below → Trendline → ATR fallback
     const fibSL  = getFibSL(ep, fibonacci, 'LONG', aV);
@@ -1059,11 +1119,36 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     if (tp2 <= tp1) tp2 = tp1 + aV * 3;
 
   } else {
+    // Collect all SHORT entry candidates
     const fibEP = snapToFibEntry(price, fibonacci, 'SHORT', aV);
-    const bbEP  = bb && bb.position >= 0.85 ? bb.upper : null;
-    const srEP  = srZones && srZones.above.length ? srZones.above[0].price : null;
-    if (entryType === 'MARKET' || isRisky) ep = price;
-    else ep = fibEP || bbEP || srEP || Math.min(r5H, price + aV * 0.3);
+    const bbEP  = bb?.upper || null;
+    const srEP  = srZones?.above?.[0]?.price || null;
+    const obEP  = mtfOBs?.nearestBearOB ? (mtfOBs.nearestBearOB.low * 1.002) : null; // just below OB bottom
+    const pvEP  = pivotPoints ? [pivotPoints.R1, pivotPoints.PP].filter(p => p && p >= price - aV * 0.3 && p <= price + aV * 2)[0] : null;
+    const atrEP = price + aV * 0.25;
+    const candidates = [
+      { label:'fib',  price: fibEP },
+      { label:'bb',   price: bbEP  },
+      { label:'sr',   price: srEP  },
+      { label:'ob',   price: obEP  },
+      { label:'piv',  price: pvEP  },
+      { label:'mkt',  price: price },
+      { label:'atr',  price: atrEP },
+    ].filter(c => c.price != null && c.price > 0);
+
+    candidates.forEach(c => { c.score = scoreEntry(c.price, 'SHORT'); });
+    candidates.sort((a,b) => b.score - a.score);
+    const best = candidates[0];
+
+    const atMarket = Math.abs(best.price - price) <= aV * 0.4;
+    const highConf  = conf >= 75 && (vol.surge || strongTrend);
+    if (isRisky) {
+      ep = best.price; entryType = 'RISK ENTRY';
+    } else if (atMarket && (highConf || best.score >= 75)) {
+      ep = price; entryType = 'MARKET';
+    } else {
+      ep = best.price; entryType = best.price > price ? 'LIMIT' : 'MARKET';
+    }
 
     const fibSL  = getFibSL(ep, fibonacci, 'SHORT', aV);
     const obSL   = mtfOBs?.nearestBearOB ? mtfOBs.nearestBearOB.high + aV * 0.3 : null;
@@ -1314,12 +1399,13 @@ async function runDeepScan(symbol) {
 
     const entry = decideEntry(rsi, vol, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
 
-    // Minimum confidence gate — block sub-threshold signals
+    // Low confidence — show signal with risk warning instead of blocking
     const minConf = IS('ind_min_confidence', 62);
     if (entry.confidence < minConf) {
-      container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text">No Valid Signal — ${symbol}</div><div class="empty-sub">Confluence score <strong style="color:var(--yellow)">${entry.confidence}%</strong> is below the minimum required <strong>${minConf}%</strong>.<br>Direction bias: <strong>${entry.direction}</strong> — but too many opposing factors.<br><span style="font-size:.74rem;color:var(--dim)">Adjust minimum confidence in Admin Settings or wait for a better setup.</span></div></div></div></div>`;
-      document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
-      return;
+      if (!entry.riskFlags) entry.riskFlags = [];
+      entry.riskFlags.unshift('Low confluence score (' + entry.confidence + '%) — below minimum ' + minConf + '%. Reduce position size or skip.');
+      entry.isRisky = true;
+      entry.entryType = 'RISK ENTRY';
     }
 
     renderDeep(container, symbol, rsi, vol, entry, curP, {
@@ -1356,7 +1442,12 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const borderCol  = isRisky ? 'rgba(255,195,51,.35)' : (dir==='LONG' ? 'rgba(0,255,136,.3)' : 'rgba(255,61,90,.3)');
   const headerBg   = isRisky ? 'linear-gradient(135deg,rgba(255,195,51,.06),rgba(255,195,51,.02))' : (dir==='LONG' ? 'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))' : 'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))');
 
-  const riskHtml = isRisky && riskFlags.length ? `<div style="background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.18);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.74rem;color:var(--yellow);line-height:1.8">⚠ <strong>RISK ENTRY</strong> — Reduce position size.<br>${riskFlags.map(f=>`· ${f}`).join('<br>')}</div>` : '';
+  const isLowConf = conf < IS('ind_min_confidence', 62);
+  const riskBg    = isLowConf ? 'rgba(255,61,90,.06)' : 'rgba(255,195,51,.05)';
+  const riskBdr   = isLowConf ? 'rgba(255,61,90,.25)' : 'rgba(255,195,51,.18)';
+  const riskClr   = isLowConf ? 'var(--red)' : 'var(--yellow)';
+  const riskLabel = isLowConf ? '🔴 LOW CONFIDENCE SIGNAL' : '⚠ RISK ENTRY';
+  const riskHtml  = isRisky && riskFlags.length ? `<div style="background:${riskBg};border:1px solid ${riskBdr};border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.74rem;color:${riskClr};line-height:1.8"><strong>${riskLabel}</strong> — Reduce position size significantly.<br>${riskFlags.map(f=>`· ${f}`).join('<br>')}</div>` : '';
 
   // Score chips
   const chips = [];
@@ -1500,7 +1591,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
 
   <!-- Score Bar -->
   <div class="score-bar-wrap">
-    <div class="score-bar-title">🏆 Confluence Score — ${isRisky?'⚠ Risk Entry':'Valid Signal'} (v5 · 25-Factor Engine)</div>
+    <div class="score-bar-title">🏆 Confluence Score — ${conf < IS('ind_min_confidence',62) ? '🔴 LOW CONFIDENCE' : isRisky ? '⚠ Risk Entry' : '✅ Valid Signal'} (v5 · 25-Factor Engine)</div>
     <div class="score-total">
       <div class="score-num" style="color:${sColor}">${conf}</div>
       <span class="score-badge ${sg.cls}" style="font-size:.9rem;padding:3px 10px">${sg.label}</span>
