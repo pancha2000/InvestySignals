@@ -9,32 +9,31 @@
 <style>
 :root{
   --bg:#070b14;--surface:#0c1220;--card:#101827;--border:#1a2640;--border2:#243350;
-  --cyan:#00d4ff;--green:#00ff88;--red:#ff3d5a;--yellow:#ffc333;--purple:#a78bfa;
+  --cyan:#00d4ff;--green:#00ff88;--red:#ff3d5a;--yellow:#ffc333;--purple:#a78bfa;--orange:#fb923c;
   --text:#e2e8f0;--muted:#64748b;--dim:#334155;
   --font-h:'Rajdhani',sans-serif;--font-n:'IBM Plex Mono',monospace;--font-b:'Outfit',sans-serif;
-  --sidebar-w:220px;
+  --sidebar-w:228px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;}
 body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x:hidden;min-height:100vh;}
 ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
 
-/* ── Login Screen ── */
+/* ── Login ── */
 #loginScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;}
 .login-box{background:var(--card);border:1px solid var(--border2);border-radius:18px;padding:36px 32px;width:100%;max-width:380px;}
 .login-logo{font-family:var(--font-h);font-size:1.4rem;font-weight:700;letter-spacing:.06em;text-align:center;margin-bottom:6px;}
 .login-logo span{color:var(--cyan);}
 .login-sub{text-align:center;font-size:.78rem;color:var(--muted);margin-bottom:28px;}
-.login-badge{display:inline-block;background:rgba(167,139,250,.12);color:var(--purple);border:1px solid rgba(167,139,250,.3);border-radius:4px;font-family:var(--font-n);font-size:.62rem;padding:2px 8px;margin-bottom:12px;}
 .lf-row{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
 .lf-row label{font-family:var(--font-n);font-size:.64rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
 .lf-inp{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 13px;font-family:var(--font-n);font-size:.88rem;outline:none;transition:border .2s;width:100%;min-height:44px;}
 .lf-inp:focus{border-color:var(--cyan);}
 .btn-login{width:100%;padding:12px;background:linear-gradient(135deg,rgba(0,212,255,.2),rgba(0,212,255,.08));border:1px solid rgba(0,212,255,.45);color:var(--cyan);border-radius:9px;font-family:var(--font-b);font-size:.95rem;font-weight:700;cursor:pointer;transition:all .25s;min-height:44px;margin-top:6px;}
-.btn-login:hover{background:linear-gradient(135deg,rgba(0,212,255,.32),rgba(0,212,255,.16));box-shadow:0 0 20px rgba(0,212,255,.25);}
+.btn-login:hover{background:linear-gradient(135deg,rgba(0,212,255,.32),rgba(0,212,255,.16));}
 .login-err{color:var(--red);font-size:.78rem;text-align:center;min-height:20px;margin-top:8px;}
 
-/* ── App Shell (hidden until logged in) ── */
+/* ── App Shell ── */
 #appShell{display:none;min-height:100vh;}
 
 /* ── Top Bar ── */
@@ -42,13 +41,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .tb-left{display:flex;align-items:center;gap:10px;}
 .tb-brand{font-family:var(--font-h);font-weight:700;font-size:.9rem;letter-spacing:.04em;}
 .tb-brand span{color:var(--cyan);}
-.tb-badge{background:rgba(167,139,250,.12);color:var(--purple);border:1px solid rgba(167,139,250,.3);border-radius:4px;font-family:var(--font-n);font-size:.58rem;padding:2px 8px;font-weight:600;letter-spacing:.06em;}
+.tb-badge{background:rgba(167,139,250,.12);color:var(--purple);border:1px solid rgba(167,139,250,.3);border-radius:4px;font-family:var(--font-n);font-size:.58rem;padding:2px 8px;font-weight:600;}
 .tb-right{display:flex;align-items:center;gap:10px;}
 .tb-status{display:flex;align-items:center;gap:5px;font-family:var(--font-n);font-size:.68rem;}
 .status-dot{width:6px;height:6px;border-radius:50%;}
-.status-dot.green{background:var(--green);box-shadow:0 0 5px var(--green);}
+.status-dot.green{background:var(--green);box-shadow:0 0 5px var(--green);animation:sdpulse 2s infinite;}
 .status-dot.red{background:var(--red);}
 .status-dot.yellow{background:var(--yellow);}
+@keyframes sdpulse{0%,100%{opacity:1}50%{opacity:.5}}
 .btn-logout{padding:6px 14px;background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);color:var(--red);border-radius:6px;font-size:.76rem;cursor:pointer;font-family:var(--font-b);transition:all .2s;min-height:36px;}
 .btn-logout:hover{background:rgba(255,61,90,.14);}
 .mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
@@ -67,9 +67,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .sb-icon{font-size:.9rem;width:18px;text-align:center;flex-shrink:0;}
 .sb-count{font-family:var(--font-n);font-size:.58rem;padding:2px 6px;border-radius:4px;background:rgba(0,212,255,.1);color:var(--cyan);margin-left:auto;}
 
-/* ── Main Content ── */
-.main{margin-left:var(--sidebar-w);padding:68px 24px 32px;min-height:100vh;}
-@media(max-width:768px){.main{margin-left:0;padding:60px 12px 32px;}}
+/* ── Main ── */
+.main{margin-left:var(--sidebar-w);padding:68px 24px 40px;min-height:100vh;}
+@media(max-width:768px){.main{margin-left:0;padding:60px 12px 40px;}}
 
 /* ── Page sections ── */
 .page-section{display:none;}
@@ -78,7 +78,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .page-sub{font-size:.82rem;color:var(--muted);margin-bottom:20px;}
 
 /* ── Stat cards ── */
-.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
 @media(max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
 @media(max-width:480px){.stat-grid{grid-template-columns:1fr 1fr;gap:8px;}}
 .stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
@@ -100,13 +100,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 
 /* ── Tables ── */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-.tbl{width:100%;border-collapse:collapse;font-size:.8rem;min-width:560px;}
+.tbl{width:100%;border-collapse:collapse;font-size:.8rem;min-width:500px;}
 .tbl th{font-family:var(--font-n);font-size:.58rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
 .tbl td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle;}
 .tbl tr:last-child td{border-bottom:none;}
 .tbl tr:hover td{background:rgba(255,255,255,.02);}
+.empty-row td{text-align:center;padding:28px;color:var(--muted);font-size:.82rem;}
 
-/* ── Direction badges ── */
+/* ── Direction / Status / Grade badges ── */
 .dir-badge{font-family:var(--font-n);font-size:.65rem;padding:3px 9px;border-radius:5px;font-weight:700;letter-spacing:.06em;}
 .dir-badge.long{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.25);}
 .dir-badge.short{background:rgba(255,61,90,.12);color:var(--red);border:1px solid rgba(255,61,90,.25);}
@@ -129,9 +130,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .btn-success:hover{background:linear-gradient(135deg,rgba(0,255,136,.25),rgba(0,255,136,.12));}
 .btn-danger{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--red);}
 .btn-danger:hover{background:rgba(255,61,90,.16);}
-.btn-sm{padding:5px 11px;font-size:.74rem;min-height:30px;border-radius:6px;}
 .btn-warn{background:rgba(255,195,51,.08);border:1px solid rgba(255,195,51,.25);color:var(--yellow);}
 .btn-warn:hover{background:rgba(255,195,51,.16);}
+.btn-purple{background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.3);color:var(--purple);}
+.btn-purple:hover{background:rgba(167,139,250,.2);}
+.btn-sm{padding:5px 11px;font-size:.74rem;min-height:30px;border-radius:6px;}
+.btn-xs{padding:3px 8px;font-size:.68rem;min-height:26px;border-radius:5px;}
 
 /* ── Forms ── */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
@@ -146,6 +150,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .f-ta{resize:vertical;min-height:80px;font-family:var(--font-b);}
 .f-sel option{background:var(--card);}
 .form-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.f-hint{font-size:.68rem;color:var(--muted);margin-top:2px;}
+
+/* ── Toggle ── */
+.toggle-wrap{display:flex;align-items:center;gap:10px;}
+.toggle{position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:var(--border2);border-radius:12px;transition:.3s;}
+.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.3s;}
+.toggle input:checked+.toggle-slider{background:var(--green);}
+.toggle input:checked+.toggle-slider::before{transform:translateX(20px);}
+
+/* ── Feature Flag rows ── */
+.flag-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:12px;}
+.flag-row:last-child{border-bottom:none;}
+.flag-info{flex:1;}
+.flag-title{font-size:.86rem;font-weight:600;}
+.flag-desc{font-size:.73rem;color:var(--muted);margin-top:2px;}
+.flag-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+
+/* ── Setting rows ── */
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.setting-row:last-child{border-bottom:none;}
+.setting-info{flex:1;min-width:160px;}
+.setting-label{font-size:.84rem;font-weight:500;}
+.setting-key{font-family:var(--font-n);font-size:.61rem;color:var(--muted);margin-top:1px;}
+.setting-ctrl{flex-shrink:0;}
+.setting-ctrl .f-inp{width:150px;}
+@media(max-width:480px){.setting-ctrl .f-inp{width:110px;}}
 
 /* ── Modal ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9000;align-items:center;justify-content:center;padding:16px;}
@@ -159,62 +191,46 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .modal-body{padding:18px 20px;}
 .modal-foot{padding:13px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;}
 
-/* ── Toggle ── */
-.toggle-wrap{display:flex;align-items:center;gap:10px;}
-.toggle{position:relative;width:44px;height:24px;cursor:pointer;}
-.toggle input{opacity:0;width:0;height:0;}
-.toggle-slider{position:absolute;inset:0;background:var(--border2);border-radius:12px;transition:.3s;}
-.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.3s;}
-.toggle input:checked+.toggle-slider{background:var(--green);}
-.toggle input:checked+.toggle-slider::before{transform:translateX(20px);}
+/* ── Confirm ── */
+.confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center;padding:16px;}
+.confirm-overlay.open{display:flex;}
+.confirm-box{background:var(--card);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:360px;}
+.cb-head{padding:14px 18px;border-bottom:1px solid var(--border);}
+.cb-body{padding:14px 18px;font-size:.86rem;color:var(--muted);line-height:1.6;}
+.cb-body strong{color:var(--text);}
+.cb-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
 
 /* ── Misc ── */
 .tag{font-family:var(--font-n);font-size:.6rem;padding:2px 7px;border-radius:4px;font-weight:600;}
 .tag.purple{background:rgba(167,139,250,.1);color:var(--purple);}
-.empty-row td{text-align:center;padding:28px;color:var(--muted);font-size:.82rem;}
+.tag.green{background:rgba(0,255,136,.1);color:var(--green);}
+.tag.red{background:rgba(255,61,90,.1);color:var(--red);}
+.tag.yellow{background:rgba(255,195,51,.1);color:var(--yellow);}
 .loading{text-align:center;padding:32px;color:var(--muted);font-size:.84rem;}
 .alert{padding:10px 14px;border-radius:8px;font-size:.8rem;margin-bottom:14px;display:none;}
 .alert.show{display:block;}
 .alert.success{background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.2);color:var(--green);}
 .alert.danger{background:rgba(255,61,90,.07);border:1px solid rgba(255,61,90,.2);color:var(--red);}
 .alert.info{background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.2);color:var(--cyan);}
-.server-status{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
-.ss-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:8px;font-size:.78rem;}
-.ss-item .label{color:var(--muted);font-family:var(--font-n);font-size:.64rem;text-transform:uppercase;}
-.ss-item .value{font-family:var(--font-n);font-weight:600;}
-.confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;align-items:center;justify-content:center;padding:16px;}
-.confirm-overlay.open{display:flex;}
-.confirm-box{background:var(--card);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:340px;overflow:hidden;}
-.cb-head{padding:14px 18px;border-bottom:1px solid var(--border);}
-.cb-body{padding:14px 18px;font-size:.86rem;color:var(--muted);line-height:1.6;}
-.cb-body strong{color:var(--text);}
-.cb-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
+.section-divider{font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin:16px 0 12px;grid-column:1/-1;}
 </style>
 </head>
 <body>
 
-<!-- ══════════════ LOGIN SCREEN ══════════════ -->
+<!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-box">
     <div class="login-logo">INVESTY<span>SIGNALS</span></div>
     <div class="login-sub">Admin Control Panel</div>
-    <div style="text-align:center;margin-bottom:20px"><span class="login-badge">🔒 ADMIN ONLY</span></div>
-    <div class="lf-row">
-      <label>Username</label>
-      <input class="lf-inp" id="loginUser" type="text" placeholder="admin" autocomplete="username"
-        onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()">
-    </div>
-    <div class="lf-row">
-      <label>Password</label>
-      <input class="lf-inp" id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter') doLogin()">
-    </div>
+    <div style="text-align:center;margin-bottom:20px"><span style="background:rgba(167,139,250,.12);color:var(--purple);border:1px solid rgba(167,139,250,.3);border-radius:4px;font-family:var(--font-n);font-size:.62rem;padding:2px 8px">🔒 ADMIN ONLY</span></div>
+    <div class="lf-row"><label>Username</label><input class="lf-inp" id="loginUser" type="text" placeholder="admin" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"></div>
+    <div class="lf-row"><label>Password</label><input class="lf-inp" id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn-login" id="btnLogin" onclick="doLogin()">Sign In to Admin</button>
     <div class="login-err" id="loginErr"></div>
   </div>
 </div>
 
-<!-- ══════════════ APP SHELL ══════════════ -->
+<!-- APP SHELL -->
 <div id="appShell">
 
   <!-- Top Bar -->
@@ -248,65 +264,57 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
       <button class="sb-link" onclick="showPage('signals')"><span class="sb-icon">📡</span> All Signals <span class="sb-count" id="countSignals">—</span></button>
       <button class="sb-link" onclick="showPage('new-signal')"><span class="sb-icon">➕</span> New Signal</button>
 
-      <div class="sb-section">Content</div>
-      <button class="sb-link" onclick="showPage('announcements')"><span class="sb-icon">📢</span> Announcements</button>
-      <button class="sb-link" onclick="showPage('settings')"><span class="sb-icon">⚙️</span> Site Settings</button>
-      <button class="sb-link" onclick="showPage('adsense')"><span class="sb-icon">💰</span> AdSense &amp; SEO</button>
-
-      <div class="sb-section">System</div>
-      <button class="sb-link" onclick="showPage('server')"><span class="sb-icon">🖥️</span> Server Status</button>
-
       <div class="sb-section">Users</div>
       <button class="sb-link" onclick="showPage('users')"><span class="sb-icon">👥</span> User Management <span class="sb-count" id="countUsers">—</span></button>
+
+      <div class="sb-section">Control</div>
+      <button class="sb-link" onclick="showPage('site-control')"><span class="sb-icon">🎛️</span> Site Control</button>
       <button class="sb-link" onclick="showPage('indicators')"><span class="sb-icon">📐</span> Indicator Defaults</button>
+      <button class="sb-link" onclick="showPage('announcements')"><span class="sb-icon">📢</span> Announcements</button>
+
+      <div class="sb-section">System</div>
+      <button class="sb-link" onclick="showPage('settings')"><span class="sb-icon">⚙️</span> Site Settings</button>
+      <button class="sb-link" onclick="showPage('adsense')"><span class="sb-icon">💰</span> AdSense &amp; SEO</button>
+      <button class="sb-link" onclick="showPage('server')"><span class="sb-icon">🖥️</span> Server Status</button>
     </div>
   </aside>
 
-  <!-- ══════════════ MAIN ══════════════ -->
   <main class="main">
 
-    <!-- ── DASHBOARD ── -->
+    <!-- ══ DASHBOARD ══ -->
     <div class="page-section active" id="page-dashboard">
       <div class="page-title">📊 Overview</div>
       <div class="page-sub">Platform stats and quick actions</div>
-
-      <div class="stat-grid" id="dashStats">
+      <div class="stat-grid">
         <div class="stat-card"><div class="sc-label">Total Signals</div><div class="sc-value" id="ds-total">—</div><div class="sc-sub">All time</div></div>
-        <div class="stat-card"><div class="sc-label">Active</div><div class="sc-value" style="color:var(--green)" id="ds-active">—</div><div class="sc-sub">Live now</div></div>
-        <div class="stat-card"><div class="sc-label">Win Rate</div><div class="sc-value" style="color:var(--cyan)" id="ds-wr">—</div><div class="sc-sub"><span id="ds-wl">— wins / — losses</span></div></div>
+        <div class="stat-card"><div class="sc-label">Active Signals</div><div class="sc-value" style="color:var(--green)" id="ds-active">—</div><div class="sc-sub">Live now</div></div>
+        <div class="stat-card"><div class="sc-label">Win Rate</div><div class="sc-value" style="color:var(--cyan)" id="ds-wr">—</div><div class="sc-sub" id="ds-wl">— / —</div></div>
         <div class="stat-card"><div class="sc-label">WS Clients</div><div class="sc-value" style="color:var(--yellow)" id="ds-clients">—</div><div class="sc-sub">Connected browsers</div></div>
       </div>
-
-      <!-- Server Status Row -->
-      <div class="server-status" id="serverStatusRow">
-        <div class="ss-item"><span class="label">MongoDB</span>&nbsp;<span class="value" id="ss-mongo">—</span></div>
-        <div class="ss-item"><span class="label">Binance WS</span>&nbsp;<span class="value" id="ss-bws">—</span></div>
-        <div class="ss-item"><span class="label">Live Coins</span>&nbsp;<span class="value" id="ss-coins">—</span></div>
-        <div class="ss-item"><span class="label">Uptime</span>&nbsp;<span class="value" id="ss-uptime">—</span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+        <div class="stat-card"><div class="sc-label">MongoDB</div><div id="ss-mongo" style="font-size:.84rem;font-weight:600;margin-top:4px">—</div></div>
+        <div class="stat-card"><div class="sc-label">Binance WS</div><div id="ss-bws" style="font-size:.84rem;font-weight:600;margin-top:4px">—</div></div>
+        <div class="stat-card"><div class="sc-label">Live Coins</div><div class="sc-value" id="ss-coins">—</div></div>
+        <div class="stat-card"><div class="sc-label">Uptime</div><div class="sc-value" id="ss-uptime">—</div></div>
       </div>
-
-      <!-- Recent Signals -->
       <div class="panel">
         <div class="panel-head">
           <div class="panel-title">📡 Recent Signals</div>
-          <button class="btn btn-primary btn-sm" onclick="showPage('new-signal')">➕ New Signal</button>
+          <button class="btn btn-success btn-sm" onclick="showPage('new-signal')">➕ New Signal</button>
         </div>
         <div class="panel-body" style="padding:0">
-          <div class="tbl-wrap">
-            <table class="tbl">
-              <thead><tr><th>Pair</th><th>Dir</th><th>Entry</th><th>TP1</th><th>SL</th><th>Grade</th><th>Status</th><th>Posted</th><th></th></tr></thead>
-              <tbody id="recentSignalsTbl"><tr class="empty-row"><td colspan="9" class="loading">Loading…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Pair</th><th>Dir</th><th>Entry</th><th>TP1</th><th>SL</th><th>Grade</th><th>Status</th><th>Posted</th><th></th></tr></thead>
+            <tbody id="recentSignalsTbl"><tr class="empty-row"><td colspan="9" class="loading">Loading…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
     </div>
 
-    <!-- ── ALL SIGNALS ── -->
+    <!-- ══ ALL SIGNALS ══ -->
     <div class="page-section" id="page-signals">
       <div class="page-title">📡 All Signals</div>
-      <div class="page-sub">Manage all trading signals</div>
-
+      <div class="page-sub">Create, edit, and manage trading signals</div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <select class="f-sel" id="sigFilterStatus" style="width:auto;min-width:140px" onchange="loadSignals()">
           <option value="">All Statuses</option>
@@ -318,100 +326,38 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
         <button class="btn btn-success" onclick="showPage('new-signal')">➕ New Signal</button>
         <button class="btn btn-primary btn-sm" onclick="loadSignals()" style="margin-left:auto">🔄 Refresh</button>
       </div>
-
       <div class="panel">
         <div class="panel-body" style="padding:0">
-          <div class="tbl-wrap">
-            <table class="tbl">
-              <thead><tr><th>Pair</th><th>Dir</th><th>TF</th><th>Entry</th><th>TP1</th><th>TP2</th><th>SL</th><th>Grade</th><th>Conf.</th><th>Status</th><th>Result</th><th>Posted</th><th>Actions</th></tr></thead>
-              <tbody id="signalsTbl"><tr class="empty-row"><td colspan="13" class="loading">Loading…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Pair</th><th>Dir</th><th>TF</th><th>Entry</th><th>TP1</th><th>TP2</th><th>SL</th><th>Grade</th><th>Conf.</th><th>Status</th><th>Result</th><th>Posted</th><th>Actions</th></tr></thead>
+            <tbody id="signalsTbl"><tr class="empty-row"><td colspan="13" class="loading">Loading…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
     </div>
 
-    <!-- ── NEW SIGNAL ── -->
+    <!-- ══ NEW SIGNAL ══ -->
     <div class="page-section" id="page-new-signal">
       <div class="page-title">➕ New Signal</div>
-      <div class="page-sub">Create and broadcast a new trading signal</div>
-
+      <div class="page-sub">Create and broadcast a new trading signal to all users</div>
       <div id="sigAlert" class="alert"></div>
-
       <div class="panel">
         <div class="panel-head"><div class="panel-title">Signal Details</div></div>
         <div class="panel-body">
           <div class="form-grid">
-            <div class="f-row">
-              <label>Coin Symbol</label>
-              <input class="f-inp" id="ns-coin" placeholder="BTC" oninput="this.value=this.value.toUpperCase();updateSigPair()">
-            </div>
-            <div class="f-row">
-              <label>Pair</label>
-              <input class="f-inp" id="ns-pair" placeholder="BTC/USDT" readonly style="opacity:.7">
-            </div>
-            <div class="f-row">
-              <label>Direction</label>
-              <select class="f-sel" id="ns-direction">
-                <option value="LONG">▲ LONG</option>
-                <option value="SHORT">▼ SHORT</option>
-              </select>
-            </div>
-            <div class="f-row">
-              <label>Timeframe</label>
-              <select class="f-sel" id="ns-timeframe">
-                <option value="1H">1H</option>
-                <option value="4H" selected>4H</option>
-                <option value="1D">1D</option>
-                <option value="1W">1W</option>
-                <option value="15M">15M</option>
-              </select>
-            </div>
-            <div class="f-row">
-              <label>Entry Price</label>
-              <input class="f-inp" id="ns-entry" type="number" step="any" placeholder="0.00">
-            </div>
-            <div class="f-row">
-              <label>Stop Loss</label>
-              <input class="f-inp" id="ns-sl" type="number" step="any" placeholder="0.00">
-            </div>
-            <div class="f-row">
-              <label>TP 1</label>
-              <input class="f-inp" id="ns-tp1" type="number" step="any" placeholder="0.00">
-            </div>
-            <div class="f-row">
-              <label>TP 2</label>
-              <input class="f-inp" id="ns-tp2" type="number" step="any" placeholder="0.00 (optional)">
-            </div>
-            <div class="f-row">
-              <label>Grade</label>
-              <select class="f-sel" id="ns-grade">
-                <option value="A+">A+</option>
-                <option value="A">A</option>
-                <option value="B+" selected>B+</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-              </select>
-            </div>
-            <div class="f-row">
-              <label>Confidence %</label>
-              <input class="f-inp" id="ns-conf" type="number" min="0" max="100" placeholder="75" value="75">
-            </div>
-            <div class="f-row">
-              <label>Status</label>
-              <select class="f-sel" id="ns-status">
-                <option value="ACTIVE">Active</option>
-                <option value="WAITING">Waiting</option>
-              </select>
-            </div>
-            <div class="f-row">
-              <label>Exchange</label>
-              <input class="f-inp" id="ns-exchange" value="Binance Futures">
-            </div>
-            <div class="f-row full">
-              <label>Notes (optional)</label>
-              <textarea class="f-ta" id="ns-notes" placeholder="Analysis notes, key levels, context…"></textarea>
-            </div>
+            <div class="f-row"><label>Coin Symbol</label><input class="f-inp" id="ns-coin" placeholder="BTC" oninput="this.value=this.value.toUpperCase();updateSigPair()"></div>
+            <div class="f-row"><label>Pair</label><input class="f-inp" id="ns-pair" placeholder="BTC/USDT" readonly style="opacity:.7"></div>
+            <div class="f-row"><label>Direction</label><select class="f-sel" id="ns-direction"><option value="LONG">▲ LONG</option><option value="SHORT">▼ SHORT</option></select></div>
+            <div class="f-row"><label>Timeframe</label><select class="f-sel" id="ns-timeframe"><option value="15M">15M</option><option value="1H">1H</option><option value="4H" selected>4H</option><option value="1D">1D</option><option value="1W">1W</option></select></div>
+            <div class="f-row"><label>Entry Price</label><input class="f-inp" id="ns-entry" type="number" step="any" placeholder="0.00"></div>
+            <div class="f-row"><label>Stop Loss</label><input class="f-inp" id="ns-sl" type="number" step="any" placeholder="0.00"></div>
+            <div class="f-row"><label>TP 1</label><input class="f-inp" id="ns-tp1" type="number" step="any" placeholder="0.00"></div>
+            <div class="f-row"><label>TP 2 (optional)</label><input class="f-inp" id="ns-tp2" type="number" step="any" placeholder="0.00"></div>
+            <div class="f-row"><label>Grade</label><select class="f-sel" id="ns-grade"><option value="A+">A+</option><option value="A">A</option><option value="B+" selected>B+</option><option value="B">B</option><option value="C">C</option></select></div>
+            <div class="f-row"><label>Confidence %</label><input class="f-inp" id="ns-conf" type="number" min="0" max="100" value="75"></div>
+            <div class="f-row"><label>Status</label><select class="f-sel" id="ns-status"><option value="ACTIVE">Active</option><option value="WAITING">Waiting (Limit)</option></select></div>
+            <div class="f-row"><label>Exchange</label><input class="f-inp" id="ns-exchange" value="Binance Futures"></div>
+            <div class="f-row full"><label>Notes (optional)</label><textarea class="f-ta" id="ns-notes" placeholder="Analysis notes, key levels, context…"></textarea></div>
           </div>
           <div class="form-actions">
             <button class="btn btn-success" onclick="submitSignal()">📡 Publish Signal</button>
@@ -421,178 +367,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
       </div>
     </div>
 
-    <!-- ── ANNOUNCEMENTS ── -->
-    <div class="page-section" id="page-announcements">
-      <div class="page-title">📢 Announcements</div>
-      <div class="page-sub">Site-wide banners and alerts shown to all users</div>
-
-      <div style="display:flex;gap:8px;margin-bottom:14px">
-        <button class="btn btn-primary" onclick="openAnnModal()">➕ New Announcement</button>
-        <button class="btn btn-sm" onclick="loadAnnouncements()" style="border:1px solid var(--border2);color:var(--muted);background:transparent">🔄 Refresh</button>
-      </div>
-
-      <div id="annAlert" class="alert"></div>
-
-      <div class="panel">
-        <div class="panel-body" style="padding:0">
-          <div class="tbl-wrap">
-            <table class="tbl">
-              <thead><tr><th>Title</th><th>Type</th><th>Active</th><th>Message</th><th>Created</th><th>Actions</th></tr></thead>
-              <tbody id="annTbl"><tr class="empty-row"><td colspan="6" class="loading">Loading…</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SETTINGS ── -->
-    <div class="page-section" id="page-settings">
-      <div class="page-title">⚙️ Site Settings</div>
-      <div class="page-sub">General, analysis thresholds, signals, and social links</div>
-      <div id="settingsAlert" class="alert"></div>
-      <div id="settingsBody" class="loading">Loading settings…</div>
-    </div>
-
-    <!-- ── ADSENSE & SEO ── -->
-    <div class="page-section" id="page-adsense">
-      <div class="page-title">💰 AdSense &amp; SEO</div>
-      <div class="page-sub">Configure Google AdSense monetization and SEO meta tags</div>
-
-      <div id="adsenseAlert" class="alert"></div>
-
-      <div class="panel" style="margin-bottom:16px">
-        <div class="panel-head"><div class="panel-title">🔍 SEO Settings</div></div>
-        <div class="panel-body">
-          <div class="form-grid" style="margin-bottom:14px">
-            <div class="f-row full">
-              <label>SEO Meta Title</label>
-              <input type="text" class="f-inp" id="seo-title" placeholder="InvestySignals — Free Crypto Trading Signals">
-            </div>
-            <div class="f-row full">
-              <label>SEO Meta Description</label>
-              <textarea class="f-ta" id="seo-desc" rows="2" placeholder="Get free professional crypto trading signals..."></textarea>
-            </div>
-            <div class="f-row full">
-              <label>SEO Keywords</label>
-              <input type="text" class="f-inp" id="seo-keywords" placeholder="crypto signals, binance futures signals...">
-            </div>
-            <div class="f-row">
-              <label>Google Analytics ID</label>
-              <input type="text" class="f-inp" id="ga-id" placeholder="G-XXXXXXXXXX">
-              <span style="font-size:.7rem;color:var(--muted);margin-top:3px">Paste your GA4 Measurement ID</span>
-            </div>
-            <div class="f-row">
-              <label>OG Share Image URL</label>
-              <input type="text" class="f-inp" id="og-image" placeholder="https://yourdomain.com/og.png">
-            </div>
-          </div>
-          <button class="btn btn-primary" onclick="saveSeoSettings()">💾 Save SEO Settings</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-title">💰 Google AdSense</div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:.74rem;color:var(--muted)">Enabled:</span>
-            <label class="toggle" style="width:38px;height:20px">
-              <input type="checkbox" id="adsense-enabled" onchange="toggleAdsense(this)">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-        </div>
-        <div class="panel-body">
-          <div class="alert info show" style="margin-bottom:16px">
-            ℹ️ To get AdSense approved: submit your site to <strong>admob.google.com</strong> or <strong>adsense.google.com</strong>. 
-            Once approved, paste your Publisher ID and slot IDs below. Enable the toggle to activate ads.
-          </div>
-          <div class="form-grid" style="margin-bottom:14px">
-            <div class="f-row full">
-              <label>Publisher ID <span style="color:var(--yellow)">*</span></label>
-              <input type="text" class="f-inp" id="adsense-pubid" placeholder="ca-pub-1234567890123456">
-              <span style="font-size:.7rem;color:var(--muted);margin-top:3px">Find this in AdSense → Account → Account information</span>
-            </div>
-            <div class="f-row">
-              <label>Header Ad Slot ID</label>
-              <input type="text" class="f-inp" id="adsense-header" placeholder="1234567890">
-            </div>
-            <div class="f-row">
-              <label>Sidebar Ad Slot ID</label>
-              <input type="text" class="f-inp" id="adsense-sidebar" placeholder="1234567890">
-            </div>
-            <div class="f-row">
-              <label>Inline Content Ad Slot ID</label>
-              <input type="text" class="f-inp" id="adsense-inline" placeholder="1234567890">
-            </div>
-            <div class="f-row">
-              <label>Footer Ad Slot ID</label>
-              <input type="text" class="f-inp" id="adsense-footer" placeholder="1234567890">
-            </div>
-            <div class="f-row full">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                <input type="checkbox" id="adsense-auto" style="width:16px;height:16px">
-                Enable Auto Ads (Google automatically places ads across site)
-              </label>
-            </div>
-          </div>
-          <button class="btn btn-primary" onclick="saveAdsenseSettings()">💾 Save AdSense Settings</button>
-          <div style="margin-top:12px;padding:10px 13px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-size:.78rem;color:var(--muted)">
-            <strong style="color:var(--yellow)">ads.txt</strong> — Add this line to your public folder root:<br>
-            <code id="adsTextLine" style="font-family:var(--font-n);font-size:.72rem;color:var(--cyan);display:block;margin-top:6px;word-break:break-all">google.com, pub-XXXXXXXXXX, DIRECT, f08c47fec0942fa0</code>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SERVER ── -->
-    <div class="page-section" id="page-server">
-      <div class="page-title">🖥️ Server Status</div>
-      <div class="page-sub">Live server and connection health</div>
-
-      <div class="stat-grid">
-        <div class="stat-card"><div class="sc-label">MongoDB</div><div class="sc-value" id="srv-mongo">—</div></div>
-        <div class="stat-card"><div class="sc-label">Binance WS</div><div class="sc-value" id="srv-bws">—</div></div>
-        <div class="stat-card"><div class="sc-label">Browser Clients</div><div class="sc-value" id="srv-clients">—</div></div>
-        <div class="stat-card"><div class="sc-label">Server Uptime</div><div class="sc-value" id="srv-uptime">—</div></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-title">📡 Market Data</div>
-          <button class="btn btn-primary btn-sm" onclick="loadServerStats()">🔄 Refresh</button>
-        </div>
-        <div class="panel-body">
-          <div class="stat-grid" style="margin-bottom:0">
-            <div class="stat-card"><div class="sc-label">Live Coins</div><div class="sc-value" id="srv-coins">—</div></div>
-            <div class="stat-card"><div class="sc-label">Top Gainers</div><div class="sc-value" id="srv-gainers">—</div></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><div class="panel-title">🔗 Quick Links</div></div>
-        <div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap">
-          <a href="/health" target="_blank" class="btn btn-primary btn-sm">🏥 /health</a>
-          <a href="/api/signals" target="_blank" class="btn btn-primary btn-sm">📡 /api/signals</a>
-          <a href="/api/market/ticker" target="_blank" class="btn btn-primary btn-sm">📈 /api/market/ticker</a>
-          <a href="/api/market/top-gainers" target="_blank" class="btn btn-primary btn-sm">🔥 /api/market/top-gainers</a>
-        </div>
-      </div>
-    </div>
-
-
-    <!-- ══════════ USERS ══════════ -->
+    <!-- ══ USERS ══ -->
     <div class="page-section" id="page-users">
       <div class="page-title">👥 User Management</div>
-      <div class="page-sub">Manage registered users — suspend, restore, delete, change roles</div>
-
+      <div class="page-sub">Suspend, restore, delete users and change roles</div>
       <div class="stat-grid" style="margin-bottom:16px">
         <div class="stat-card"><div class="sc-label">Total Users</div><div class="sc-value" id="usr-total">—</div></div>
         <div class="stat-card"><div class="sc-label">Active (7 days)</div><div class="sc-value" id="usr-active">—</div></div>
-        <div class="stat-card"><div class="sc-label">Suspended</div><div class="sc-value" id="usr-suspended" style="color:var(--red)">—</div></div>
-        <div class="stat-card"><div class="sc-label">Premium</div><div class="sc-value" id="usr-premium" style="color:var(--yellow)">—</div></div>
+        <div class="stat-card"><div class="sc-label">Suspended</div><div class="sc-value" style="color:var(--red)" id="usr-suspended">—</div></div>
+        <div class="stat-card"><div class="sc-label">Premium</div><div class="sc-value" style="color:var(--yellow)" id="usr-premium">—</div></div>
       </div>
-
       <div class="panel">
         <div class="panel-head">
           <div class="panel-title">👤 All Users</div>
@@ -607,40 +391,336 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
         </div>
         <div class="panel-body" style="padding:0;overflow-x:auto">
           <table class="tbl" style="min-width:700px">
-            <thead><tr>
-              <th>User</th><th>Email</th><th>Role</th><th>Last Seen</th>
-              <th>Joined</th><th>Status</th><th>Actions</th>
-            </tr></thead>
+            <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Last Seen</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="usersTbl"><tr class="empty-row"><td colspan="7" class="loading">Loading users…</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- ══════════ INDICATORS ══════════ -->
-    <div class="page-section" id="page-indicators">
-      <div class="page-title">📐 Indicator Defaults</div>
-      <div class="page-sub">Set default indicator parameters for all users. Users can override these in their profile settings.</div>
+    <!-- ══ SITE CONTROL ══ -->
+    <div class="page-section" id="page-site-control">
+      <div class="page-title">🎛️ Site Control</div>
+      <div class="page-sub">Feature flags, access control, and maintenance settings</div>
 
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-title">📊 Analysis Engine</div>
-          <button class="btn btn-success btn-sm" onclick="saveIndicators()">💾 Save All Defaults</button>
+      <!-- Maintenance Mode -->
+      <div class="panel" style="border-color:rgba(255,61,90,.3)">
+        <div class="panel-head" style="background:linear-gradient(135deg,rgba(255,61,90,.06),rgba(255,61,90,.02))">
+          <div class="panel-title" style="color:var(--red)">⚠️ Maintenance Mode</div>
+          <label class="toggle"><input type="checkbox" id="flag-maintenance_mode" onchange="saveSingleFlag('maintenance_mode',this.checked)"><span class="toggle-slider"></span></label>
         </div>
         <div class="panel-body">
-          <div class="alert" id="indAlert" style="display:none;margin-bottom:12px"></div>
-          <div class="form-grid" id="indFormGrid">
-            <div style="color:var(--muted);font-size:.82rem;padding:12px">Loading indicator settings…</div>
+          <p style="font-size:.82rem;color:var(--muted)">When enabled, all users see a maintenance page instead of the site. Admin login still works.</p>
+          <div style="margin-top:10px">
+            <label style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Maintenance Message</label>
+            <input class="f-inp" id="maintenance_message" placeholder="We're upgrading the platform. Back soon!" style="margin-top:5px">
+          </div>
+          <button class="btn btn-warn btn-sm" style="margin-top:10px" onclick="saveMaintenanceMsg()">Save Message</button>
+        </div>
+      </div>
+
+      <!-- Feature Flags -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">🚀 Feature Flags</div>
+          <span style="font-size:.74rem;color:var(--muted)">Toggle user-facing features on/off</span>
+        </div>
+        <div class="panel-body">
+          <div id="flagsAlert" class="alert"></div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">📐 Analysis Page</div><div class="flag-desc">25-factor deep analysis engine — /analysis.html</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-feature_analysis" onchange="saveSingleFlag('feature_analysis',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">📡 Live Signals Page</div><div class="flag-desc">Real-time signal feed — /live-signals.html</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-feature_live_signals" onchange="saveSingleFlag('feature_live_signals',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">📝 Paper Trading</div><div class="flag-desc">Paper trade button in analysis results</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-feature_paper_trading" onchange="saveSingleFlag('feature_paper_trading',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">🔬 Backtest Tracker</div><div class="flag-desc">Signal history and backtest — /backtest.html</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-feature_backtest" onchange="saveSingleFlag('feature_backtest',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">🔍 Market Scanner</div><div class="flag-desc">Top coins scanner on Analysis page</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-feature_scanner" onchange="saveSingleFlag('feature_scanner',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">👤 User Registration</div><div class="flag-desc">Allow new users to create accounts</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-allow_registration" onchange="saveSingleFlag('allow_registration',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">💰 AdSense Ads</div><div class="flag-desc">Show Google AdSense ads site-wide</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-adsense_enabled" onchange="saveSingleFlag('adsense_enabled',this.checked)"><span class="toggle-slider"></span></label></div>
           </div>
         </div>
       </div>
 
+      <!-- Access Control -->
       <div class="panel">
-        <div class="panel-head"><div class="panel-title">📝 Paper Trading Defaults</div></div>
+        <div class="panel-head">
+          <div class="panel-title">🔐 Access Control</div>
+          <span style="font-size:.74rem;color:var(--muted)">Require login / premium for features</span>
+        </div>
         <div class="panel-body">
-          <div class="form-grid" id="ptFormGrid">
-            <div style="color:var(--muted);font-size:.82rem;padding:12px">Loading…</div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">Analysis Page — Require Login</div><div class="flag-desc">Non-logged-in users redirected to /login.html</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-gate_analysis_login" onchange="saveSingleFlag('gate_analysis_login',this.checked)"><span class="toggle-slider"></span></label></div>
           </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">Analysis Page — Require Premium</div><div class="flag-desc">Only premium/admin users can run deep scan</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-gate_analysis_premium" onchange="saveSingleFlag('gate_analysis_premium',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">Live Signals — Require Login</div><div class="flag-desc">Live signals hidden from non-logged-in users</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-gate_signals_login" onchange="saveSingleFlag('gate_signals_login',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">Paper Trading — Require Login</div><div class="flag-desc">Paper trade feature requires account</div></div>
+            <div class="flag-right"><label class="toggle"><input type="checkbox" id="flag-gate_paper_login" onchange="saveSingleFlag('gate_paper_login',this.checked)"><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="flag-row">
+            <div class="flag-info"><div class="flag-title">Scanner — Daily Limit (free users)</div><div class="flag-desc">Max scans per day for non-premium users</div></div>
+            <div class="flag-right" style="align-items:center;gap:6px">
+              <input class="f-inp" id="flag-scan_daily_limit" type="number" min="0" max="100" style="width:80px;text-align:center" placeholder="10">
+              <button class="btn btn-primary btn-xs" onclick="saveSingleFlagVal('scan_daily_limit','flag-scan_daily_limit')">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signal Quality Gates -->
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">📊 Signal Quality Gates</div></div>
+        <div class="panel-body">
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Minimum Confidence to Show Signal</div><div class="setting-key">ind_min_confidence</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="gate-ind_min_confidence" type="number" min="20" max="95" placeholder="62"></div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Market Entry Minimum Confidence</div><div class="setting-key">ind_market_entry_conf</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="gate-ind_market_entry_conf" type="number" min="50" max="100" placeholder="75"></div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Minimum Signal Grade to Publish</div><div class="setting-key">min_publish_grade</div></div>
+            <div class="setting-ctrl">
+              <select class="f-sel" id="gate-min_publish_grade" style="width:150px">
+                <option value="A+">A+ only</option><option value="A">A and above</option>
+                <option value="B+" selected>B+ and above</option><option value="B">B and above</option><option value="C">All (C+)</option>
+              </select>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Max Coins in Scanner</div><div class="setting-key">scan_limit</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="gate-scan_limit" type="number" min="10" max="200" placeholder="50"></div>
+          </div>
+          <div style="margin-top:14px">
+            <button class="btn btn-success" onclick="saveQualityGates()">💾 Save Quality Gates</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ INDICATORS ══ -->
+    <div class="page-section" id="page-indicators">
+      <div class="page-title">📐 Indicator Defaults</div>
+      <div class="page-sub">Set default values for all analysis engine parameters. Users can override in their profile.</div>
+      <div class="alert" id="indAlert"></div>
+
+      <!-- Score Engine -->
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">🏆 Score Engine Calibration</div><button class="btn btn-success btn-sm" onclick="saveIndicatorGroup('score')">💾 Save</button></div>
+        <div class="panel-body">
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Score Normalisation MAX</div><div class="setting-key">ind_score_max</div><div class="setting-key" style="color:var(--yellow)">Increase if most signals show 100% confidence</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="ind-ind_score_max" type="number" min="200" max="600" step="10" placeholder="340"></div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">FVG Points Cap (per direction)</div><div class="setting-key">ind_fvg_cap</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="ind-ind_fvg_cap" type="number" min="5" max="50" placeholder="18"></div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Pivot Proximity Max Levels Scored</div><div class="setting-key">ind_pivot_max_levels</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="ind-ind_pivot_max_levels" type="number" min="1" max="6" placeholder="2"></div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Minimum Confidence Gate (%)</div><div class="setting-key">ind_min_confidence</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="ind-ind_min_confidence" type="number" min="20" max="95" placeholder="62"></div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Market Entry Confidence Gate (%)</div><div class="setting-key">ind_market_entry_conf</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="ind-ind_market_entry_conf" type="number" min="50" max="100" placeholder="75"></div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><div class="setting-label">Funding Rate Hard Gate (%)</div><div class="setting-key">ind_funding_gate</div></div>
+            <div class="setting-ctrl"><input class="f-inp" id="ind-ind_funding_gate" type="number" min="0.05" max="1" step="0.01" placeholder="0.25"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Core Indicators -->
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">📊 Core Indicators</div><button class="btn btn-success btn-sm" onclick="saveIndicatorGroup('core')">💾 Save</button></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="section-divider">RSI</div>
+            <div class="f-row"><label>RSI Period</label><input class="f-inp" id="ind-ind_rsi_period" type="number" min="5" max="30" placeholder="14"></div>
+            <div class="f-row"></div>
+            <div class="section-divider">EMA Stack</div>
+            <div class="f-row"><label>EMA Fast (default 20)</label><input class="f-inp" id="ind-ind_ema_fast" type="number" min="5" max="50" placeholder="20"></div>
+            <div class="f-row"><label>EMA Slow (default 50)</label><input class="f-inp" id="ind-ind_ema_slow" type="number" min="10" max="100" placeholder="50"></div>
+            <div class="f-row"><label>EMA Long / EMA200</label><input class="f-inp" id="ind-ind_ema_long" type="number" min="50" max="500" placeholder="200"></div>
+            <div class="f-row"></div>
+            <div class="section-divider">MACD</div>
+            <div class="f-row"><label>MACD Fast (12)</label><input class="f-inp" id="ind-ind_macd_fast" type="number" min="3" max="30" placeholder="12"></div>
+            <div class="f-row"><label>MACD Slow (26)</label><input class="f-inp" id="ind-ind_macd_slow" type="number" min="10" max="60" placeholder="26"></div>
+            <div class="f-row"><label>MACD Signal (9)</label><input class="f-inp" id="ind-ind_macd_signal" type="number" min="3" max="20" placeholder="9"></div>
+            <div class="f-row"></div>
+            <div class="section-divider">Bollinger Bands</div>
+            <div class="f-row"><label>BB Period (20)</label><input class="f-inp" id="ind-ind_bb_period" type="number" min="5" max="50" placeholder="20"></div>
+            <div class="f-row"><label>BB Multiplier (2.0)</label><input class="f-inp" id="ind-ind_bb_mult" type="number" min="1" max="4" step="0.1" placeholder="2.0"></div>
+            <div class="section-divider">Stochastic RSI</div>
+            <div class="f-row"><label>Stoch RSI Period (14)</label><input class="f-inp" id="ind-ind_stoch_rsi_period" type="number" min="5" max="30" placeholder="14"></div>
+            <div class="f-row"><label>Stoch Smooth Period (14)</label><input class="f-inp" id="ind-ind_stoch_smooth" type="number" min="5" max="30" placeholder="14"></div>
+            <div class="f-row"><label>K Smooth (3)</label><input class="f-inp" id="ind-ind_stoch_k" type="number" min="1" max="10" placeholder="3"></div>
+            <div class="f-row"><label>D Smooth (3)</label><input class="f-inp" id="ind-ind_stoch_d" type="number" min="1" max="10" placeholder="3"></div>
+            <div class="section-divider">ADX</div>
+            <div class="f-row"><label>ADX Period (14)</label><input class="f-inp" id="ind-ind_adx_period" type="number" min="5" max="30" placeholder="14"></div>
+            <div class="f-row"><label>ADX Choppy Gate (18)</label><input class="f-inp" id="ind-ind_adx_choppy_gate" type="number" min="10" max="30" placeholder="18"></div>
+            <div class="section-divider">ATR &amp; Supertrend</div>
+            <div class="f-row"><label>ATR Period (14)</label><input class="f-inp" id="ind-ind_atr_period" type="number" min="5" max="30" placeholder="14"></div>
+            <div class="f-row"><label>Supertrend Period (10)</label><input class="f-inp" id="ind-ind_supertrend_period" type="number" min="3" max="30" placeholder="10"></div>
+            <div class="f-row"><label>Supertrend Multiplier (3.0)</label><input class="f-inp" id="ind-ind_supertrend_mult" type="number" min="1" max="6" step="0.1" placeholder="3.0"></div>
+            <div class="f-row"></div>
+            <div class="section-divider">VWAP &amp; Data</div>
+            <div class="f-row"><label>VWAP Lookback Candles (24)</label><input class="f-inp" id="ind-ind_vwap_lookback" type="number" min="6" max="72" placeholder="24"></div>
+            <div class="f-row"><label>Kline History Bars (200)</label><input class="f-inp" id="ind-ind_kline_limit" type="number" min="100" max="500" placeholder="200"></div>
+            <div class="f-row"><label>Primary Timeframe</label>
+              <select class="f-sel" id="ind-ind_kline_tf">
+                <option value="15m">15m</option><option value="1h" selected>1h</option>
+                <option value="4h">4h</option><option value="1d">1d</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paper Trading Defaults -->
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">📝 Paper Trading Defaults</div><button class="btn btn-success btn-sm" onclick="saveIndicatorGroup('paper')">💾 Save</button></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="f-row"><label>Default Leverage (×)</label><input class="f-inp" id="ind-pt_default_leverage" type="number" min="1" max="125" placeholder="5"></div>
+            <div class="f-row"><label>Default Amount (USDT)</label><input class="f-inp" id="ind-pt_default_amount" type="number" min="1" max="100000" placeholder="100"></div>
+            <div class="f-row"><label>TP1 Trail Offset Multiplier</label><input class="f-inp" id="ind-pt_tp1_trail_mult" type="number" min="0.1" max="1" step="0.05" placeholder="0.5"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ANNOUNCEMENTS ══ -->
+    <div class="page-section" id="page-announcements">
+      <div class="page-title">📢 Announcements</div>
+      <div class="page-sub">Site-wide banners shown to all users</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="btn btn-primary" onclick="openAnnModal()">➕ New Announcement</button>
+        <button class="btn btn-sm" onclick="loadAnnouncements()" style="border:1px solid var(--border2);color:var(--muted);background:transparent">🔄 Refresh</button>
+      </div>
+      <div id="annAlert" class="alert"></div>
+      <div class="panel">
+        <div class="panel-body" style="padding:0">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Title</th><th>Type</th><th>Active</th><th>Message</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="annTbl"><tr class="empty-row"><td colspan="6" class="loading">Loading…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="page-section" id="page-settings">
+      <div class="page-title">⚙️ Site Settings</div>
+      <div class="page-sub">General platform settings</div>
+      <div id="settingsAlert" class="alert"></div>
+      <div id="settingsBody"><div class="loading">Loading settings…</div></div>
+    </div>
+
+    <!-- ══ ADSENSE & SEO ══ -->
+    <div class="page-section" id="page-adsense">
+      <div class="page-title">💰 AdSense &amp; SEO</div>
+      <div class="page-sub">Google AdSense monetization and SEO meta tags</div>
+      <div id="adsenseAlert" class="alert"></div>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-head"><div class="panel-title">🔍 SEO Settings</div></div>
+        <div class="panel-body">
+          <div class="form-grid" style="margin-bottom:14px">
+            <div class="f-row full"><label>SEO Meta Title</label><input type="text" class="f-inp" id="seo-title" placeholder="InvestySignals — Free Crypto Trading Signals"></div>
+            <div class="f-row full"><label>SEO Meta Description</label><textarea class="f-ta" id="seo-desc" rows="2" placeholder="Get free professional crypto trading signals..."></textarea></div>
+            <div class="f-row full"><label>SEO Keywords</label><input type="text" class="f-inp" id="seo-keywords" placeholder="crypto signals, binance futures signals..."></div>
+            <div class="f-row"><label>Google Analytics ID</label><input type="text" class="f-inp" id="ga-id" placeholder="G-XXXXXXXXXX"><span class="f-hint">GA4 Measurement ID</span></div>
+            <div class="f-row"><label>OG Share Image URL</label><input type="text" class="f-inp" id="og-image" placeholder="https://yourdomain.com/og.png"></div>
+          </div>
+          <button class="btn btn-primary" onclick="saveSeoSettings()">💾 Save SEO Settings</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">💰 Google AdSense</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.74rem;color:var(--muted)">Enabled:</span>
+            <label class="toggle" style="width:38px;height:20px"><input type="checkbox" id="adsense-enabled" onchange="toggleAdsense(this)"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="alert info show" style="margin-bottom:16px">ℹ️ Submit your site to <strong>adsense.google.com</strong>. Once approved, paste your Publisher ID and slot IDs below.</div>
+          <div class="form-grid" style="margin-bottom:14px">
+            <div class="f-row full"><label>Publisher ID <span style="color:var(--yellow)">*</span></label><input type="text" class="f-inp" id="adsense-pubid" placeholder="ca-pub-1234567890123456"><span class="f-hint">AdSense → Account → Account information</span></div>
+            <div class="f-row"><label>Header Ad Slot ID</label><input type="text" class="f-inp" id="adsense-header" placeholder="1234567890"></div>
+            <div class="f-row"><label>Sidebar Ad Slot ID</label><input type="text" class="f-inp" id="adsense-sidebar" placeholder="1234567890"></div>
+            <div class="f-row"><label>Inline Content Ad Slot</label><input type="text" class="f-inp" id="adsense-inline" placeholder="1234567890"></div>
+            <div class="f-row"><label>Footer Ad Slot ID</label><input type="text" class="f-inp" id="adsense-footer" placeholder="1234567890"></div>
+            <div class="f-row full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="adsense-auto" style="width:16px;height:16px"> Enable Auto Ads (Google auto-places across site)</label></div>
+          </div>
+          <button class="btn btn-primary" onclick="saveAdsenseSettings()">💾 Save AdSense Settings</button>
+          <div style="margin-top:12px;padding:10px 13px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-size:.78rem;color:var(--muted)">
+            <strong style="color:var(--yellow)">ads.txt</strong> — Add to your public folder root:<br>
+            <code id="adsTextLine" style="font-family:var(--font-n);font-size:.72rem;color:var(--cyan);display:block;margin-top:6px;word-break:break-all">google.com, pub-XXXXXXXXXX, DIRECT, f08c47fec0942fa0</code>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SERVER ══ -->
+    <div class="page-section" id="page-server">
+      <div class="page-title">🖥️ Server Status</div>
+      <div class="page-sub">Live server and connection health</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="sc-label">MongoDB</div><div id="srv-mongo" style="font-size:.88rem;font-weight:600;margin-top:4px">—</div></div>
+        <div class="stat-card"><div class="sc-label">Binance WS</div><div id="srv-bws" style="font-size:.88rem;font-weight:600;margin-top:4px">—</div></div>
+        <div class="stat-card"><div class="sc-label">Browser Clients</div><div class="sc-value" id="srv-clients">—</div></div>
+        <div class="stat-card"><div class="sc-label">Server Uptime</div><div class="sc-value" id="srv-uptime">—</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">📡 Market Data</div>
+          <button class="btn btn-primary btn-sm" onclick="loadServerStats()">🔄 Refresh</button>
+        </div>
+        <div class="panel-body">
+          <div class="stat-grid" style="margin-bottom:0">
+            <div class="stat-card"><div class="sc-label">Live Coins</div><div class="sc-value" id="srv-coins">—</div></div>
+            <div class="stat-card"><div class="sc-label">Top Gainers</div><div class="sc-value" id="srv-gainers">—</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">🔗 Quick Links</div></div>
+        <div class="panel-body" style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="/health" target="_blank" class="btn btn-primary btn-sm">🏥 /health</a>
+          <a href="/api/signals" target="_blank" class="btn btn-primary btn-sm">📡 /api/signals</a>
+          <a href="/api/market/ticker" target="_blank" class="btn btn-primary btn-sm">📈 /api/market/ticker</a>
+          <a href="/api/market/top-gainers" target="_blank" class="btn btn-primary btn-sm">🔥 /api/top-gainers</a>
         </div>
       </div>
     </div>
@@ -648,40 +728,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
   </main>
 </div>
 
-<!-- ══════════ EDIT SIGNAL MODAL ══════════ -->
+<!-- ══ EDIT SIGNAL MODAL ══ -->
 <div class="overlay" id="editSignalOverlay">
   <div class="modal">
-    <div class="modal-head">
-      <div class="modal-title">✏️ Edit Signal</div>
-      <button class="modal-close" onclick="closeModal('editSignalOverlay')">✕</button>
-    </div>
+    <div class="modal-head"><div class="modal-title">✏️ Edit Signal</div><button class="modal-close" onclick="closeModal('editSignalOverlay')">✕</button></div>
     <div class="modal-body">
       <input type="hidden" id="edit-id">
       <div class="form-grid">
         <div class="f-row"><label>Direction</label><select class="f-sel" id="edit-direction"><option value="LONG">▲ LONG</option><option value="SHORT">▼ SHORT</option></select></div>
-        <div class="f-row"><label>Status</label>
-          <select class="f-sel" id="edit-status">
-            <option value="ACTIVE">Active</option><option value="WAITING">Waiting</option>
-            <option value="CLOSED">Closed</option><option value="CANCELLED">Cancelled</option>
-          </select>
-        </div>
+        <div class="f-row"><label>Status</label><select class="f-sel" id="edit-status"><option value="ACTIVE">Active</option><option value="WAITING">Waiting</option><option value="CLOSED">Closed</option><option value="CANCELLED">Cancelled</option></select></div>
         <div class="f-row"><label>Entry</label><input class="f-inp" id="edit-entry" type="number" step="any"></div>
         <div class="f-row"><label>TP 1</label><input class="f-inp" id="edit-tp1" type="number" step="any"></div>
         <div class="f-row"><label>TP 2</label><input class="f-inp" id="edit-tp2" type="number" step="any"></div>
         <div class="f-row"><label>Stop Loss</label><input class="f-inp" id="edit-sl" type="number" step="any"></div>
-        <div class="f-row"><label>Grade</label>
-          <select class="f-sel" id="edit-grade">
-            <option value="A+">A+</option><option value="A">A</option>
-            <option value="B+">B+</option><option value="B">B</option><option value="C">C</option>
-          </select>
-        </div>
+        <div class="f-row"><label>Grade</label><select class="f-sel" id="edit-grade"><option value="A+">A+</option><option value="A">A</option><option value="B+">B+</option><option value="B">B</option><option value="C">C</option></select></div>
         <div class="f-row"><label>Confidence %</label><input class="f-inp" id="edit-conf" type="number" min="0" max="100"></div>
-        <div class="f-row"><label>Result</label>
-          <select class="f-sel" id="edit-result">
-            <option value="">None</option><option value="WIN">WIN ✓</option>
-            <option value="LOSS">LOSS ✗</option><option value="BE">Break Even</option>
-          </select>
-        </div>
+        <div class="f-row"><label>Result</label><select class="f-sel" id="edit-result"><option value="">None</option><option value="WIN">WIN ✓</option><option value="LOSS">LOSS ✗</option><option value="BE">Break Even</option></select></div>
         <div class="f-row"><label>Close Price</label><input class="f-inp" id="edit-closePrice" type="number" step="any" placeholder="Only if closed"></div>
         <div class="f-row full"><label>Notes</label><textarea class="f-ta" id="edit-notes"></textarea></div>
       </div>
@@ -693,31 +755,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
   </div>
 </div>
 
-<!-- ══════════ ANNOUNCEMENT MODAL ══════════ -->
+<!-- ══ ANNOUNCEMENT MODAL ══ -->
 <div class="overlay" id="annOverlay">
   <div class="modal">
-    <div class="modal-head">
-      <div class="modal-title" id="annModalTitle">📢 New Announcement</div>
-      <button class="modal-close" onclick="closeModal('annOverlay')">✕</button>
-    </div>
+    <div class="modal-head"><div class="modal-title" id="annModalTitle">📢 New Announcement</div><button class="modal-close" onclick="closeModal('annOverlay')">✕</button></div>
     <div class="modal-body">
       <input type="hidden" id="ann-id">
       <div class="form-grid">
         <div class="f-row full"><label>Title</label><input class="f-inp" id="ann-title" placeholder="Announcement title"></div>
         <div class="f-row full"><label>Message</label><textarea class="f-ta" id="ann-message" placeholder="Full announcement text…" style="min-height:100px"></textarea></div>
-        <div class="f-row"><label>Type</label>
-          <select class="f-sel" id="ann-type">
-            <option value="info">ℹ️ Info</option><option value="success">✅ Success</option>
-            <option value="warning">⚠️ Warning</option><option value="danger">🚨 Danger</option>
-          </select>
-        </div>
+        <div class="f-row"><label>Type</label><select class="f-sel" id="ann-type"><option value="info">ℹ️ Info</option><option value="success">✅ Success</option><option value="warning">⚠️ Warning</option><option value="danger">🚨 Danger</option></select></div>
         <div class="f-row"><label>Show Until (optional)</label><input class="f-inp" id="ann-until" type="datetime-local"></div>
         <div class="f-row full">
           <label>Active</label>
-          <label class="toggle-wrap">
+          <div class="toggle-wrap">
             <label class="toggle"><input type="checkbox" id="ann-active" checked><span class="toggle-slider"></span></label>
             <span style="font-size:.8rem;color:var(--muted)">Show to users</span>
-          </label>
+          </div>
         </div>
       </div>
     </div>
@@ -728,7 +782,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
   </div>
 </div>
 
-<!-- ══════════ CONFIRM MODAL ══════════ -->
+<!-- ══ CONFIRM MODAL ══ -->
 <div class="confirm-overlay" id="confirmOverlay">
   <div class="confirm-box">
     <div class="cb-head"><strong id="confirmTitle">Confirm</strong></div>
@@ -740,33 +794,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
   </div>
 </div>
 
-<script>
-/* ══════════════════════════════════════════
-   ADMIN PANEL SCRIPT
-   ══════════════════════════════════════════ */
+<!-- ══ TOAST ══ -->
+<div id="_toast" style="position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 18px;border-radius:8px;font-family:var(--font-n);font-size:.82rem;font-weight:600;transition:opacity .3s;opacity:0;pointer-events:none"></div>
 
-const API  = '';   // same origin
-let TOKEN  = localStorage.getItem('admin_token') || '';
+<script>
+/* ═══════════════════════════════════════
+   ADMIN PANEL — COMPLETE v2
+   ═══════════════════════════════════════ */
+
+let TOKEN = localStorage.getItem('admin_token') || '';
 let confirmCb = null;
 
-/* ── Helpers ── */
+/* ── Core API helper ── */
 async function api(method, path, body) {
-  const opts = {
-    method,
-    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const res  = await fetch(API + path, opts);
-  const data = await res.json();
-  if (res.status === 401) { doLogout(); return null; }
-  return data;
+  const opts = { method, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  try {
+    const res  = await fetch(path, opts);
+    const data = await res.json();
+    if (res.status === 401) { doLogout(); return null; }
+    return data;
+  } catch(e) { return { success:false, error: e.message }; }
 }
 
+/* ── Formatters ── */
 function fmtP(p) {
-  const n = parseFloat(p);
-  if (!n) return '—';
+  const n = parseFloat(p); if (!n || isNaN(n)) return '—';
   if (n >= 1000) return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  if (n >= 1)    return '$'+n.toFixed(4);
+  if (n >= 1) return '$'+n.toFixed(4);
   if (n >= 0.01) return '$'+n.toFixed(5);
   return '$'+n.toFixed(7);
 }
@@ -774,73 +829,77 @@ function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 }
-function fmtUptime(s) {
-  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
-  return `${h}h ${m}m`;
-}
+function fmtUptime(s) { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return `${h}h ${m}m`; }
 function gradeCls(g) { return g==='A+'?'ap':g==='A'?'a':g==='B+'?'bp':'b'; }
 
+/* ── UI Helpers ── */
 function showAlert(elId, type, msg) {
   const el = document.getElementById(elId);
-  el.className = `alert ${type} show`;
-  el.textContent = msg;
-  setTimeout(() => el.classList.remove('show'), 4000);
+  if (!el) return;
+  el.className = `alert ${type} show`; el.textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 5000);
 }
-
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-function openConfirm(title, body, cb) {
+function openConfirm(title, body, cb, btnLabel='Confirm', btnClass='btn-danger') {
   confirmCb = cb;
   document.getElementById('confirmTitle').textContent = title;
-  document.getElementById('confirmBody').innerHTML   = body;
+  document.getElementById('confirmBody').innerHTML = body;
+  const btn = document.getElementById('confirmOkBtn');
+  btn.textContent = btnLabel; btn.className = 'btn btn-sm ' + btnClass;
   document.getElementById('confirmOverlay').classList.add('open');
 }
 function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('open'); confirmCb=null; }
-function doConfirm()    { if(confirmCb){confirmCb();} closeConfirm(); }
-
+function doConfirm()    { if(confirmCb) confirmCb(); closeConfirm(); }
 function openSidebar()  { document.getElementById('sidebar').classList.add('open');    document.getElementById('mobOverlay').classList.add('show'); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('mobOverlay').classList.remove('show'); }
+function showToast(msg, type='success') {
+  const t = document.getElementById('_toast');
+  t.style.background = type==='danger'?'rgba(255,61,90,.95)':type==='warn'?'rgba(255,195,51,.95)':'rgba(0,255,136,.95)';
+  t.style.color = '#000'; t.textContent = msg; t.style.opacity='1';
+  clearTimeout(t._tid); t._tid = setTimeout(()=>t.style.opacity='0', 3200);
+}
 
 /* ── Navigation ── */
 function showPage(name) {
   document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.sb-link').forEach(b => b.classList.remove('active'));
   document.getElementById('page-'+name)?.classList.add('active');
+  document.querySelectorAll('.sb-link').forEach(b => b.classList.remove('active'));
   document.querySelector(`.sb-link[onclick="showPage('${name}')"]`)?.classList.add('active');
   closeSidebar();
-  // Load data for the page
-  if (name==='dashboard')     loadDashboard();
-  if (name==='signals')       loadSignals();
-  if (name==='announcements') loadAnnouncements();
-  if (name==='settings')      loadSettings();
-  if (name==='server')        loadServerStats();
+  const loaders = {
+    'dashboard':    loadDashboard,
+    'signals':      loadSignals,
+    'users':        () => { loadUserStats(); loadUsers(); },
+    'site-control': loadSiteControl,
+    'indicators':   loadIndicators,
+    'announcements':loadAnnouncements,
+    'settings':     loadSettings,
+    'adsense':      loadAdsenseSettings,
+    'server':       loadServerStats,
+  };
+  if (loaders[name]) loaders[name]();
 }
 
-/* ══════════════════════════════════════════
+/* ══════════════════════════════════════
    AUTH
-═══════════════════════════════════════════ */
+══════════════════════════════════════ */
 async function doLogin() {
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
   if (!username || !password) { document.getElementById('loginErr').textContent='Enter credentials'; return; }
   const btn = document.getElementById('btnLogin');
   btn.disabled=true; btn.textContent='Signing in…';
-  try {
-    const res = await fetch('/api/admin/login', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({username,password})
-    });
-    const data = await res.json();
-    if (data.success) {
-      TOKEN = data.token;
-      localStorage.setItem('admin_token', TOKEN);
-      startApp();
-    } else {
-      document.getElementById('loginErr').textContent = data.error || 'Login failed';
-    }
-  } catch(e) {
-    document.getElementById('loginErr').textContent = 'Cannot connect to server';
+  const res = await fetch('/api/admin/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({username, password})
+  }).catch(()=>null);
+  if (!res) { document.getElementById('loginErr').textContent='Cannot connect to server'; btn.disabled=false; btn.textContent='Sign In to Admin'; return; }
+  const data = await res.json();
+  if (data.success) {
+    TOKEN = data.token; localStorage.setItem('admin_token', TOKEN); startApp();
+  } else {
+    document.getElementById('loginErr').textContent = data.error || 'Login failed';
   }
   btn.disabled=false; btn.textContent='Sign In to Admin';
 }
@@ -854,157 +913,151 @@ function doLogout() {
 }
 
 async function startApp() {
-  // Verify token still valid
   const data = await api('GET','/api/admin/verify');
   if (!data || !data.success) { doLogout(); return; }
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appShell').style.display='block';
   loadDashboard();
-  setInterval(refreshStatusDots, 30000);
   refreshStatusDots();
+  setInterval(refreshStatusDots, 30000);
 }
 
-/* Check on page load if token exists */
 (async () => {
   if (TOKEN) {
-    const data = await api('GET','/api/admin/verify').catch(()=>null);
+    const data = await api('GET','/api/admin/verify');
     if (data && data.success) { startApp(); return; }
     TOKEN=''; localStorage.removeItem('admin_token');
   }
 })();
 
-/* ══════════════════════════════════════════
+/* ══════════════════════════════════════
    DASHBOARD
-═══════════════════════════════════════════ */
+══════════════════════════════════════ */
 async function loadDashboard() {
   const data = await api('GET','/api/admin/stats');
-  if (!data || !data.success) return;
+  if (!data?.success) return;
   const d = data.data;
-
-  document.getElementById('ds-total').textContent   = d.signals.total;
-  document.getElementById('ds-active').textContent  = d.signals.active;
-  document.getElementById('ds-wr').textContent      = d.performance.winRate+'%';
-  document.getElementById('ds-wl').textContent      = `${d.performance.wins} wins / ${d.performance.losses} losses`;
-  document.getElementById('ds-clients').textContent = d.marketData.clients;
+  document.getElementById('ds-total').textContent  = d.signals.total;
+  document.getElementById('ds-active').textContent = d.signals.active;
+  document.getElementById('ds-wr').textContent     = d.performance.winRate+'%';
+  document.getElementById('ds-wl').textContent     = `${d.performance.wins} wins / ${d.performance.losses} losses`;
+  document.getElementById('ds-clients').textContent= d.marketData.clients;
   document.getElementById('countSignals').textContent = d.signals.total;
-
-  document.getElementById('ss-mongo').innerHTML = d.mongoConnected ? '<span style="color:var(--green)">Connected</span>' : '<span style="color:var(--red)">Offline</span>';
-  document.getElementById('ss-bws').innerHTML   = d.marketData.wsStatus==='connected' ? '<span style="color:var(--green)">Live</span>' : `<span style="color:var(--yellow)">${d.marketData.wsStatus}</span>`;
-  document.getElementById('ss-coins').textContent  = d.marketData.liveCoins;
-  document.getElementById('ss-uptime').textContent = fmtUptime(d.marketData.uptime);
-
-  // Recent signals table
+  document.getElementById('ss-mongo').innerHTML = d.mongoConnected ? '<span style="color:var(--green)">✓ Connected</span>' : '<span style="color:var(--red)">✗ Offline</span>';
+  document.getElementById('ss-bws').innerHTML   = d.marketData.wsStatus==='connected' ? '<span style="color:var(--green)">✓ Live</span>' : `<span style="color:var(--yellow)">${d.marketData.wsStatus}</span>`;
+  document.getElementById('ss-coins').textContent = d.marketData.liveCoins;
+  document.getElementById('ss-uptime').textContent= fmtUptime(d.marketData.uptime);
   const tbody = document.getElementById('recentSignalsTbl');
-  if (!d.recentSignals?.length) {
-    tbody.innerHTML='<tr class="empty-row"><td colspan="9">No signals yet — create one!</td></tr>'; return;
-  }
-  tbody.innerHTML = d.recentSignals.map(s => signalRow(s, true)).join('');
+  if (!d.recentSignals?.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="9">No signals yet</td></tr>'; return; }
+  tbody.innerHTML = d.recentSignals.map(s => signalRowCompact(s)).join('');
 }
 
 async function refreshStatusDots() {
   try {
-    const res  = await fetch('/health');
-    const data = await res.json();
-    const mongoDot = document.getElementById('mongoStatusDot');
-    const wsDot    = document.getElementById('wsStatusDot');
-    mongoDot.className = 'status-dot ' + (data.mongoConnected?'green':'red');
-    wsDot.className    = 'status-dot ' + (data.wsState==='connected'?'green':data.wsState==='connecting'?'yellow':'red');
-    document.getElementById('mongoStatusText').textContent = data.mongoConnected?'DB ✓':'DB ✗';
-    document.getElementById('wsStatusText').textContent   = 'WS:'+data.wsState.slice(0,4);
+    const data = await (await fetch('/health')).json();
+    document.getElementById('mongoStatusDot').className = 'status-dot '+(data.mongoConnected?'green':'red');
+    document.getElementById('wsStatusDot').className    = 'status-dot '+(data.wsState==='connected'?'green':data.wsState==='connecting'?'yellow':'red');
+    document.getElementById('mongoStatusText').textContent = data.mongoConnected ? 'DB ✓' : 'DB ✗';
+    document.getElementById('wsStatusText').textContent    = 'WS:'+data.wsState.slice(0,4);
   } catch(_) {}
 }
 
-/* ══════════════════════════════════════════
+/* ══════════════════════════════════════
    SIGNALS
-═══════════════════════════════════════════ */
-function signalRow(s, compact=false) {
-  const gc = gradeCls(s.grade);
-  const sc = s.status.toLowerCase();
-  const resultCol = s.result
-    ? `<span class="sc-badge ${s.result==='WIN'?'green':s.result==='LOSS'?'red':'yellow'}">${s.result}</span>`
-    : '—';
-  return `
-  <tr>
-    <td style="font-family:var(--font-n);font-weight:600">${s.pair||s.coin+'/USDT'}</td>
+══════════════════════════════════════ */
+function signalRowCompact(s) {
+  const gc = gradeCls(s.grade), sc = (s.status||'').toLowerCase();
+  return `<tr>
+    <td style="font-family:var(--font-n);font-weight:600">${s.pair||((s.coin||'?')+'/USDT')}</td>
     <td><span class="dir-badge ${(s.direction||'').toLowerCase()}">${s.direction==='LONG'?'▲ L':'▼ S'}</span></td>
-    ${!compact?`<td style="font-family:var(--font-n);font-size:.72rem;color:var(--muted)">${s.timeframe||'—'}</td>`:''}
     <td style="font-family:var(--font-n);color:var(--cyan)">${fmtP(s.entry||s.entryPrice)}</td>
     <td style="font-family:var(--font-n);color:var(--green)">${fmtP(s.tp1)}</td>
-    ${!compact?`<td style="font-family:var(--font-n);color:rgba(0,255,136,.6)">${fmtP(s.tp2)}</td>`:''}
     <td style="font-family:var(--font-n);color:var(--red)">${fmtP(s.sl)}</td>
     <td><span class="grade-badge ${gc}">${s.grade||'—'}</span></td>
-    ${!compact?`<td style="font-family:var(--font-n);font-size:.76rem">${s.confidence||'—'}%</td>`:''}
-    <td><span class="status-badge ${sc}">${s.status}</span></td>
-    ${!compact?`<td>${resultCol}</td>`:''}
+    <td><span class="status-badge ${sc}">${s.status||'—'}</span></td>
     <td style="font-size:.7rem;color:var(--muted);font-family:var(--font-n);white-space:nowrap">${fmtDate(s.postedAt||s.posted)}</td>
-    <td>
-      <div style="display:flex;gap:4px">
-        <button class="btn btn-warn btn-sm" onclick="openEditSignal('${s._id||s.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSignal('${s._id||s.id}','${s.pair||s.coin}')">🗑</button>
-      </div>
-    </td>
+    <td><div style="display:flex;gap:4px">
+      <button class="btn btn-warn btn-xs" onclick="openEditSignal('${s._id||s.id}')">✏️</button>
+      <button class="btn btn-danger btn-xs" onclick="deleteSignal('${s._id||s.id}','${s.pair||s.coin}')">🗑</button>
+    </div></td>
+  </tr>`;
+}
+
+function signalRowFull(s) {
+  const gc = gradeCls(s.grade), sc = (s.status||'').toLowerCase();
+  const resultHtml = s.result
+    ? `<span class="sc-badge ${s.result==='WIN'?'green':s.result==='LOSS'?'red':'yellow'}">${s.result}</span>` : '—';
+  return `<tr>
+    <td style="font-family:var(--font-n);font-weight:600">${s.pair||((s.coin||'?')+'/USDT')}</td>
+    <td><span class="dir-badge ${(s.direction||'').toLowerCase()}">${s.direction==='LONG'?'▲ L':'▼ S'}</span></td>
+    <td style="font-family:var(--font-n);font-size:.72rem;color:var(--muted)">${s.timeframe||'—'}</td>
+    <td style="font-family:var(--font-n);color:var(--cyan)">${fmtP(s.entry||s.entryPrice)}</td>
+    <td style="font-family:var(--font-n);color:var(--green)">${fmtP(s.tp1)}</td>
+    <td style="font-family:var(--font-n);color:rgba(0,255,136,.6)">${fmtP(s.tp2)}</td>
+    <td style="font-family:var(--font-n);color:var(--red)">${fmtP(s.sl)}</td>
+    <td><span class="grade-badge ${gc}">${s.grade||'—'}</span></td>
+    <td style="font-family:var(--font-n);font-size:.76rem">${s.confidence||'—'}%</td>
+    <td><span class="status-badge ${sc}">${s.status||'—'}</span></td>
+    <td>${resultHtml}</td>
+    <td style="font-size:.7rem;color:var(--muted);font-family:var(--font-n);white-space:nowrap">${fmtDate(s.postedAt||s.posted)}</td>
+    <td><div style="display:flex;gap:4px">
+      <button class="btn btn-warn btn-xs" onclick="openEditSignal('${s._id||s.id}')">✏️</button>
+      <button class="btn btn-danger btn-xs" onclick="deleteSignal('${s._id||s.id}','${s.pair||s.coin}')">🗑</button>
+    </div></td>
   </tr>`;
 }
 
 async function loadSignals() {
   document.getElementById('signalsTbl').innerHTML='<tr class="empty-row"><td colspan="13" class="loading">Loading…</td></tr>';
   const status = document.getElementById('sigFilterStatus').value;
-  const qs = status ? '?status='+status : '';
-  const data = await api('GET','/api/admin/signals'+qs);
+  const data = await api('GET','/api/admin/signals'+(status?'?status='+status:''));
   if (!data) return;
   const tbody = document.getElementById('signalsTbl');
   if (!data.data?.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="13">No signals found</td></tr>'; return; }
-  tbody.innerHTML = data.data.map(s => signalRow(s, false)).join('');
+  tbody.innerHTML = data.data.map(s => signalRowFull(s)).join('');
 }
 
-/* New Signal */
 function updateSigPair() {
   const coin = document.getElementById('ns-coin').value.trim().toUpperCase();
   document.getElementById('ns-pair').value = coin ? coin+'/USDT' : '';
 }
 
 async function submitSignal() {
-  const coin = document.getElementById('ns-coin').value.trim().toUpperCase();
+  const coin  = document.getElementById('ns-coin').value.trim().toUpperCase();
   const entry = parseFloat(document.getElementById('ns-entry').value);
   const tp1   = parseFloat(document.getElementById('ns-tp1').value);
   const sl    = parseFloat(document.getElementById('ns-sl').value);
-  if (!coin || !entry || !tp1 || !sl) { showAlert('sigAlert','danger','Fill in required fields: Coin, Entry, TP1, SL'); return; }
-
+  if (!coin || !entry || !tp1 || !sl) { showAlert('sigAlert','danger','Fill required fields: Coin, Entry, TP1, SL'); return; }
   const payload = {
     coin, pair: coin+'/USDT',
-    direction:  document.getElementById('ns-direction').value,
-    timeframe:  document.getElementById('ns-timeframe').value,
+    direction: document.getElementById('ns-direction').value,
+    timeframe: document.getElementById('ns-timeframe').value,
     entry, tp1, sl,
-    tp2:        parseFloat(document.getElementById('ns-tp2').value) || null,
+    tp2:        parseFloat(document.getElementById('ns-tp2').value)||null,
     grade:      document.getElementById('ns-grade').value,
-    confidence: parseInt(document.getElementById('ns-conf').value) || 70,
+    confidence: parseInt(document.getElementById('ns-conf').value)||70,
     status:     document.getElementById('ns-status').value,
     exchange:   document.getElementById('ns-exchange').value,
     notes:      document.getElementById('ns-notes').value,
-    emoji:      '●',
+    emoji: '●',
   };
   const data = await api('POST','/api/admin/signals', payload);
-  if (data?.success) {
-    showAlert('sigAlert','success','✅ Signal published and broadcast to all users!');
-    clearSignalForm();
-  } else {
-    showAlert('sigAlert','danger','Error: '+(data?.error||'Unknown'));
-  }
+  if (data?.success) { showAlert('sigAlert','success','✅ Signal published!'); clearSignalForm(); showToast('Signal published!'); }
+  else showAlert('sigAlert','danger','Error: '+(data?.error||'Unknown'));
 }
 
 function clearSignalForm() {
-  ['ns-coin','ns-pair','ns-entry','ns-sl','ns-tp1','ns-tp2','ns-notes'].forEach(id=>{ const el=document.getElementById(id); if(el)el.value=''; });
-  document.getElementById('ns-conf').value=75;
+  ['ns-coin','ns-pair','ns-entry','ns-sl','ns-tp1','ns-tp2','ns-notes'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('ns-conf').value = 75;
 }
 
-/* Edit Signal */
-let editingSignals = {};
 async function openEditSignal(id) {
   const data = await api('GET','/api/admin/signals');
   if (!data) return;
   const sig = data.data.find(s => String(s._id||s.id) === String(id));
   if (!sig) return;
-  editingSignals[id] = sig;
   document.getElementById('edit-id').value         = id;
   document.getElementById('edit-direction').value  = sig.direction;
   document.getElementById('edit-status').value     = sig.status;
@@ -1036,47 +1089,223 @@ async function saveEditSignal() {
     notes:      document.getElementById('edit-notes').value,
   };
   const data = await api('PUT','/api/admin/signals/'+id, payload);
-  if (data?.success) {
-    closeModal('editSignalOverlay');
-    loadSignals(); loadDashboard();
-  } else { alert('Save failed: '+(data?.error||'Unknown')); }
+  if (data?.success) { closeModal('editSignalOverlay'); loadSignals(); loadDashboard(); showToast('Signal updated'); }
+  else showToast('Save failed: '+(data?.error||'Unknown'), 'danger');
 }
 
 function deleteSignal(id, pair) {
   openConfirm('Delete Signal', `Delete signal <strong>${pair}</strong>? This cannot be undone.`, async () => {
     const data = await api('DELETE','/api/admin/signals/'+id);
-    if (data?.success) { loadSignals(); loadDashboard(); }
+    if (data?.success) { loadSignals(); loadDashboard(); showToast('Signal deleted', 'warn'); }
   });
 }
 
-/* ══════════════════════════════════════════
+/* ══════════════════════════════════════
+   USERS
+══════════════════════════════════════ */
+async function loadUsers() {
+  const filter = document.getElementById('usrFilter')?.value||'';
+  const tbl = document.getElementById('usersTbl');
+  tbl.innerHTML = '<tr class="empty-row"><td colspan="7" class="loading">Loading…</td></tr>';
+  const data = await api('GET', '/api/admin/users'+(filter!==''?'?suspended='+filter:''));
+  if (!data?.success) { tbl.innerHTML='<tr class="empty-row"><td colspan="7" style="color:var(--red)">Error loading users</td></tr>'; return; }
+  document.getElementById('countUsers').textContent = data.total||data.data?.length||'—';
+  if (!data.data?.length) { tbl.innerHTML='<tr class="empty-row"><td colspan="7">No users found</td></tr>'; return; }
+  tbl.innerHTML = data.data.map(u => {
+    const email   = u.firebaseEmail||u.email||'—';
+    const name    = u.firebaseDisplayName||u.displayName||email.split('@')[0];
+    const isSusp  = u.suspended;
+    const lastSeen= u.lastSeen ? new Date(u.lastSeen).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    const joined  = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    return `<tr style="${isSusp?'opacity:.6;background:rgba(255,61,90,.04)':''}">
+      <td style="font-weight:600">${name}</td>
+      <td style="font-family:var(--font-n);font-size:.78rem;color:var(--muted)">${email}</td>
+      <td>
+        <select onchange="changeRole('${u.firebaseUid||u._id}',this.value)" style="font-size:.72rem;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:3px 6px">
+          <option value="user" ${u.role==='user'?'selected':''}>user</option>
+          <option value="premium" ${u.role==='premium'?'selected':''}>premium</option>
+          <option value="admin" ${u.role==='admin'?'selected':''}>admin</option>
+        </select>
+      </td>
+      <td style="font-size:.78rem;color:var(--muted)">${lastSeen}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${joined}</td>
+      <td>
+        <span style="font-family:var(--font-n);font-size:.65rem;padding:2px 8px;border-radius:4px;${isSusp?'background:rgba(255,61,90,.12);color:var(--red)':'background:rgba(0,255,136,.1);color:var(--green)'}">
+          ${isSusp?'⛔ Suspended':'✓ Active'}
+        </span>
+        ${u.suspendReason?`<div style="font-size:.67rem;color:var(--red);margin-top:2px">${u.suspendReason}</div>`:''}
+      </td>
+      <td>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${isSusp
+            ? `<button class="btn btn-success btn-xs" onclick="unsuspendUser('${u.firebaseUid||u._id}','${name}')">✅ Restore</button>`
+            : `<button class="btn btn-warn btn-xs" onclick="suspendUser('${u.firebaseUid||u._id}','${name}')">⛔ Suspend</button>`}
+          <button class="btn btn-danger btn-xs" onclick="deleteUser('${u.firebaseUid||u._id}','${name}','${email}')">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadUserStats() {
+  const d = await api('GET','/api/admin/users/stats');
+  if (!d?.success) return;
+  document.getElementById('usr-total').textContent     = d.data.total;
+  document.getElementById('usr-active').textContent    = d.data.activeLastWeek;
+  document.getElementById('usr-suspended').textContent = d.data.suspended;
+  document.getElementById('usr-premium').textContent   = d.data.premium;
+  document.getElementById('countUsers').textContent    = d.data.total;
+}
+
+function suspendUser(uid, name) {
+  const reason = prompt(`Suspend reason for ${name} (shown to user):`);
+  if (reason === null) return;
+  openConfirm(`Suspend ${name}?`, `Reason: "<strong>${reason||'No reason given'}</strong>"`, async () => {
+    const r = await api('POST',`/api/admin/users/${uid}/suspend`,{reason:reason||'Suspended by admin'});
+    if (r?.success) { showToast(`✅ ${name} suspended`,'warn'); loadUsers(); loadUserStats(); }
+    else showToast('Error: '+(r?.error||'Unknown'),'danger');
+  },'Suspend','btn-warn');
+}
+
+function unsuspendUser(uid, name) {
+  openConfirm(`Restore ${name}?`,'This will re-enable their account.', async () => {
+    const r = await api('POST',`/api/admin/users/${uid}/unsuspend`);
+    if (r?.success) { showToast(`✅ ${name} restored`); loadUsers(); loadUserStats(); }
+    else showToast('Error: '+(r?.error||'Unknown'),'danger');
+  },'Restore','btn-success');
+}
+
+function deleteUser(uid, name, email) {
+  openConfirm(`DELETE ${name} permanently?`,
+    `Email: ${email}<br><br>⚠️ Removes from Firebase and database. <strong>Cannot be undone.</strong>`, async () => {
+    const r = await api('DELETE',`/api/admin/users/${uid}`);
+    if (r?.success) { showToast(`🗑 ${name} deleted`,'warn'); loadUsers(); loadUserStats(); }
+    else showToast('Error: '+(r?.error||'Unknown'),'danger');
+  });
+}
+
+async function changeRole(uid, role) {
+  const r = await api('PUT',`/api/admin/users/${uid}/role`,{role});
+  if (r?.success) showToast(`✅ Role changed to ${role}`);
+  else showToast('Error: '+(r?.error||'Unknown'),'danger');
+}
+
+/* ══════════════════════════════════════
+   SITE CONTROL — Feature Flags
+══════════════════════════════════════ */
+const SITE_FLAGS = [
+  'maintenance_mode','maintenance_message',
+  'feature_analysis','feature_live_signals','feature_paper_trading',
+  'feature_backtest','feature_scanner','allow_registration','adsense_enabled',
+  'gate_analysis_login','gate_analysis_premium','gate_signals_login','gate_paper_login',
+  'scan_daily_limit','ind_min_confidence','ind_market_entry_conf','min_publish_grade','scan_limit'
+];
+
+async function loadSiteControl() {
+  const data = await api('GET','/api/admin/settings');
+  if (!data?.success) return;
+  const map = {};
+  data.data.forEach(s => { map[s.key] = s.value; });
+  SITE_FLAGS.forEach(key => {
+    const el = document.getElementById('flag-'+key) || document.getElementById('gate-'+key);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!map[key];
+    else el.value = map[key] ?? '';
+  });
+}
+
+async function saveSingleFlag(key, value) {
+  const r = await api('PUT',`/api/admin/settings/${key}`,{value});
+  if (r?.success) showToast(`✅ ${key} updated`);
+  else showToast('Save failed: '+(r?.error||'Unknown'),'danger');
+}
+
+async function saveSingleFlagVal(key, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const value = parseFloat(el.value) || parseInt(el.value) || el.value;
+  await saveSingleFlag(key, value);
+}
+
+async function saveMaintenanceMsg() {
+  const msg = document.getElementById('maintenance_message').value.trim();
+  await saveSingleFlag('maintenance_message', msg);
+}
+
+async function saveQualityGates() {
+  const fields = [
+    { key:'ind_min_confidence',  id:'gate-ind_min_confidence',  num:true },
+    { key:'ind_market_entry_conf',id:'gate-ind_market_entry_conf',num:true },
+    { key:'min_publish_grade',   id:'gate-min_publish_grade',   num:false },
+    { key:'scan_limit',          id:'gate-scan_limit',          num:true },
+  ];
+  for (const f of fields) {
+    const el = document.getElementById(f.id); if (!el) continue;
+    const val = f.num ? parseFloat(el.value) : el.value;
+    if (!isNaN(val) || !f.num) await api('PUT',`/api/admin/settings/${f.key}`,{value:val});
+  }
+  showToast('✅ Quality gates saved');
+}
+
+/* ══════════════════════════════════════
+   INDICATORS
+══════════════════════════════════════ */
+const IND_KEYS_SCORE = ['ind_score_max','ind_fvg_cap','ind_pivot_max_levels','ind_min_confidence','ind_market_entry_conf','ind_funding_gate'];
+const IND_KEYS_CORE  = ['ind_rsi_period','ind_ema_fast','ind_ema_slow','ind_ema_long','ind_macd_fast','ind_macd_slow','ind_macd_signal','ind_bb_period','ind_bb_mult','ind_stoch_rsi_period','ind_stoch_smooth','ind_stoch_k','ind_stoch_d','ind_adx_period','ind_adx_choppy_gate','ind_atr_period','ind_supertrend_period','ind_supertrend_mult','ind_vwap_lookback','ind_kline_limit','ind_kline_tf'];
+const IND_KEYS_PAPER = ['pt_default_leverage','pt_default_amount','pt_tp1_trail_mult'];
+
+async function loadIndicators() {
+  const data = await api('GET','/api/admin/indicators');
+  if (!data?.success) return;
+  const map = {};
+  Object.entries(data.data).forEach(([k,v]) => { map[k] = typeof v === 'object' ? v.value : v; });
+  [...IND_KEYS_SCORE,...IND_KEYS_CORE,...IND_KEYS_PAPER].forEach(key => {
+    const el = document.getElementById('ind-'+key);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.value = map[key] ?? el.options[0]?.value;
+    else el.value = map[key] ?? '';
+  });
+}
+
+async function saveIndicatorGroup(group) {
+  const keys = group==='score'?IND_KEYS_SCORE:group==='core'?IND_KEYS_CORE:IND_KEYS_PAPER;
+  const updates = {};
+  keys.forEach(key => {
+    const el = document.getElementById('ind-'+key);
+    if (!el) return;
+    updates[key] = el.tagName==='SELECT' ? el.value : (isNaN(parseFloat(el.value)) ? el.value : parseFloat(el.value));
+  });
+  const r = await api('PUT','/api/admin/indicators', updates);
+  const al = document.getElementById('indAlert');
+  if (r?.success) {
+    showToast(`✅ ${group} indicator defaults saved`);
+    al.className='alert success show'; al.textContent=`✅ ${r.updated} settings saved.`;
+    setTimeout(()=>al.classList.remove('show'),4000);
+  } else {
+    al.className='alert danger show'; al.textContent='Error: '+(r?.error||'Unknown');
+  }
+}
+
+/* ══════════════════════════════════════
    ANNOUNCEMENTS
-═══════════════════════════════════════════ */
+══════════════════════════════════════ */
 async function loadAnnouncements() {
   document.getElementById('annTbl').innerHTML='<tr class="empty-row"><td colspan="6" class="loading">Loading…</td></tr>';
   const data = await api('GET','/api/admin/announcements');
   if (!data) return;
   const tbody = document.getElementById('annTbl');
   if (!data.data?.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="6">No announcements yet</td></tr>'; return; }
-  tbody.innerHTML = data.data.map(a => `
-    <tr>
-      <td style="font-weight:600">${a.title}</td>
-      <td><span class="tag ${a.type==='success'?'':'purple'}">${a.type.toUpperCase()}</span></td>
-      <td>
-        <label class="toggle" style="cursor:pointer">
-          <input type="checkbox" ${a.active?'checked':''} onchange="toggleAnn('${a._id}',this.checked)">
-          <span class="toggle-slider"></span>
-        </label>
-      </td>
-      <td style="font-size:.76rem;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.message}</td>
-      <td style="font-size:.7rem;color:var(--muted);font-family:var(--font-n)">${fmtDate(a.createdAt)}</td>
-      <td>
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-warn btn-sm" onclick="openEditAnn(${JSON.stringify(a).replace(/"/g,'&quot;')})">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteAnn('${a._id}','${a.title}')">🗑</button>
-        </div>
-      </td>
-    </tr>`).join('');
+  tbody.innerHTML = data.data.map(a => `<tr>
+    <td style="font-weight:600">${a.title}</td>
+    <td><span class="tag ${a.type==='success'?'green':a.type==='warning'?'yellow':a.type==='danger'?'red':'purple'}">${a.type.toUpperCase()}</span></td>
+    <td><label class="toggle" style="cursor:pointer"><input type="checkbox" ${a.active?'checked':''} onchange="toggleAnn('${a._id}',this.checked)"><span class="toggle-slider"></span></label></td>
+    <td style="font-size:.76rem;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.message}</td>
+    <td style="font-size:.7rem;color:var(--muted);font-family:var(--font-n)">${fmtDate(a.createdAt)}</td>
+    <td><div style="display:flex;gap:4px">
+      <button class="btn btn-warn btn-xs" onclick="openEditAnn(${JSON.stringify(a).replace(/"/g,'&quot;')})">✏️</button>
+      <button class="btn btn-danger btn-xs" onclick="deleteAnn('${a._id}','${a.title}')">🗑</button>
+    </div></td>
+  </tr>`).join('');
 }
 
 function openAnnModal(ann=null) {
@@ -1085,449 +1314,156 @@ function openAnnModal(ann=null) {
   document.getElementById('ann-title').value   = ann?.title||'';
   document.getElementById('ann-message').value = ann?.message||'';
   document.getElementById('ann-type').value    = ann?.type||'info';
-  document.getElementById('ann-active').checked= ann?ann.active:true;
+  document.getElementById('ann-active').checked= ann ? ann.active : true;
   document.getElementById('ann-until').value   = ann?.showUntil ? new Date(ann.showUntil).toISOString().slice(0,16) : '';
   openModal('annOverlay');
 }
-
 function openEditAnn(ann) {
   if (typeof ann === 'string') ann = JSON.parse(ann.replace(/&quot;/g,'"'));
   openAnnModal(ann);
 }
-
 async function saveAnnouncement() {
   const id = document.getElementById('ann-id').value;
   const title   = document.getElementById('ann-title').value.trim();
   const message = document.getElementById('ann-message').value.trim();
   if (!title || !message) { showAlert('annAlert','danger','Title and message are required'); return; }
-  const payload = {
-    title, message,
-    type:      document.getElementById('ann-type').value,
-    active:    document.getElementById('ann-active').checked,
-    showUntil: document.getElementById('ann-until').value || null,
-  };
-  const data = id
-    ? await api('PUT','/api/admin/announcements/'+id, payload)
-    : await api('POST','/api/admin/announcements', payload);
-  if (data?.success) {
-    closeModal('annOverlay');
-    loadAnnouncements();
-    showAlert('annAlert','success','✅ Announcement '+(id?'updated':'published')+'!');
-  } else { showAlert('annAlert','danger','Error: '+(data?.error||'Unknown')); }
+  const payload = { title, message, type:document.getElementById('ann-type').value, active:document.getElementById('ann-active').checked, showUntil:document.getElementById('ann-until').value||null };
+  const data = id ? await api('PUT','/api/admin/announcements/'+id,payload) : await api('POST','/api/admin/announcements',payload);
+  if (data?.success) { closeModal('annOverlay'); loadAnnouncements(); showAlert('annAlert','success','✅ Announcement '+(id?'updated':'published')+'!'); showToast('Announcement saved'); }
+  else showAlert('annAlert','danger','Error: '+(data?.error||'Unknown'));
 }
-
-async function toggleAnn(id, active) {
-  await api('PUT','/api/admin/announcements/'+id, { active });
-}
-
+async function toggleAnn(id, active) { await api('PUT','/api/admin/announcements/'+id,{active}); }
 function deleteAnn(id, title) {
-  openConfirm('Delete Announcement', `Delete "<strong>${title}</strong>"?`, async () => {
-    await api('DELETE','/api/admin/announcements/'+id);
-    loadAnnouncements();
+  openConfirm('Delete Announcement',`Delete "<strong>${title}</strong>"?`, async ()=>{
+    await api('DELETE','/api/admin/announcements/'+id); loadAnnouncements(); showToast('Announcement deleted','warn');
   });
 }
 
-/* ══════════════════════════════════════════
+/* ══════════════════════════════════════
    SETTINGS
-═══════════════════════════════════════════ */
+══════════════════════════════════════ */
 async function loadSettings() {
   const body = document.getElementById('settingsBody');
   body.innerHTML = '<div class="loading">Loading settings…</div>';
   const data = await api('GET','/api/admin/settings');
-  if (!data) return;
-
-  // Group by group
+  if (!data?.success) { body.innerHTML='<div class="loading" style="color:var(--red)">Error loading settings</div>'; return; }
   const groups = {};
   data.data.forEach(s => {
     if (!groups[s.group]) groups[s.group] = [];
     groups[s.group].push(s);
   });
-
-  const groupIcons = { general:'⚙️', analysis:'🔬', signals:'📡' };
-
+  const icons = { general:'⚙️', analysis:'🔬', signals:'📡', indicators:'📐', paper_trade:'📝', features:'🚀', access:'🔐' };
   body.innerHTML = Object.entries(groups).map(([grp, items]) => `
     <div class="panel" style="margin-bottom:16px">
-      <div class="panel-head"><div class="panel-title">${groupIcons[grp]||'⚙️'} ${grp.charAt(0).toUpperCase()+grp.slice(1)}</div></div>
+      <div class="panel-head">
+        <div class="panel-title">${icons[grp]||'⚙️'} ${grp.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>
+      </div>
       <div class="panel-body">
-        ${items.map(s => settingRow(s)).join('')}
+        ${items.map(s => `
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">${s.label||s.key}</div>
+              <div class="setting-key">${s.key}</div>
+            </div>
+            <div class="setting-ctrl">
+              ${typeof s.value==='boolean'
+                ? `<label class="toggle"><input type="checkbox" id="set-${s.key}" ${s.value?'checked':''}><span class="toggle-slider"></span></label>`
+                : `<input class="f-inp" id="set-${s.key}" value="${s.value??''}">`}
+            </div>
+          </div>`).join('')}
         <div style="display:flex;justify-content:flex-end;margin-top:12px">
-          <button class="btn btn-success btn-sm" onclick="saveSettingsGroup('${grp}',${JSON.stringify(items.map(i=>i.key)).replace(/"/g,'&quot;')})">💾 Save ${grp}</button>
+          <button class="btn btn-success btn-sm" onclick="saveSettingsGroup(${JSON.stringify(items.map(i=>i.key)).replace(/"/g,'&quot;')})">💾 Save ${grp}</button>
         </div>
       </div>
     </div>`).join('');
 }
 
-function settingRow(s) {
-  if (typeof s.value === 'boolean') return `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div>
-        <div style="font-size:.84rem;font-weight:500">${s.label||s.key}</div>
-        <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted)">${s.key}</div>
-      </div>
-      <label class="toggle"><input type="checkbox" id="setting-${s.key}" ${s.value?'checked':''}><span class="toggle-slider"></span></label>
-    </div>`;
-  return `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
-      <div>
-        <div style="font-size:.84rem;font-weight:500">${s.label||s.key}</div>
-        <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted)">${s.key}</div>
-      </div>
-      <input class="f-inp" id="setting-${s.key}" value="${s.value}" style="width:160px;min-width:100px">
-    </div>`;
-}
-
-async function saveSettingsGroup(grp, keys) {
+async function saveSettingsGroup(keys) {
   if (typeof keys === 'string') keys = JSON.parse(keys.replace(/&quot;/g,'"'));
   for (const key of keys) {
-    const el = document.getElementById('setting-'+key);
-    if (!el) continue;
-    const value = el.type==='checkbox' ? el.checked : (isNaN(el.value) ? el.value : parseFloat(el.value));
-    await api('PUT','/api/admin/settings/'+key, { value });
+    const el = document.getElementById('set-'+key); if (!el) continue;
+    const value = el.type==='checkbox' ? el.checked : (el.value===''?el.value:isNaN(el.value)?el.value:parseFloat(el.value));
+    await api('PUT','/api/admin/settings/'+key,{value});
   }
   showAlert('settingsAlert','success','✅ Settings saved!');
+  showToast('Settings saved');
 }
 
-/* ══════════════════════════════════════════
+/* ══════════════════════════════════════
+   ADSENSE & SEO
+══════════════════════════════════════ */
+async function loadAdsenseSettings() {
+  const data = await api('GET','/api/admin/settings');
+  if (!data?.success) return;
+  const s = {};
+  data.data.forEach(item => { s[item.key] = item.value; });
+  if (s.seo_title)          document.getElementById('seo-title').value   = s.seo_title;
+  if (s.seo_description)    document.getElementById('seo-desc').value    = s.seo_description;
+  if (s.seo_keywords)       document.getElementById('seo-keywords').value= s.seo_keywords;
+  if (s.google_analytics_id)document.getElementById('ga-id').value       = s.google_analytics_id;
+  if (s.og_image)           document.getElementById('og-image').value    = s.og_image;
+  document.getElementById('adsense-enabled').checked = !!s.adsense_enabled;
+  if (s.adsense_publisher_id) {
+    document.getElementById('adsense-pubid').value = s.adsense_publisher_id;
+    document.getElementById('adsTextLine').textContent = 'google.com, '+s.adsense_publisher_id+', DIRECT, f08c47fec0942fa0';
+  }
+  if (s.adsense_slot_header)  document.getElementById('adsense-header').value  = s.adsense_slot_header;
+  if (s.adsense_slot_sidebar) document.getElementById('adsense-sidebar').value = s.adsense_slot_sidebar;
+  if (s.adsense_slot_inline)  document.getElementById('adsense-inline').value  = s.adsense_slot_inline;
+  if (s.adsense_slot_footer)  document.getElementById('adsense-footer').value  = s.adsense_slot_footer;
+  document.getElementById('adsense-auto').checked = !!s.adsense_auto_ads;
+}
+
+async function saveSeoSettings() {
+  const updates = {
+    seo_title:           document.getElementById('seo-title').value.trim(),
+    seo_description:     document.getElementById('seo-desc').value.trim(),
+    seo_keywords:        document.getElementById('seo-keywords').value.trim(),
+    google_analytics_id: document.getElementById('ga-id').value.trim(),
+    og_image:            document.getElementById('og-image').value.trim(),
+  };
+  const r = await api('POST','/api/admin/settings/bulk',{updates});
+  showAlert('adsenseAlert', r?.success?'success':'danger', r?.success?'✅ SEO settings saved!':'Error: '+(r?.error||'Unknown'));
+  if (r?.success) showToast('SEO settings saved');
+}
+
+async function saveAdsenseSettings() {
+  const pubId = document.getElementById('adsense-pubid').value.trim();
+  const updates = {
+    adsense_enabled:       document.getElementById('adsense-enabled').checked,
+    adsense_publisher_id:  pubId,
+    adsense_auto_ads:      document.getElementById('adsense-auto').checked,
+    adsense_slot_header:   document.getElementById('adsense-header').value.trim(),
+    adsense_slot_sidebar:  document.getElementById('adsense-sidebar').value.trim(),
+    adsense_slot_inline:   document.getElementById('adsense-inline').value.trim(),
+    adsense_slot_footer:   document.getElementById('adsense-footer').value.trim(),
+  };
+  if (pubId) document.getElementById('adsTextLine').textContent = 'google.com, '+pubId+', DIRECT, f08c47fec0942fa0';
+  const r = await api('POST','/api/admin/settings/bulk',{updates});
+  showAlert('adsenseAlert', r?.success?'success':'danger', r?.success?'✅ AdSense settings saved!':'Error: '+(r?.error||'Unknown'));
+  if (r?.success) showToast('AdSense settings saved');
+}
+
+function toggleAdsense(el) {
+  if (el.checked && !document.getElementById('adsense-pubid').value.trim()) {
+    alert('Please enter your AdSense Publisher ID first.'); el.checked=false;
+  }
+}
+
+/* ══════════════════════════════════════
    SERVER STATS
-═══════════════════════════════════════════ */
+══════════════════════════════════════ */
 async function loadServerStats() {
   try {
-    const res  = await fetch('/health');
-    const data = await res.json();
-    document.getElementById('srv-mongo').innerHTML  = data.mongoConnected?'<span style="color:var(--green)">✓ Connected</span>':'<span style="color:var(--red)">✗ Offline</span>';
-    document.getElementById('srv-bws').innerHTML    = data.wsState==='connected'?'<span style="color:var(--green)">✓ Live</span>':`<span style="color:var(--yellow)">${data.wsState}</span>`;
+    const data = await (await fetch('/health')).json();
+    document.getElementById('srv-mongo').innerHTML   = data.mongoConnected ? '<span style="color:var(--green)">✓ Connected</span>' : '<span style="color:var(--red)">✗ Offline</span>';
+    document.getElementById('srv-bws').innerHTML     = data.wsState==='connected' ? '<span style="color:var(--green)">✓ Live</span>' : `<span style="color:var(--yellow)">${data.wsState}</span>`;
     document.getElementById('srv-clients').textContent = data.clients;
     document.getElementById('srv-uptime').textContent  = fmtUptime(data.uptime);
     document.getElementById('srv-coins').textContent   = data.marketCoins;
     document.getElementById('srv-gainers').textContent = data.topGainers;
-  } catch(e) {
-    document.getElementById('srv-mongo').innerHTML='<span style="color:var(--red)">Server unreachable</span>';
-  }
+  } catch(e) { document.getElementById('srv-mongo').innerHTML='<span style="color:var(--red)">Server unreachable</span>'; }
 }
-
-/* ── AdSense & SEO ── */
-async function loadAdsenseSettings(){
-  try{
-    const r=await fetch('/api/admin/settings',{headers:{Authorization:'Bearer '+token}});
-    const j=await r.json();
-    if(!j.success)return;
-    const s={};j.data.forEach(item=>s[item.key]=item.value);
-    if(s.seo_title)document.getElementById('seo-title').value=s.seo_title;
-    if(s.seo_description)document.getElementById('seo-desc').value=s.seo_description;
-    if(s.seo_keywords)document.getElementById('seo-keywords').value=s.seo_keywords;
-    if(s.google_analytics_id)document.getElementById('ga-id').value=s.google_analytics_id;
-    if(s.og_image)document.getElementById('og-image').value=s.og_image;
-    document.getElementById('adsense-enabled').checked=!!s.adsense_enabled;
-    if(s.adsense_publisher_id){
-      document.getElementById('adsense-pubid').value=s.adsense_publisher_id;
-      document.getElementById('adsTextLine').textContent='google.com, '+s.adsense_publisher_id+', DIRECT, f08c47fec0942fa0';
-    }
-    if(s.adsense_slot_header)document.getElementById('adsense-header').value=s.adsense_slot_header;
-    if(s.adsense_slot_sidebar)document.getElementById('adsense-sidebar').value=s.adsense_slot_sidebar;
-    if(s.adsense_slot_inline)document.getElementById('adsense-inline').value=s.adsense_slot_inline;
-    if(s.adsense_slot_footer)document.getElementById('adsense-footer').value=s.adsense_slot_footer;
-    document.getElementById('adsense-auto').checked=!!s.adsense_auto_ads;
-  }catch(e){console.error('loadAdsenseSettings:',e);}
-}
-async function saveSeoSettings(){
-  const updates={
-    seo_title:document.getElementById('seo-title').value.trim(),
-    seo_description:document.getElementById('seo-desc').value.trim(),
-    seo_keywords:document.getElementById('seo-keywords').value.trim(),
-    google_analytics_id:document.getElementById('ga-id').value.trim(),
-    og_image:document.getElementById('og-image').value.trim(),
-  };
-  try{
-    const r=await fetch('/api/admin/settings/bulk',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({updates})});
-    const j=await r.json();
-    showAdsenseAlert(j.success?'success':'danger',j.success?'✅ SEO settings saved!':'Error: '+(j.error||'Unknown'));
-  }catch(e){showAdsenseAlert('danger','Error: '+e.message);}
-}
-async function saveAdsenseSettings(){
-  const pubId=document.getElementById('adsense-pubid').value.trim();
-  const updates={
-    adsense_enabled:document.getElementById('adsense-enabled').checked,
-    adsense_publisher_id:pubId,
-    adsense_auto_ads:document.getElementById('adsense-auto').checked,
-    adsense_slot_header:document.getElementById('adsense-header').value.trim(),
-    adsense_slot_sidebar:document.getElementById('adsense-sidebar').value.trim(),
-    adsense_slot_inline:document.getElementById('adsense-inline').value.trim(),
-    adsense_slot_footer:document.getElementById('adsense-footer').value.trim(),
-  };
-  if(pubId)document.getElementById('adsTextLine').textContent='google.com, '+pubId+', DIRECT, f08c47fec0942fa0';
-  try{
-    const r=await fetch('/api/admin/settings/bulk',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({updates})});
-    const j=await r.json();
-    showAdsenseAlert(j.success?'success':'danger',j.success?'✅ AdSense settings saved!':'Error: '+(j.error||'Unknown'));
-  }catch(e){showAdsenseAlert('danger','Error: '+e.message);}
-}
-function toggleAdsense(el){
-  if(el.checked&&!document.getElementById('adsense-pubid').value.trim()){
-    alert('Please enter your AdSense Publisher ID first.');el.checked=false;
-  }
-}
-function showAdsenseAlert(type,msg){
-  const el=document.getElementById('adsenseAlert');
-  el.className='alert '+type+' show';el.textContent=msg;
-  setTimeout(()=>el.classList.remove('show'),4000);
-}
-
-
-/* ═══════════════════════════════════════════════════
-   USER MANAGEMENT
-   ═══════════════════════════════════════════════════ */
-
-async function loadUsers() {
-  const filter = document.getElementById('usrFilter')?.value || '';
-  const tbl = document.getElementById('usersTbl');
-  if (!tbl) return;
-  tbl.innerHTML = '<tr class="empty-row"><td colspan="7" class="loading">Loading…</td></tr>';
-  try {
-    const url = '/api/admin/users' + (filter !== '' ? `?suspended=${filter}` : '');
-    const data = await api('GET', url);
-    if (!data.success) throw new Error(data.error);
-    document.getElementById('countUsers').textContent = data.total;
-    if (!data.data.length) {
-      tbl.innerHTML = '<tr class="empty-row"><td colspan="7" class="loading">No users found</td></tr>';
-      return;
-    }
-    tbl.innerHTML = data.data.map(u => {
-      const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
-      const joined   = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
-      const email    = u.firebaseEmail || u.email || '—';
-      const name     = u.firebaseDisplayName || u.displayName || email.split('@')[0];
-      const isSusp   = u.suspended;
-      const roleCls  = u.role === 'premium' ? 'color:var(--yellow)' : u.role === 'admin' ? 'color:var(--cyan)' : 'color:var(--muted)';
-      return `<tr style="${isSusp ? 'opacity:.6;background:rgba(255,61,90,.04)' : ''}">
-        <td style="font-weight:600">${name}</td>
-        <td style="font-family:var(--font-n);font-size:.78rem;color:var(--muted)">${email}</td>
-        <td>
-          <select onchange="changeRole('${u.firebaseUid}',this.value)" style="font-size:.72rem;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:3px 6px">
-            <option value="user"    ${u.role==='user'?'selected':''}>user</option>
-            <option value="premium" ${u.role==='premium'?'selected':''}>premium</option>
-            <option value="admin"   ${u.role==='admin'?'selected':''}>admin</option>
-          </select>
-        </td>
-        <td style="font-size:.78rem;color:var(--muted)">${lastSeen}</td>
-        <td style="font-size:.78rem;color:var(--muted)">${joined}</td>
-        <td><span style="font-family:var(--font-n);font-size:.65rem;padding:2px 8px;border-radius:4px;${isSusp?'background:rgba(255,61,90,.12);color:var(--red)':'background:rgba(0,255,136,.1);color:var(--green)'}">${isSusp ? '⛔ Suspended' : '✓ Active'}</span>
-          ${u.suspendReason ? `<div style="font-size:.67rem;color:var(--red);margin-top:2px">${u.suspendReason}</div>` : ''}
-        </td>
-        <td>
-          <div style="display:flex;gap:5px;flex-wrap:wrap">
-            ${isSusp
-              ? `<button class="btn btn-sm btn-success" onclick="unsuspendUser('${u.firebaseUid}','${name}')">✅ Restore</button>`
-              : `<button class="btn btn-sm btn-warning" onclick="suspendUser('${u.firebaseUid}','${name}')">⛔ Suspend</button>`}
-            <button class="btn btn-sm btn-danger" onclick="deleteUser('${u.firebaseUid}','${name}','${email}')">🗑 Delete</button>
-          </div>
-        </td>
-      </tr>`;
-    }).join('');
-  } catch (e) {
-    tbl.innerHTML = `<tr class="empty-row"><td colspan="7" style="color:var(--red)">Error: ${e.message}</td></tr>`;
-  }
-}
-
-async function loadUserStats() {
-  try {
-    const d = await api('GET', '/api/admin/users/stats');
-    if (!d.success) return;
-    document.getElementById('usr-total').textContent     = d.data.total;
-    document.getElementById('usr-active').textContent    = d.data.activeLastWeek;
-    document.getElementById('usr-suspended').textContent = d.data.suspended;
-    document.getElementById('usr-premium').textContent   = d.data.premium;
-    document.getElementById('countUsers').textContent    = d.data.total;
-  } catch (_) {}
-}
-
-function suspendUser(uid, name) {
-  const reason = prompt(`Suspend reason for ${name} (shown to user):`);
-  if (reason === null) return;
-  confirm2(`Suspend ${name}?`, `Reason: "${reason || 'No reason given'}"`, async () => {
-    try {
-      const r = await api('POST', `/api/admin/users/${uid}/suspend`, { reason: reason || 'Suspended by admin' });
-      if (!r.success) throw new Error(r.error);
-      showToast(`✅ ${name} suspended`);
-      loadUsers();
-    } catch (e) { showToast('Error: ' + e.message, 'danger'); }
-  });
-}
-
-function unsuspendUser(uid, name) {
-  confirm2(`Restore ${name}?`, 'This will re-enable their account.', async () => {
-    try {
-      const r = await api('POST', `/api/admin/users/${uid}/unsuspend`);
-      if (!r.success) throw new Error(r.error);
-      showToast(`✅ ${name} restored`);
-      loadUsers();
-    } catch (e) { showToast('Error: ' + e.message, 'danger'); }
-  });
-}
-
-function deleteUser(uid, name, email) {
-  confirm2(`DELETE ${name} permanently?`, `Email: ${email}\n\n⚠️ This removes them from Firebase and the database. Cannot be undone.`, async () => {
-    try {
-      const r = await api('DELETE', `/api/admin/users/${uid}`);
-      if (!r.success) throw new Error(r.error);
-      showToast(`🗑 ${name} deleted`);
-      loadUsers(); loadUserStats();
-    } catch (e) { showToast('Error: ' + e.message, 'danger'); }
-  });
-}
-
-async function changeRole(uid, role) {
-  try {
-    const r = await api('PUT', `/api/admin/users/${uid}/role`, { role });
-    if (!r.success) throw new Error(r.error);
-    showToast(`✅ Role changed to ${role}`);
-  } catch (e) { showToast('Error: ' + e.message, 'danger'); }
-}
-
-/* ═══════════════════════════════════════════════════
-   INDICATOR DEFAULTS
-   ═══════════════════════════════════════════════════ */
-
-const IND_LABELS = {
-  ind_rsi_period:        { label:'RSI Period', group:'Analysis Engine', type:'number', min:5, max:30 },
-  ind_ema_fast:          { label:'EMA Fast (default: 20)', group:'Analysis Engine', type:'number', min:5, max:50 },
-  ind_ema_slow:          { label:'EMA Slow (default: 50)', group:'Analysis Engine', type:'number', min:10, max:100 },
-  ind_ema_long:          { label:'EMA Long / EMA200', group:'Analysis Engine', type:'number', min:50, max:500 },
-  ind_macd_fast:         { label:'MACD Fast (12)', group:'MACD', type:'number', min:3, max:30 },
-  ind_macd_slow:         { label:'MACD Slow (26)', group:'MACD', type:'number', min:10, max:60 },
-  ind_macd_signal:       { label:'MACD Signal (9)', group:'MACD', type:'number', min:3, max:20 },
-  ind_bb_period:         { label:'Bollinger Bands Period (20)', group:'Bollinger Bands', type:'number', min:5, max:50 },
-  ind_bb_mult:           { label:'BB Multiplier (2.0)', group:'Bollinger Bands', type:'number', min:1, max:4, step:0.1 },
-  ind_stoch_rsi_period:  { label:'Stoch RSI Period (14)', group:'Stochastic RSI', type:'number', min:5, max:30 },
-  ind_stoch_k:           { label:'Stoch K Smooth (3)', group:'Stochastic RSI', type:'number', min:1, max:10 },
-  ind_stoch_d:           { label:'Stoch D Smooth (3)', group:'Stochastic RSI', type:'number', min:1, max:10 },
-  ind_adx_period:        { label:'ADX Period (14)', group:'ADX', type:'number', min:5, max:30 },
-  ind_adx_choppy_gate:   { label:'ADX Choppy Market Gate (18)', group:'ADX', type:'number', min:10, max:30 },
-  ind_atr_period:        { label:'ATR Period (14)', group:'ATR / Supertrend', type:'number', min:5, max:30 },
-  ind_supertrend_period: { label:'Supertrend Period (10)', group:'ATR / Supertrend', type:'number', min:3, max:30 },
-  ind_supertrend_mult:   { label:'Supertrend Multiplier (3.0)', group:'ATR / Supertrend', type:'number', min:1, max:6, step:0.1 },
-  ind_vwap_lookback:     { label:'VWAP Lookback candles (24)', group:'VWAP', type:'number', min:6, max:72 },
-  ind_kline_limit:       { label:'Kline History bars (200)', group:'Data', type:'number', min:100, max:500 },
-  ind_kline_tf:          { label:'Primary Timeframe', group:'Data', type:'select', options:['1m','5m','15m','30m','1h','4h','1d'] },
-  ind_min_confidence:    { label:'Min Confidence % to show signal (38)', group:'Scoring Gates', type:'number', min:20, max:60 },
-  ind_market_entry_conf: { label:'Market Entry min confidence (65)', group:'Scoring Gates', type:'number', min:40, max:90 },
-  ind_funding_gate:      { label:'Funding Rate Hard Gate % (0.25)', group:'Scoring Gates', type:'number', min:0.05, max:1, step:0.01 },
-};
-
-const PT_LABELS = {
-  pt_tp1_trail_mult:   { label:'TP1 Trail Offset Multiplier (0.5)', type:'number', min:0.1, max:1, step:0.05 },
-  pt_default_leverage: { label:'Default Leverage (5×)', type:'number', min:1, max:100 },
-  pt_default_amount:   { label:'Default Trade Amount USDT (100)', type:'number', min:1, max:10000 },
-};
-
-let currentIndValues = {};
-
-async function loadIndicators() {
-  try {
-    const d = await api('GET', '/api/admin/indicators');
-    if (!d.success) return;
-    currentIndValues = {};
-    Object.entries(d.data).forEach(([k,v]) => { currentIndValues[k] = v.value; });
-    renderIndForm();
-  } catch (e) {
-    document.getElementById('indFormGrid').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
-  }
-}
-
-function renderIndForm() {
-  const grid = document.getElementById('indFormGrid');
-  const ptGrid = document.getElementById('ptFormGrid');
-
-  // Group indicator fields
-  const groups = {};
-  Object.entries(IND_LABELS).forEach(([key, cfg]) => {
-    if (!groups[cfg.group]) groups[cfg.group] = [];
-    groups[cfg.group].push({ key, cfg, val: currentIndValues[key] ?? '' });
-  });
-
-  grid.innerHTML = Object.entries(groups).map(([grp, fields]) => `
-    <div style="grid-column:1/-1;margin-top:8px;margin-bottom:4px">
-      <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:4px">${grp}</div>
-    </div>
-    ${fields.map(({key,cfg,val}) => `
-      <div class="f-row">
-        <label>${cfg.label}</label>
-        ${cfg.type === 'select'
-          ? `<select class="f-sel" id="ind-${key}">${cfg.options.map(o=>`<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}</select>`
-          : `<input class="f-inp" type="number" id="ind-${key}" value="${val}" min="${cfg.min??''}" max="${cfg.max??''}" step="${cfg.step??1}">`
-        }
-      </div>
-    `).join('')}
-  `).join('');
-
-  ptGrid.innerHTML = Object.entries(PT_LABELS).map(([key,cfg]) => `
-    <div class="f-row">
-      <label>${cfg.label}</label>
-      <input class="f-inp" type="number" id="ind-${key}" value="${currentIndValues[key]??''}" min="${cfg.min??''}" max="${cfg.max??''}" step="${cfg.step??1}">
-    </div>
-  `).join('');
-}
-
-async function saveIndicators() {
-  const all = { ...IND_LABELS, ...PT_LABELS };
-  const updates = {};
-  Object.entries(all).forEach(([key, cfg]) => {
-    const el = document.getElementById(`ind-${key}`);
-    if (!el) return;
-    updates[key] = cfg.type === 'select' ? el.value : parseFloat(el.value);
-  });
-  const al = document.getElementById('indAlert');
-  try {
-    const r = await api('PUT', '/api/admin/indicators', updates);
-    if (!r.success) throw new Error(r.error);
-    al.style.display='block'; al.className='alert success'; al.textContent=`✅ ${r.updated} indicator defaults saved. New users will get these values.`;
-    showToast('✅ Indicator defaults saved');
-    setTimeout(() => { al.style.display='none'; }, 4000);
-  } catch (e) {
-    al.style.display='block'; al.className='alert danger'; al.textContent='Error: ' + e.message;
-  }
-}
-
-/* ── Helper: confirm2 (non-blocking confirm dialog) ── */
-function confirm2(title, body, cb) {
-  document.getElementById('confirmTitle').textContent = title;
-  document.getElementById('confirmBody').innerHTML = body.replace(/\n/g,'<br>');
-  confirmCb = cb;
-  document.getElementById('confirmOverlay').style.display = 'flex';
-}
-
-/* ── Helper: showToast ── */
-function showToast(msg, type = 'success') {
-  let toast = document.getElementById('_adminToast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = '_adminToast';
-    toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 18px;border-radius:8px;font-family:var(--font-n);font-size:.82rem;font-weight:600;transition:all .3s';
-    document.body.appendChild(toast);
-  }
-  toast.style.background = type === 'danger' ? 'rgba(255,61,90,.9)' : 'rgba(0,255,136,.9)';
-  toast.style.color = '#000';
-  toast.textContent = msg;
-  toast.style.opacity = '1';
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 3000);
-}
-
-/* ── Hook into showPage to lazy-load users + indicators ── */
-const _origShowPage = typeof showPage === 'function' ? showPage : null;
-function showPage(name) {
-  document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
-  const pg = document.getElementById('page-' + name);
-  if (pg) pg.classList.add('active');
-  document.querySelectorAll('.sb-link').forEach(b => b.classList.remove('active'));
-  document.querySelector(`.sb-link[onclick="showPage('${name}')"]`)?.classList.add('active');
-  if (name === 'users')      { loadUserStats(); loadUsers(); }
-  if (name === 'indicators') { loadIndicators(); }
-  // Forward to original handlers for other pages
-  if (_origShowPage && name !== 'users' && name !== 'indicators') {
-    // already handled above, page sections shown
-  }
-}
-
 </script>
 </body>
 </html>
