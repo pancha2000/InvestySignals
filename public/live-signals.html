@@ -166,6 +166,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .btn-cm-ok:hover{background:rgba(255,61,90,.2);}
 .btn-cm-cancel{padding:10px 16px;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:8px;font-family:var(--font-b);cursor:pointer;transition:all .2s;min-height:44px;}
 .btn-cm-cancel:hover{color:var(--text);}
+
+/* ── Paper Trade — Advanced State Styles ── */
+.tc-status.tp1-hit{background:rgba(255,195,51,.12);color:var(--yellow);border:1px solid rgba(255,195,51,.3);}
+.tc-status.be-close{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3);}
+.tc-status.trail{background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3);}
+.trailing-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-n);font-size:.62rem;padding:2px 8px;border-radius:4px;background:rgba(167,139,250,.1);color:#a78bfa;border:1px solid rgba(167,139,250,.2);margin-left:6px;}
+.be-notice{background:rgba(255,195,51,.06);border:1px solid rgba(255,195,51,.2);border-radius:8px;padding:8px 12px;margin:8px 16px 0;font-size:.78rem;color:var(--yellow);line-height:1.6;}
+.partial-tag{font-family:var(--font-n);font-size:.62rem;padding:2px 7px;border-radius:4px;background:rgba(0,255,136,.08);color:var(--green);border:1px solid rgba(0,255,136,.18);}
+.sl-moved{color:var(--yellow)!important;position:relative;}
+.sl-moved::after{content:'BE';font-size:.55rem;margin-left:3px;opacity:.8;}
+.tc-tp1-row{padding:8px 16px;background:rgba(0,255,136,.04);border-top:1px solid rgba(0,255,136,.12);display:flex;justify-content:space-between;align-items:center;font-size:.78rem;flex-wrap:wrap;gap:6px;}
+.tp1-locked{color:var(--green);font-family:var(--font-n);font-weight:600;}
 </style>
 
 </head>
@@ -280,70 +292,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
     </div>
   </div>
 </div>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-const firebaseConfig = {
-  apiKey: "AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
-  authDomain: "crypto-98b33.firebaseapp.com",
-  projectId: "crypto-98b33",
-  storageBucket: "crypto-98b33.firebasestorage.app",
-  messagingSenderId: "619954501803",
-  appId: "1:619954501803:web:559d48b801f072abd71fee"
-};
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-onAuthStateChanged(auth, (user) => {
-  document.getElementById('authGuard').style.display = 'none';
-  if (!user) { window.location.href = 'login.html'; return; }
-  document.getElementById('dashMain').style.display = 'block';
-  if (window.innerWidth <= 768) document.getElementById('mobBtn').style.display = 'flex';
-  const name     = user.displayName || user.email?.split('@')[0] || 'Trader';
-  const initials = name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) || 'U';
-  document.getElementById('userAvatar').textContent = initials;
-  document.getElementById('userName').textContent   = name;
-  document.getElementById('userEmail').textContent  = user.email || '';
-  initPage();
-});
-window.handleSignOut = async function() { await signOut(auth); window.location.href = 'index.html'; };
-</script>
-
-<script>
-/* ── Helpers ── */
-function fmtP(p) {
-  const n = parseFloat(p);
-  if (n >= 1000) return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  if (n >= 1)    return '$' + n.toFixed(4);
-  if (n >= 0.01) return '$' + n.toFixed(5);
-  return '$' + n.toFixed(6);
-}
-function fmtUSD(n) {
-  const abs = Math.abs(n);
-  const str = abs >= 1000 ? abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : abs.toFixed(2);
-  return (n >= 0 ? '+$' : '-$') + str;
-}
-function fmtTime(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' ' +
-         d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-}
-
-/* ── State ── */
-let currentTab      = 'open';
-<!-- Additional CSS for new trade states -->
-<style>
-.tc-status.tp1-hit{background:rgba(255,195,51,.12);color:var(--yellow);border:1px solid rgba(255,195,51,.3);}
-.tc-status.be-close{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3);}
-.tc-status.trail{background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3);}
-.trailing-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-n);font-size:.62rem;padding:2px 8px;border-radius:4px;background:rgba(167,139,250,.1);color:#a78bfa;border:1px solid rgba(167,139,250,.2);margin-left:6px;}
-.be-notice{background:rgba(255,195,51,.06);border:1px solid rgba(255,195,51,.2);border-radius:8px;padding:8px 12px;margin:8px 16px 0;font-size:.78rem;color:var(--yellow);line-height:1.6;}
-.partial-tag{font-family:var(--font-n);font-size:.62rem;padding:2px 7px;border-radius:4px;background:rgba(0,255,136,.08);color:var(--green);border:1px solid rgba(0,255,136,.18);}
-.sl-moved{color:var(--yellow)!important;position:relative;}
-.sl-moved::after{content:'BE';font-size:.55rem;margin-left:3px;opacity:.8;}
-.tc-tp1-row{padding:8px 16px;background:rgba(0,255,136,.04);border-top:1px solid rgba(0,255,136,.12);display:flex;justify-content:space-between;align-items:center;font-size:.78rem;flex-wrap:wrap;gap:6px;}
-.tp1-locked{color:var(--green);font-family:var(--font-n);font-weight:600;}
-</style>
 
 <!-- Firebase auth -->
 <script type="module">
