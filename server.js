@@ -77,11 +77,24 @@ const userSettingsSchema = new mongoose.Schema({
   role:{ type:String,enum:['user','premium','admin'],default:'user' },lastSeen:{ type:Date,default:Date.now },
 },{ timestamps:true });
 
+const reportSchema = new mongoose.Schema({
+  reporterUid:   { type:String, default:'anonymous' },
+  reporterEmail: { type:String, default:'' },
+  category: { type:String, enum:['signal_accuracy','technical_bug','inappropriate_content','other'], required:true },
+  message:  { type:String, required:true, maxlength:2000 },
+  context:  { type:String, default:'' },
+  status:   { type:String, enum:['open','in_review','resolved','dismissed'], default:'open' },
+  adminNote:{ type:String, default:'' },
+  resolvedBy:{ type:String, default:'' },
+  resolvedAt:{ type:Date },
+},{ timestamps:true });
+
 const Signal       = mongoose.model('Signal',       signalSchema);
 const Settings     = mongoose.model('Settings',     settingsSchema);
 const Announcement = mongoose.model('Announcement', announcementSchema);
 const Stats        = mongoose.model('Stats',        statsSchema);
 const UserRecord   = mongoose.model('UserRecord',   userSettingsSchema);
+const Report       = mongoose.model('Report',       reportSchema);
 
 /* ── Indicator defaults ── */
 const indicatorDefaults = [
@@ -478,6 +491,74 @@ app.get('/api/market/top-gainers', (req, res) => res.json({ success:true, data:t
 app.get('/api/market/ticker',      (req, res) => res.json({ success:true, data:tickerCoins }));
 app.get('/health', (req, res) => res.json({ status:'ok', clients:wss.clients.size, uptime:process.uptime(), marketCoins:Object.keys(marketData).length, wsState:binanceWsState, mongoConnected }));
 
+/* ══ USER REPORT SUBMISSION ══ */
+app.post('/api/reports', async (req, res) => {
+  try {
+    const { category, message, context, reporterUid, reporterEmail } = req.body;
+    if (!category || !message || message.trim().length < 5)
+      return res.status(400).json({ success:false, error:'category and message required' });
+    const allowed = ['signal_accuracy','technical_bug','inappropriate_content','other'];
+    if (!allowed.includes(category))
+      return res.status(400).json({ success:false, error:'Invalid category' });
+    const report = await Report.create({
+      category, message:message.trim().slice(0,2000),
+      context:(context||'').slice(0,500),
+      reporterUid:  reporterUid  || 'anonymous',
+      reporterEmail:reporterEmail|| '',
+    });
+    // Broadcast notification to admin via WebSocket
+    broadcastAdminNotification({ type:'new_report', report:{
+      _id:report._id, category:report.category, message:report.message.slice(0,100),
+      reporterEmail:report.reporterEmail, createdAt:report.createdAt
+    }});
+    res.json({ success:true, message:'Report submitted. Thank you.' });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* ══ ADMIN REPORT MANAGEMENT ══ */
+app.get('/api/admin/reports', adminAuth, async (req, res) => {
+  try {
+    const { status, skip=0, limit=50 } = req.query;
+    const filter = status ? { status } : {};
+    const [data, total, openCount] = await Promise.all([
+      Report.find(filter).sort({ createdAt:-1 }).skip(+skip).limit(+limit),
+      Report.countDocuments(filter),
+      Report.countDocuments({ status:'open' }),
+    ]);
+    res.json({ success:true, total, openCount, data });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.put('/api/admin/reports/:id', adminAuth, async (req, res) => {
+  try {
+    const { status, adminNote } = req.body;
+    const update = {};
+    if (status) update.status = status;
+    if (adminNote !== undefined) update.adminNote = adminNote;
+    if (status === 'resolved' || status === 'dismissed') {
+      update.resolvedBy = req.admin.username;
+      update.resolvedAt = new Date();
+    }
+    const r = await Report.findByIdAndUpdate(req.params.id, update, { new:true });
+    if (!r) return res.status(404).json({ success:false, error:'Not found' });
+    res.json({ success:true, data:r });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.delete('/api/admin/reports/:id', adminAuth, async (req, res) => {
+  try {
+    await Report.findByIdAndDelete(req.params.id);
+    res.json({ success:true });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.get('/api/admin/reports/unread-count', adminAuth, async (req, res) => {
+  try {
+    const count = await Report.countDocuments({ status:'open' });
+    res.json({ success:true, count });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
 /* ── Market data ── */
 let marketData={}, topGainers=[], tickerCoins={};
 const WATCH_SYMBOLS=['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT'], MIN_VOLUME_USDT=10_000_000;
@@ -491,6 +572,7 @@ function refreshTickerSnapshot(){WATCH_SYMBOLS.forEach(s=>{if(marketData[s])tick
 function broadcastUpdate(){if(!wss.clients.size)return;const p=JSON.stringify({type:'market_update',topGainers:topGainers.slice(0,5),ticker:WATCH_SYMBOLS.map(s=>marketData[s]).filter(Boolean)});wss.clients.forEach(c=>{if(c.readyState===WebSocket.OPEN)try{c.send(p);}catch(_){}});}
 function broadcastSignalUpdate(){wss.clients.forEach(c=>{if(c.readyState===WebSocket.OPEN)try{c.send(JSON.stringify({type:'signal_update'}));}catch(_){}});}
 function broadcastAnnouncement(a){wss.clients.forEach(c=>{if(c.readyState===WebSocket.OPEN)try{c.send(JSON.stringify({type:'announcement',data:a}));}catch(_){}});}
+function broadcastAdminNotification(payload){wss.clients.forEach(c=>{if(c.readyState===WebSocket.OPEN)try{c.send(JSON.stringify({type:'admin_notification',...payload}));}catch(_){}});}
 wss.on('connection',ws=>{console.log(`[WS] Client + total:${wss.clients.size}`);try{ws.send(JSON.stringify({type:'market_update',topGainers:topGainers.slice(0,5),ticker:WATCH_SYMBOLS.map(s=>marketData[s]).filter(Boolean)}));}catch(_){}ws.on('close',()=>console.log(`[WS] Client - total:${wss.clients.size}`));ws.on('error',()=>{});});
 
 /* ── Binance stream ── */

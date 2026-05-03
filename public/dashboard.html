@@ -235,6 +235,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
     </nav>
     <div class="ds-footer">
       <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
+      <button onclick="openReportModal()" style="background:none;border:1px solid rgba(239,68,68,.35);color:rgba(239,68,68,.8);padding:5px 12px;border-radius:7px;font-family:'Outfit',sans-serif;font-size:.72rem;cursor:pointer;margin-top:6px;width:100%">🚩 Report Issue</button>
     </div>
   </aside>
 
@@ -573,5 +574,63 @@ function initDash(){
 })();
 </script>
 
+
+<!-- ══ REPORT MODAL ══ -->
+<div id="reportOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)closeReportModal()">
+  <div style="background:#1a1f2e;border:1px solid rgba(255,255,255,.1);border-radius:14px;width:min(480px,95vw);padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:#fff">🚩 Report an Issue</div>
+      <button onclick="closeReportModal()" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.2rem;cursor:pointer">✕</button>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-family:'Outfit',sans-serif;font-size:.72rem;color:rgba(255,255,255,.5);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Category</label>
+      <select id="repCategory" style="width:100%;background:#111827;border:1px solid rgba(255,255,255,.12);color:#fff;padding:9px 12px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:.82rem">
+        <option value="signal_accuracy">📉 Signal Accuracy (Wrong signal / bad call)</option>
+        <option value="technical_bug">🐛 Technical Bug / Error</option>
+        <option value="inappropriate_content">⚠️ Inappropriate Content</option>
+        <option value="other">💬 Other</option>
+      </select>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-family:'Outfit',sans-serif;font-size:.72rem;color:rgba(255,255,255,.5);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Description</label>
+      <textarea id="repMessage" rows="4" placeholder="Describe the issue in detail…" style="width:100%;box-sizing:border-box;background:#111827;border:1px solid rgba(255,255,255,.12);color:#fff;padding:9px 12px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:.82rem;resize:vertical;line-height:1.5"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeReportModal()" style="background:none;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);padding:8px 18px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:.78rem;cursor:pointer">Cancel</button>
+      <button onclick="submitReport()" id="btnSubmitReport" style="background:linear-gradient(135deg,#ef4444,#dc2626);border:none;color:#fff;padding:8px 20px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:.78rem;font-weight:600;cursor:pointer">Submit Report</button>
+    </div>
+    <div id="repResult" style="margin-top:10px;font-family:'Outfit',sans-serif;font-size:.76rem;text-align:center"></div>
+  </div>
+</div>
+
+<script>
+/* ── Report Modal ── */
+function openReportModal(context) {
+  window._reportContext = context || (window.location.pathname + window.location.search);
+  const ov = document.getElementById('reportOverlay');
+  if (ov) { ov.style.display='flex'; document.getElementById('repMessage').value=''; document.getElementById('repResult').textContent=''; }
+}
+function closeReportModal() {
+  const ov = document.getElementById('reportOverlay');
+  if (ov) ov.style.display='none';
+}
+async function submitReport() {
+  const category = document.getElementById('repCategory').value;
+  const message  = document.getElementById('repMessage').value.trim();
+  const resultEl = document.getElementById('repResult');
+  const btn      = document.getElementById('btnSubmitReport');
+  if (!message || message.length < 5) { resultEl.style.color='#ef4444'; resultEl.textContent='Please describe the issue.'; return; }
+  btn.disabled=true; btn.textContent='Sending…';
+  try {
+    const user = firebase.auth().currentUser;
+    const body = { category, message, context: window._reportContext||'',
+                   reporterUid: user?.uid||'anonymous', reporterEmail: user?.email||'' };
+    const res = await fetch('/api/reports', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const data = await res.json();
+    if (data.success) { resultEl.style.color='#22c55e'; resultEl.textContent='✅ Report submitted. Thank you!'; setTimeout(closeReportModal, 1800); }
+    else { resultEl.style.color='#ef4444'; resultEl.textContent='Error: '+data.error; btn.disabled=false; btn.textContent='Submit Report'; }
+  } catch(e) { resultEl.style.color='#ef4444'; resultEl.textContent='Network error.'; btn.disabled=false; btn.textContent='Submit Report'; }
+}
+</script>
 </body>
 </html>

@@ -213,6 +213,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .alert.danger{background:rgba(255,61,90,.07);border:1px solid rgba(255,61,90,.2);color:var(--red);}
 .alert.info{background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.2);color:var(--cyan);}
 .section-divider{font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin:16px 0 12px;grid-column:1/-1;}
+
+.notif-bell { position:relative; background:none; border:none; color:var(--text); font-size:1.1rem; cursor:pointer; padding:4px 8px; display:flex; align-items:center; justify-content:center; min-width:36px; min-height:36px; border-radius:6px; transition:background .15s; }
+.notif-bell:hover { background:rgba(255,255,255,.07); }
+.notif-badge { position:absolute; top:2px; right:2px; background:var(--red); color:#fff; font-family:var(--font-n); font-size:.55rem; font-weight:700; min-width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:0 4px; display:none; }
+.notif-badge.show { display:flex; }
+.notif-dropdown { position:absolute; top:48px; right:16px; width:340px; background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.45); z-index:999; display:none; max-height:420px; overflow-y:auto; }
+.notif-dropdown.show { display:block; }
+.notif-header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); font-family:var(--font-n); font-size:.76rem; font-weight:600; color:var(--text); }
+.notif-item { padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.04); cursor:pointer; transition:background .12s; }
+.notif-item:hover { background:rgba(255,255,255,.04); }
+.notif-item-cat { font-family:var(--font-n); font-size:.65rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--cyan); margin-bottom:3px; }
+.notif-item-msg { font-family:var(--font-n); font-size:.73rem; color:rgba(255,255,255,.75); line-height:1.45; }
+.notif-item-time { font-family:var(--font-n); font-size:.62rem; color:var(--muted); margin-top:3px; }
+.notif-empty { padding:24px; text-align:center; font-family:var(--font-n); font-size:.76rem; color:var(--muted); }
+
 </style>
 </head>
 <body>
@@ -249,6 +264,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
         <div class="status-dot" id="wsStatusDot"></div>
         <span id="wsStatusText" style="font-family:var(--font-n);font-size:.66rem;color:var(--muted)">WS</span>
       </div>
+      <div style="position:relative">
+        <button class="notif-bell" id="notifBell" onclick="toggleNotifDropdown()" title="Reports">
+          🔔
+          <span class="notif-badge" id="notifBadge">0</span>
+        </button>
+        <div class="notif-dropdown" id="notifDropdown">
+          <div class="notif-header">
+            <span>🔔 User Reports</span>
+            <button onclick="showPage('reports');closeNotifDropdown()" style="background:none;border:none;color:var(--cyan);font-family:var(--font-n);font-size:.7rem;cursor:pointer">View All →</button>
+          </div>
+          <div id="notifList"><div class="notif-empty">Loading…</div></div>
+        </div>
+      </div>
       <button class="btn-logout" onclick="doLogout()">Sign Out</button>
     </div>
   </div>
@@ -266,6 +294,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 
       <div class="sb-section">Users</div>
       <button class="sb-link" onclick="showPage('users')"><span class="sb-icon">👥</span> User Management <span class="sb-count" id="countUsers">—</span></button>
+      <button class="sb-link" onclick="showPage('reports')"><span class="sb-icon">🚩</span> Reports <span class="sb-count" id="countReports" style="background:var(--red)">—</span></button>
 
       <div class="sb-section">Control</div>
       <button class="sb-link" onclick="showPage('site-control')"><span class="sb-icon">🎛️</span> Site Control</button>
@@ -725,6 +754,42 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
       </div>
     </div>
 
+
+    <!-- ══ REPORTS ══ -->
+    <div class="page-section" id="page-reports">
+      <div class="page-title">🚩 User Reports</div>
+      <div class="page-sub">Reports submitted by users — signal accuracy, bugs, and other issues</div>
+      <div class="stat-grid" style="margin-bottom:18px">
+        <div class="stat-card"><div class="sc-label">Open</div><div class="sc-value" style="color:var(--red)" id="rep-open">—</div></div>
+        <div class="stat-card"><div class="sc-label">In Review</div><div class="sc-value" style="color:var(--yellow)" id="rep-review">—</div></div>
+        <div class="stat-card"><div class="sc-label">Resolved</div><div class="sc-value" style="color:var(--green)" id="rep-resolved">—</div></div>
+        <div class="stat-card"><div class="sc-label">Total</div><div class="sc-value" id="rep-total">—</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">📋 All Reports</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select class="f-sel" id="repFilterStatus" style="width:auto;min-width:130px" onchange="loadReports()">
+              <option value="">All Status</option>
+              <option value="open">Open</option>
+              <option value="in_review">In Review</option>
+              <option value="resolved">Resolved</option>
+              <option value="dismissed">Dismissed</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="loadReports()">🔄</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr>
+              <th>Category</th><th>Message</th><th>Reporter</th>
+              <th>Context</th><th>Status</th><th>Date</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="reportsTbl"><tr class="empty-row"><td colspan="7" class="loading">Loading…</td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -778,6 +843,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
     <div class="modal-foot">
       <button class="btn btn-danger" onclick="closeModal('annOverlay')">Cancel</button>
       <button class="btn btn-success" onclick="saveAnnouncement()">📢 Publish</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ REPORT DETAIL MODAL ══ -->
+<div class="overlay" id="reportDetailOverlay">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <div class="modal-title">🚩 Report Detail</div>
+      <button class="modal-close" onclick="closeModal('reportDetailOverlay')">✕</button>
+    </div>
+    <div class="modal-body" id="reportDetailBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-danger btn-sm" onclick="deleteReport()" id="btnDeleteReport">🗑 Delete</button>
+      <button class="btn btn-outline btn-sm" onclick="closeModal('reportDetailOverlay')">Close</button>
+      <button class="btn btn-success btn-sm" onclick="resolveReport('resolved')" id="btnResolveReport">✅ Resolve</button>
     </div>
   </div>
 </div>
@@ -877,6 +959,7 @@ function showPage(name) {
     'settings':     loadSettings,
     'adsense':      loadAdsenseSettings,
     'server':       loadServerStats,
+    'reports':      loadReports,
   };
   if (loaders[name]) loaders[name]();
 }
@@ -918,6 +1001,8 @@ async function startApp() {
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appShell').style.display='block';
   loadDashboard();
+  loadNotifBell();
+  setInterval(loadNotifBell, 30000); // poll every 30s
   refreshStatusDots();
   setInterval(refreshStatusDots, 30000);
 }
@@ -1089,14 +1174,18 @@ async function saveEditSignal() {
     notes:      document.getElementById('edit-notes').value,
   };
   const data = await api('PUT','/api/admin/signals/'+id, payload);
-  if (data?.success) { closeModal('editSignalOverlay'); loadSignals(); loadDashboard(); showToast('Signal updated'); }
+  if (data?.success) { closeModal('editSignalOverlay'); loadSignals(); loadDashboard();
+  loadNotifBell();
+  setInterval(loadNotifBell, 30000); // poll every 30s showToast('Signal updated'); }
   else showToast('Save failed: '+(data?.error||'Unknown'), 'danger');
 }
 
 function deleteSignal(id, pair) {
   openConfirm('Delete Signal', `Delete signal <strong>${pair}</strong>? This cannot be undone.`, async () => {
     const data = await api('DELETE','/api/admin/signals/'+id);
-    if (data?.success) { loadSignals(); loadDashboard(); showToast('Signal deleted', 'warn'); }
+    if (data?.success) { loadSignals(); loadDashboard();
+  loadNotifBell();
+  setInterval(loadNotifBell, 30000); // poll every 30s showToast('Signal deleted', 'warn'); }
   });
 }
 
@@ -1464,6 +1553,189 @@ async function loadServerStats() {
     document.getElementById('srv-gainers').textContent = data.topGainers;
   } catch(e) { document.getElementById('srv-mongo').innerHTML='<span style="color:var(--red)">Server unreachable</span>'; }
 }
+
+/* ══════════════════════════════════════
+   REPORTS
+══════════════════════════════════════ */
+
+const CAT_LABELS = {
+  signal_accuracy:    '📉 Signal Accuracy',
+  technical_bug:      '🐛 Technical Bug',
+  inappropriate_content: '⚠️ Inappropriate',
+  other:              '💬 Other',
+};
+const STATUS_COLORS = {
+  open:       'var(--red)',
+  in_review:  'var(--yellow)',
+  resolved:   'var(--green)',
+  dismissed:  'var(--muted)',
+};
+
+let currentReportId = null;
+
+async function loadReports() {
+  const status = document.getElementById('repFilterStatus')?.value || '';
+  const url = '/api/admin/reports' + (status ? '?status=' + status : '');
+  const tbody = document.getElementById('reportsTbl');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="loading">Loading…</td></tr>';
+
+  const res = await authFetch(url);
+  if (!res?.success) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Failed to load</td></tr>'; return; }
+
+  // Update stat cards
+  const all = res.data;
+  if (!status) {
+    const byStatus = { open:0, in_review:0, resolved:0, dismissed:0 };
+    all.forEach(r => { if (byStatus[r.status] !== undefined) byStatus[r.status]++; });
+    document.getElementById('rep-open').textContent     = byStatus.open;
+    document.getElementById('rep-review').textContent   = byStatus.in_review;
+    document.getElementById('rep-resolved').textContent = byStatus.resolved;
+    document.getElementById('rep-total').textContent    = res.total;
+    // Update sidebar badge
+    const badge = document.getElementById('countReports');
+    if (badge) badge.textContent = byStatus.open > 0 ? byStatus.open : '—';
+  }
+
+  if (!all.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">No reports found</td></tr>'; return; }
+
+  tbody.innerHTML = all.map(r => `
+    <tr style="cursor:pointer" onclick="openReportDetail('${r._id}')">
+      <td><span style="font-family:var(--font-n);font-size:.72rem;font-weight:600;color:var(--cyan)">${CAT_LABELS[r.category]||r.category}</span></td>
+      <td style="max-width:220px"><span style="font-family:var(--font-n);font-size:.73rem;color:rgba(255,255,255,.8)">${escHtml(r.message.slice(0,80))}${r.message.length>80?'…':''}</span></td>
+      <td style="font-family:var(--font-n);font-size:.72rem;color:var(--muted)">${escHtml(r.reporterEmail||r.reporterUid||'—')}</td>
+      <td style="font-family:var(--font-n);font-size:.7rem;color:var(--muted)">${escHtml((r.context||'').slice(0,40)||'—')}</td>
+      <td><span style="font-family:var(--font-n);font-size:.7rem;font-weight:700;color:${STATUS_COLORS[r.status]||'var(--text)'};text-transform:uppercase">${r.status.replace('_',' ')}</span></td>
+      <td style="font-family:var(--font-n);font-size:.7rem;color:var(--muted)">${new Date(r.createdAt).toLocaleDateString()}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openReportDetail('${r._id}')">View</button>
+      </td>
+    </tr>`).join('');
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function openReportDetail(id) {
+  currentReportId = id;
+  const res = await authFetch('/api/admin/reports?limit=200');
+  if (!res?.success) return;
+  const r = res.data.find(x => x._id === id);
+  if (!r) return;
+
+  document.getElementById('reportDetailBody').innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Category</div>
+      <div style="font-family:var(--font-n);font-size:.82rem;font-weight:600;color:var(--cyan)">${CAT_LABELS[r.category]||r.category}</div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Message</div>
+      <div style="font-family:var(--font-n);font-size:.8rem;color:rgba(255,255,255,.85);line-height:1.6;background:rgba(0,0,0,.2);padding:10px 12px;border-radius:8px">${escHtml(r.message)}</div>
+    </div>
+    ${r.context ? `<div style="margin-bottom:12px">
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Context / Page</div>
+      <div style="font-family:var(--font-n);font-size:.76rem;color:var(--muted)">${escHtml(r.context)}</div>
+    </div>` : ''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Reporter</div>
+        <div style="font-family:var(--font-n);font-size:.76rem;color:rgba(255,255,255,.7)">${escHtml(r.reporterEmail||r.reporterUid||'Anonymous')}</div>
+      </div>
+      <div>
+        <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Date</div>
+        <div style="font-family:var(--font-n);font-size:.76rem;color:rgba(255,255,255,.7)">${new Date(r.createdAt).toLocaleString()}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Status</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['open','in_review','resolved','dismissed'].map(s => `
+          <button onclick="updateReportStatus('${id}','${s}')" class="btn btn-sm ${r.status===s?'btn-primary':'btn-outline'}" style="font-size:.68rem">${s.replace('_',' ')}</button>
+        `).join('')}
+      </div>
+    </div>
+    <div>
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Admin Note</div>
+      <textarea id="reportAdminNote" class="f-inp" rows="3" placeholder="Internal note…" style="resize:vertical">${escHtml(r.adminNote||'')}</textarea>
+      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="saveAdminNote('${id}')">💾 Save Note</button>
+    </div>
+  `;
+  openModal('reportDetailOverlay');
+}
+
+async function updateReportStatus(id, status) {
+  const res = await authFetch('/api/admin/reports/'+id, { method:'PUT', body:JSON.stringify({ status }) });
+  if (res?.success) { showToast('Status updated to: ' + status.replace('_',' ')); closeModal('reportDetailOverlay'); loadReports(); }
+}
+
+async function saveAdminNote(id) {
+  const adminNote = document.getElementById('reportAdminNote')?.value || '';
+  const res = await authFetch('/api/admin/reports/'+id, { method:'PUT', body:JSON.stringify({ adminNote }) });
+  if (res?.success) showToast('Note saved');
+}
+
+async function resolveReport(status) {
+  if (!currentReportId) return;
+  await updateReportStatus(currentReportId, status);
+}
+
+async function deleteReport() {
+  if (!currentReportId) return;
+  if (!confirm('Delete this report?')) return;
+  const res = await authFetch('/api/admin/reports/'+currentReportId, { method:'DELETE' });
+  if (res?.success) { showToast('Report deleted'); closeModal('reportDetailOverlay'); loadReports(); }
+}
+
+/* ── Notification bell ── */
+let notifOpen = false;
+async function loadNotifBell() {
+  const res = await authFetch('/api/admin/reports/unread-count');
+  if (!res?.success) return;
+  const badge = document.getElementById('notifBadge');
+  if (!badge) return;
+  if (res.count > 0) { badge.textContent = res.count > 99 ? '99+' : res.count; badge.classList.add('show'); }
+  else { badge.classList.remove('show'); }
+  const countEl = document.getElementById('countReports');
+  if (countEl) countEl.textContent = res.count > 0 ? res.count : '—';
+}
+
+async function toggleNotifDropdown() {
+  const dd = document.getElementById('notifDropdown');
+  if (!dd) return;
+  notifOpen = !notifOpen;
+  dd.classList.toggle('show', notifOpen);
+  if (notifOpen) await loadNotifList();
+}
+
+function closeNotifDropdown() {
+  notifOpen = false;
+  document.getElementById('notifDropdown')?.classList.remove('show');
+}
+
+async function loadNotifList() {
+  const list = document.getElementById('notifList');
+  if (!list) return;
+  const res = await authFetch('/api/admin/reports?status=open&limit=8');
+  if (!res?.success || !res.data.length) {
+    list.innerHTML = '<div class="notif-empty">No open reports 🎉</div>';
+    return;
+  }
+  list.innerHTML = res.data.map(r => `
+    <div class="notif-item" onclick="closeNotifDropdown();showPage('reports');setTimeout(()=>openReportDetail('${r._id}'),400)">
+      <div class="notif-item-cat">${CAT_LABELS[r.category]||r.category}</div>
+      <div class="notif-item-msg">${escHtml(r.message.slice(0,90))}${r.message.length>90?'…':''}</div>
+      <div class="notif-item-time">${new Date(r.createdAt).toLocaleString()} · ${escHtml(r.reporterEmail||'Anonymous')}</div>
+    </div>`).join('');
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  if (notifOpen && !document.getElementById('notifBell')?.contains(e.target) && !document.getElementById('notifDropdown')?.contains(e.target)) {
+    closeNotifDropdown();
+  }
+});
+
 </script>
 </body>
 </html>
