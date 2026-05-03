@@ -769,6 +769,41 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     candlePatterns=null, pivotPoints=null, takerRatio=null, lsRatio=null
   } = ex;
 
+  // ══════════════════════════════════════════════════════
+  // HARD SAFETY GATES — block signal if market is unsafe
+  // Explains WHY the market is bad so user can learn
+  // ══════════════════════════════════════════════════════
+  const fundingGate = IS('ind_funding_gate', 0.25) / 100; // convert % → decimal
+  const adxGate     = IS('ind_adx_choppy_gate', 18);
+  const hardGateReasons = [];
+
+  if (adx && adx.adx < adxGate) {
+    hardGateReasons.push(`ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. No clear trend direction. High probability of fake breakout and immediate SL hit.`);
+  }
+  if (fr !== null && fr > fundingGate) {
+    hardGateReasons.push(`Funding Rate +${(fr * 100).toFixed(3)}% > +${(fundingGate * 100).toFixed(2)}% gate — Longs are extremely crowded. High risk of long squeeze cascade. Market makers target this.`);
+  }
+  if (fr !== null && fr < -fundingGate) {
+    hardGateReasons.push(`Funding Rate ${(fr * 100).toFixed(3)}% < −${(fundingGate * 100).toFixed(2)}% gate — Shorts are extremely crowded. High risk of short squeeze cascade.`);
+  }
+
+  if (hardGateReasons.length > 0) {
+    // Return a hard-blocked result — still show WHY, no entry given
+    const whyHtml = hardGateReasons.map(r => `· ${r}`).join('\n');
+    return {
+      direction: null, entryType: 'BLOCKED', confidence: 0,
+      hardBlock: true, hardBlockReason: whyHtml,
+      riskFlags: hardGateReasons, isRisky: true,
+      entryPrice: null, slPrice: null, tp1Price: null, tp2Price: null,
+      dcaPoint: null, rrr1: null, rrr2: null,
+      indicators: { adx, fundingRate: fr, trend4h: t4, supertrend: st, emaStack: es,
+                    macd, bb, stochRsi: stoch, obv, atr, vwap, bos, oiChange: oi,
+                    divergence: div, mtfRSI: mRSI, session: sess, btcContext: btc,
+                    srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d,
+                    rsi15m, rsi1d, bos15m, bos4h, candlePatterns, pivotPoints, takerRatio, lsRatio }
+    };
+  }
+
   let ls = 0, ss = 0;
 
   // F1: RSI (1H)
@@ -794,52 +829,67 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // F3: MACD (1H)
   if (macd) { if (macd.trend==='bullish'&&macd.strengthening) ls+=10; else if (macd.trend==='bullish') ls+=6; if (macd.trend==='bearish'&&macd.strengthening) ss+=10; else if (macd.trend==='bearish') ss+=6; }
 
-  // F4: Bollinger Bands — NOW uses band proximity for EP signal
+  // F4: Bollinger Bands — band proximity for EP signal
+  // BB squeeze: direction-neutral — only adds if price confirms direction
   if (bb) {
-    if (bb.position <= 0.08) ls += 10;      // touching lower band = strong oversold
+    if (bb.position <= 0.08) ls += 10;      // touching lower band = oversold
     else if (bb.position <= 0.2) ls += 7;
     else if (bb.position <= 0.35) ls += 4;
-    if (bb.position >= 0.92) ss += 10;      // touching upper band = strong overbought
+    if (bb.position >= 0.92) ss += 10;      // touching upper band = overbought
     else if (bb.position >= 0.8) ss += 7;
     else if (bb.position >= 0.65) ss += 4;
-    if (bb.squeeze) { ls += 4; ss += 4; }   // squeeze breakout pending
+    // squeeze: only favour the directional side (price vs midline), not both
+    if (bb.squeeze) {
+      if (price > bb.middle) ss += 4;       // price above mid = bearish breakout risk
+      else                   ls += 4;       // price below mid = bullish breakout risk
+    }
   }
 
   // F5: Stoch RSI
   if (stoch) { if (stoch.signal==='oversold') ls+=9; else if (stoch.crossover==='bullish_cross') ls+=6; if (stoch.signal==='overbought') ss+=9; else if (stoch.crossover==='bearish_cross') ss+=6; }
 
-  // F6: ADX
-  if (adx) { if (adx.strength==='strong') { if (adx.trend==='bullish') ls+=9; else if (adx.trend==='bearish') ss+=9; } else if (adx.strength==='moderate') { if (adx.trend==='bullish') ls+=5; else if (adx.trend==='bearish') ss+=5; else { ls+=3; ss+=3; } } else { ls+=2; ss+=2; } }
+  // F6: ADX — market passed gate (adx >= adxGate), award trend strength
+  if (adx) { if (adx.strength==='strong') { if (adx.trend==='bullish') ls+=9; else if (adx.trend==='bearish') ss+=9; } else if (adx.strength==='moderate') { if (adx.trend==='bullish') ls+=5; else if (adx.trend==='bearish') ss+=5; } }
+  // Note: weak ADX no longer gives neutral points — market passed gate so at least moderate
 
-  // F7: OBV
-  if (obv) { if (obv.trend==='accumulation') ls+=8; else ss+=8; }
+  // F7: OBV — added neutral case (flat = no signal)
+  if (obv) {
+    if (obv.trend === 'accumulation') ls += 8;
+    else if (obv.trend === 'distribution') ss += 8;
+    // flat/neutral OBV = no points added (previously always added 8 to SHORT incorrectly)
+  }
 
-  // F8: Volume
-  if (vol.surge) { ls+=9; ss+=9; } else if (vol.ratio>=0.8) { ls+=4; ss+=4; }
+  // F8: Volume — directional using taker ratio context
+  if (vol.surge) {
+    // surge: favour direction indicated by taker ratio if available, else split small
+    if (takerRatio && takerRatio.buyDominant)  ls += 9;
+    else if (takerRatio && takerRatio.sellDominant) ss += 9;
+    else { ls += 5; ss += 5; } // truly ambiguous surge
+  } else if (vol.ratio >= 0.8) { ls += 3; ss += 3; }
 
   // F9: 4H Trend — highest weight, primary direction bias
   if (t4) { if (t4.bias==='bull') { ls+=22; ss=Math.max(ss-12,0); } else if (t4.bias==='bear') { ss+=22; ls=Math.max(ls-12,0); } }
 
-  // F10: Funding Rate — FIXED thresholds
+  // F10: Funding Rate — passed hard gate above; now nuanced scoring
   if (fr !== null) {
-    if (fr < -0.04)       { ls += 12; }      // heavily negative = longs squeezed = buy
+    if (fr < -0.04)       { ls += 12; }      // heavily negative = longs squeezed = buy opp
     else if (fr < -0.01)  { ls += 7; }
     else if (fr < 0)      { ls += 4; }
-    else if (fr > 0.06)   { ss += 12; ls = Math.max(ls-6,0); } // very positive = shorts squeezed = sell
+    else if (fr > 0.06)   { ss += 12; ls = Math.max(ls-6,0); }
     else if (fr > 0.02)   { ss += 7; }
     else if (fr > 0.005)  { ss += 3; }
-    else                  { ls += 4; ss += 4; } // neutral is good
+    else                  { ls += 4; ss += 4; } // near-zero funding = fair market
   }
 
   // F11: OI Change — directional (uses MACD as momentum direction proxy)
   if (oi) {
     if (oi.trend === 'rising') {
-      const mBull = macd && macd.trend === 'bull';
-      const mBear = macd && macd.trend === 'bear';
-      if (mBull)      { ls += 10; }          // rising OI + bullish momentum = long
-      else if (mBear) { ss += 10; }          // rising OI + bearish momentum = short
-      else            { ls += 3; ss += 3; }  // ambiguous: small split
-    } else if (oi.trend === 'falling') { ls = Math.max(ls-5,0); ss = Math.max(ss-5,0); } // unwinding
+      const mBull = macd && macd.trend === 'bullish';
+      const mBear = macd && macd.trend === 'bearish';
+      if (mBull)      { ls += 10; }
+      else if (mBear) { ss += 10; }
+      else            { ls += 3; ss += 3; }
+    } else if (oi.trend === 'falling') { ls = Math.max(ls-5,0); ss = Math.max(ss-5,0); }
   }
 
   // F12: Divergence (RSI + OBV)
@@ -855,8 +905,18 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // F14: Supertrend
   if (st) { if (st.bullish) ls+=13; else ss+=13; }
 
-  // F15: BOS (1H) — Fixed, no false positives
-  if (bos) { if (bos.bullBOS) ls+=11; if (bos.bearBOS) ss+=11; if (bos.choch) { ls+=5; ss+=5; } }
+  // F15: BOS (1H) — CHoCH fix: was incorrectly adding to BOTH ls and ss
+  // CHoCH = structure reversal — favour the NEW direction only
+  if (bos) {
+    if (bos.bullBOS) ls += 11;
+    if (bos.bearBOS) ss += 11;
+    if (bos.choch) {
+      // CHoCH direction: if bullBOS also present = bullish reversal; if bearBOS = bearish
+      if (bos.bullBOS) ls += 7;       // bullish CHoCH → favour LONG
+      else if (bos.bearBOS) ss += 7;  // bearish CHoCH → favour SHORT
+      // if neither BOS confirmed yet, don't assign points (ambiguous CHoCH)
+    }
+  }
 
   // — N FACTORS (Multi-TF) —
 
@@ -869,16 +929,24 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // N3: 1D EMA
   if (ema1d) { if (ema1d.stack?.includes('bull')) ls+=11; else if (ema1d.stack?.includes('bear')) ss+=11; }
 
-  // N4: 15m BOS
-  if (bos15m) { if (bos15m.bullBOS) ls+=6; if (bos15m.bearBOS) ss+=6; }
+  // N4: 15m BOS — CHoCH fix applied here too
+  if (bos15m) {
+    if (bos15m.bullBOS) ls += 6;
+    if (bos15m.bearBOS) ss += 6;
+    if (bos15m.choch) { if (bos15m.bullBOS) ls += 4; else if (bos15m.bearBOS) ss += 4; }
+  }
 
-  // N5: 4H BOS
-  if (bos4h) { if (bos4h.bullBOS) ls+=9; if (bos4h.bearBOS) ss+=9; if (bos4h.choch) { ls+=4; ss+=4; } }
+  // N5: 4H BOS — CHoCH fix applied here too
+  if (bos4h) {
+    if (bos4h.bullBOS) ls += 9;
+    if (bos4h.bearBOS) ss += 9;
+    if (bos4h.choch) { if (bos4h.bullBOS) ls += 5; else if (bos4h.bearBOS) ss += 5; }
+  }
 
-  // N6: BTC Context — INCREASED 5→15
+  // N6: BTC Context
   if (btc && btc.bias !== 'neutral') { if (btc.bias==='bull') ls+=15; else ss+=15; }
 
-  // N7: MTF FVGs — capped at 18pts per direction to prevent unbounded stacking
+  // N7: MTF FVGs — capped at 18pts per direction
   if (mtfFVGs) {
     let fvgL=0, fvgS=0;
     mtfFVGs.bullFVGs.forEach(f=>{const w=f.tf==='1D'?9:f.tf==='4H'?7:f.tf==='1H'?4:2; fvgL+=w;});
@@ -915,11 +983,11 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   if (trendLine) {
     if (trendLine.trend==='up'  && trendLine.strength!=='flat') ls+=6;
     else if (trendLine.trend==='down' && trendLine.strength!=='flat') ss+=6;
-    if (trendLine.deviation > 2.5 && trendLine.trend==='up')   ss+=5; // overextended above
-    if (trendLine.deviation < -2.5 && trendLine.trend==='down') ls+=5; // overextended below
+    if (trendLine.deviation > 2.5 && trendLine.trend==='up')   ss+=5;
+    if (trendLine.deviation < -2.5 && trendLine.trend==='down') ls+=5;
   }
 
-  // N12: Candle Patterns (NEW)
+  // N12: Candle Patterns
   if (candlePatterns) {
     ls += Math.min(candlePatterns.bullScore * 2, 10);
     ss += Math.min(candlePatterns.bearScore * 2, 10);
@@ -944,7 +1012,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     });
   }
 
-  // N14: Taker Buy/Sell Ratio (NEW)
+  // N14: Taker Buy/Sell Ratio — already used in F8 volume; still add directional weight
   if (takerRatio) {
     if (takerRatio.buyDominant  && takerRatio.rising)  ls += 8;
     else if (takerRatio.buyDominant)                   ls += 4;
@@ -952,21 +1020,22 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     else if (takerRatio.sellDominant)                  ss += 4;
   }
 
-  // N15: Long/Short Ratio (NEW) — contrarian
+  // N15: Long/Short Ratio — contrarian
   if (lsRatio) {
-    if (lsRatio.extremeLong)  { ss += 8; }  // 75%+ longs = crowded, short squeeze risk
+    if (lsRatio.extremeLong)   { ss += 8; }
     else if (lsRatio.longBias) { ss += 4; }
-    if (lsRatio.extremeShort) { ls += 8; }  // 75%+ shorts = crowded, long squeeze risk
-    else if (lsRatio.shortBias) { ls += 4; }
+    if (lsRatio.extremeShort)  { ls += 8; }
+    else if (lsRatio.shortBias){ ls += 4; }
   }
 
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
-  const MAX = 340; // Calibrated to realistic capped max (FVG+Pivot now capped)
+  // MAX recalibrated: realistic achievable max ≈ 220 (was 340 which inflated % gaps)
+  const MAX = 220;
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
-  let dir = lc > sc ? 'LONG' : sc > lc ? 'SHORT' : (macd && macd.trend==='bull' ? 'LONG' : 'SHORT'); // tie-break via MACD
+  let dir = lc > sc ? 'LONG' : sc > lc ? 'SHORT' : (macd && macd.trend==='bullish' ? 'LONG' : 'SHORT');
   let conf = dir === 'LONG' ? lc : sc;
   if (conf < 10) conf = Math.max(lc, sc, 10);
 
@@ -1399,6 +1468,13 @@ async function runDeepScan(symbol) {
 
     const entry = decideEntry(rsi, vol, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
 
+    // HARD BLOCK — market conditions unsafe, show explanation panel instead of signal
+    if (entry.hardBlock) {
+      renderBlocked(container, symbol, entry, curP, adx, fr);
+      document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
+      return;
+    }
+
     // Low confidence — show signal with risk warning instead of blocking
     const minConf = IS('ind_min_confidence', 62);
     if (entry.confidence < minConf) {
@@ -1420,6 +1496,86 @@ async function runDeepScan(symbol) {
     container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text" style="color:var(--red)">Scan failed</div><div class="empty-sub">${err.message}</div></div></div></div>`;
   }
   document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
+}
+
+/* ═════════════════════════════
+   RENDER BLOCKED — Hard Gate Panel
+   Shows WHY market is bad so user can learn
+   ═════════════════════════════ */
+function renderBlocked(container, symbol, entry, curP, adx, fr) {
+  const pair = symbol.replace('USDT', '/USDT');
+  const reasons = entry.riskFlags || [];
+  const fundingGate = IS('ind_funding_gate', 0.25);
+  const adxGate     = IS('ind_adx_choppy_gate', 18);
+
+  // Build indicator status rows
+  const adxStatus = adx ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <span style="font-family:var(--font-n);font-size:.8rem;color:var(--muted)">ADX (Trend Strength)</span>
+      <span style="font-family:var(--font-n);font-size:.84rem;font-weight:700;color:${adx.adx < adxGate ? 'var(--red)' : 'var(--green)'}">
+        ${adx.adx.toFixed(1)} ${adx.adx < adxGate ? '⛔ Choppy (< ' + adxGate + ')' : '✅ Trending'}
+      </span>
+    </div>` : '';
+
+  const frVal = fr !== null ? (fr * 100).toFixed(4) : null;
+  const frStatus = frVal !== null ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <span style="font-family:var(--font-n);font-size:.8rem;color:var(--muted)">Funding Rate</span>
+      <span style="font-family:var(--font-n);font-size:.84rem;font-weight:700;color:${Math.abs(fr) > fundingGate/100 ? 'var(--red)' : 'var(--green)'}">
+        ${frVal > 0 ? '+' : ''}${frVal}% ${Math.abs(fr) > fundingGate/100 ? '⛔ Extreme (gate: ±' + fundingGate + '%)' : '✅ Normal'}
+      </span>
+    </div>` : '';
+
+  // Educational explanation for each gate reason
+  const eduMap = {
+    'ADX': `<div style="background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);border-radius:8px;padding:12px 14px;margin-top:8px;font-family:var(--font-n);font-size:.76rem;color:rgba(255,255,255,.7);line-height:1.7">
+      <strong style="color:var(--red)">📚 Why ADX matters:</strong><br>
+      ADX measures trend <em>strength</em>, not direction. When ADX < ${adxGate}, the market is ranging/choppy — price moves randomly between support and resistance.
+      In ranging markets, RSI, EMA and MACD signals are unreliable and produce many false breakouts.
+      Market makers hunt stops aggressively during low-ADX periods. Wait for ADX > ${adxGate} before entering.
+    </div>`,
+    'Funding': `<div style="background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);border-radius:8px;padding:12px 14px;margin-top:8px;font-family:var(--font-n);font-size:.76rem;color:rgba(255,255,255,.7);line-height:1.7">
+      <strong style="color:var(--red)">📚 Why Funding Rate matters:</strong><br>
+      Extreme funding means one side (longs or shorts) is paying heavily to stay in position.
+      Exchanges use this to force position closures. A cascade of forced liquidations can violently reverse price —
+      even if all other indicators say the trade is valid. The ±${fundingGate}% gate protects against this.
+    </div>`
+  };
+
+  const eduSections = [];
+  if (reasons.some(r => r.includes('ADX')))     eduSections.push(eduMap['ADX']);
+  if (reasons.some(r => r.includes('Funding'))) eduSections.push(eduMap['Funding']);
+
+  container.innerHTML = `
+    <div class="panel deep-card" style="border:1px solid rgba(255,61,90,.35);background:linear-gradient(135deg,rgba(255,61,90,.06),rgba(255,61,90,.02))">
+      <div class="panel-body">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <span style="font-size:1.6rem">🚫</span>
+          <div>
+            <div style="font-family:var(--font-h);font-size:1.1rem;font-weight:700;color:var(--red)">${pair} — Signal Blocked</div>
+            <div style="font-family:var(--font-n);font-size:.76rem;color:var(--muted);margin-top:2px">Hard safety gate triggered — market conditions unsafe for entry</div>
+          </div>
+          <div style="margin-left:auto;font-family:var(--font-n);font-size:.82rem;font-weight:600;color:var(--cyan)">${fmtPrice(curP)}</div>
+        </div>
+
+        <div style="background:rgba(0,0,0,.2);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+          <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">⚠ Gate Violations</div>
+          ${reasons.map(r => `<div style="font-family:var(--font-n);font-size:.78rem;color:rgba(255,255,255,.85);padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);line-height:1.6">❌ ${r}</div>`).join('')}
+        </div>
+
+        <div style="background:rgba(0,0,0,.15);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+          <div style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">📊 Current Indicator Status</div>
+          ${adxStatus}
+          ${frStatus}
+        </div>
+
+        ${eduSections.join('')}
+
+        <div style="margin-top:14px;padding:10px 14px;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.15);border-radius:8px;font-family:var(--font-n);font-size:.76rem;color:rgba(255,255,255,.6);line-height:1.6">
+          💡 <strong style="color:var(--cyan)">What to do:</strong> Monitor this pair. When ADX rises above ${adxGate} and/or funding normalises, re-scan for a valid entry. The confluence engine will then produce a proper signal.
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ═════════════════════════════
@@ -1447,7 +1603,43 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const riskBdr   = isLowConf ? 'rgba(255,61,90,.25)' : 'rgba(255,195,51,.18)';
   const riskClr   = isLowConf ? 'var(--red)' : 'var(--yellow)';
   const riskLabel = isLowConf ? '🔴 LOW CONFIDENCE SIGNAL' : '⚠ RISK ENTRY';
-  const riskHtml  = isRisky && riskFlags.length ? `<div style="background:${riskBg};border:1px solid ${riskBdr};border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n);font-size:.74rem;color:${riskClr};line-height:1.8"><strong>${riskLabel}</strong> — Reduce position size significantly.<br>${riskFlags.map(f=>`· ${f}`).join('<br>')}</div>` : '';
+
+  // Educational explanations for each risk flag type
+  function getRiskExplanation(flag) {
+    if (flag.includes('ADX') && flag.includes('weak trend'))
+      return `ADX measures trend strength (not direction). When ADX < ${IS('ind_adx_choppy_gate',18)}, price is ranging with no clear momentum — signals are unreliable and false breakouts are common. Market makers hunt stops in choppy conditions.`;
+    if (flag.includes('counter-trend LONG') || flag.includes('counter-trend SHORT'))
+      return `Trading against the higher timeframe trend significantly increases risk. The 4H trend acts as a strong bias — counter-trend trades need very strong reversal evidence (divergence, key S/R, BOS) to justify entry.`;
+    if (flag.includes('Funding') && flag.includes('long squeeze'))
+      return `High positive funding means longs pay heavily to stay open. Exchanges periodically trigger liquidation cascades. Even if price looks bullish, a sudden funding flush can violently drop price.`;
+    if (flag.includes('Funding') && flag.includes('short squeeze'))
+      return `High negative funding means shorts pay heavily. A short squeeze can spike price rapidly even against the trend. Dangerous for new short entries.`;
+    if (flag.includes('Daily EMA'))
+      return `The Daily EMA stack reflects the macro trend. Trading against it on lower timeframes means you're fighting the dominant institutional bias. Requires stronger confluence to overcome.`;
+    if (flag.includes('Supertrend') && flag.includes('bearish'))
+      return `Supertrend is bearish — price is below the trailing stop line. LONG entries against Supertrend have lower win-rate and typically need a confirmed reversal pattern.`;
+    if (flag.includes('Supertrend') && flag.includes('bullish'))
+      return `Supertrend is bullish. SHORT entries against it require strong overbought conditions and a confirmed breakdown.`;
+    if (flag.includes('Asian session'))
+      return `Asian session typically has lower volume and tighter ranges. Breakouts often fail to sustain. Institutional players set traps. Reduce position size or wait for London/NY open.`;
+    if (flag.includes('crowded'))
+      return `Extreme long/short imbalance makes the market vulnerable to a squeeze in the opposite direction. When everyone is on one side, the move is often already priced in.`;
+    if (flag.includes('OB —'))
+      return `Entry inside an Order Block of the opposite direction means you are entering in a zone where large institutional orders exist against you. High probability of rejection from this zone.`;
+    if (flag.includes('Low confluence'))
+      return `The scoring engine found insufficient evidence for a high-probability entry. Multiple indicators are conflicting or neutral. Wait for clearer market conditions.`;
+    return null;
+  }
+
+  const riskFlagsHtml = riskFlags.map(f => {
+    const edu = getRiskExplanation(f);
+    return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <div style="font-size:.74rem;color:${riskClr};line-height:1.5">${f}</div>
+      ${edu ? `<div style="font-size:.7rem;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.55;padding-left:10px">→ ${edu}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const riskHtml = isRisky && riskFlags.length ? `<div style="background:${riskBg};border:1px solid ${riskBdr};border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n)"><strong style="color:${riskClr};font-size:.76rem">${riskLabel}</strong><span style="font-size:.72rem;color:rgba(255,255,255,.5)"> — Reduce position size significantly.</span><div style="margin-top:8px">${riskFlagsHtml}</div></div>` : '';
 
   // Score chips
   const chips = [];
