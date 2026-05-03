@@ -770,30 +770,20 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   } = ex;
 
   // ══════════════════════════════════════════════════════
-  // HARD SAFETY GATES — block signal if market is unsafe
-  // Explains WHY the market is bad so user can learn
+  // HARD SAFETY GATE — ADX only (choppy = no signal)
+  // Funding: warning only, not a hard block
   // ══════════════════════════════════════════════════════
-  const fundingGate = IS('ind_funding_gate', 0.25) / 100; // convert % → decimal
+  const fundingGate = IS('ind_funding_gate', 0.25) / 100; // warning threshold only
   const adxGate     = IS('ind_adx_choppy_gate', 18);
-  const hardGateReasons = [];
 
+  // ADX hard block — choppy market, no signal
   if (adx && adx.adx < adxGate) {
-    hardGateReasons.push(`ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. No clear trend direction. High probability of fake breakout and immediate SL hit.`);
-  }
-  if (fr !== null && fr > fundingGate) {
-    hardGateReasons.push(`Funding Rate +${(fr * 100).toFixed(3)}% > +${(fundingGate * 100).toFixed(2)}% gate — Longs are extremely crowded. High risk of long squeeze cascade. Market makers target this.`);
-  }
-  if (fr !== null && fr < -fundingGate) {
-    hardGateReasons.push(`Funding Rate ${(fr * 100).toFixed(3)}% < −${(fundingGate * 100).toFixed(2)}% gate — Shorts are extremely crowded. High risk of short squeeze cascade.`);
-  }
-
-  if (hardGateReasons.length > 0) {
-    // Return a hard-blocked result — still show WHY, no entry given
-    const whyHtml = hardGateReasons.map(r => `· ${r}`).join('\n');
     return {
       direction: null, entryType: 'BLOCKED', confidence: 0,
-      hardBlock: true, hardBlockReason: whyHtml,
-      riskFlags: hardGateReasons, isRisky: true,
+      hardBlock: true,
+      hardBlockReason: `ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. No clear trend direction. High probability of fake breakout and immediate SL hit.`,
+      riskFlags: [`ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. High probability of fake breakout and immediate SL hit.`],
+      isRisky: true,
       entryPrice: null, slPrice: null, tp1Price: null, tp2Price: null,
       dcaPoint: null, rrr1: null, rrr2: null,
       indicators: { adx, fundingRate: fr, trend4h: t4, supertrend: st, emaStack: es,
@@ -802,6 +792,14 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
                     srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d,
                     rsi15m, rsi1d, bos15m, bos4h, candlePatterns, pivotPoints, takerRatio, lsRatio }
     };
+  }
+
+  // Funding rate warning (not a block — signal still shown with top warning banner)
+  const fundingRiskFlags = [];
+  if (fr !== null && fr > fundingGate) {
+    fundingRiskFlags.push(`🚨 HIGH FUNDING RATE +${(fr * 100).toFixed(3)}% — Longs extremely crowded. High risk of long squeeze cascade. Reduce position size.`);
+  } else if (fr !== null && fr < -fundingGate) {
+    fundingRiskFlags.push(`🚨 HIGH FUNDING RATE ${(fr * 100).toFixed(3)}% — Shorts extremely crowded. High risk of short squeeze cascade. Reduce position size.`);
   }
 
   let ls = 0, ss = 0;
@@ -1068,8 +1066,14 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     const ob = mtfOBs.nearestBearOB;
     if (price >= ob.low && price <= ob.high) riskFlags.push(`⚠ Entry inside ${ob.tf} Bear OB — buying in supply zone`);
   }
+
+  // Prepend funding warnings at top of riskFlags (always show prominently)
+  if (fundingRiskFlags.length > 0) {
+    riskFlags.unshift(...fundingRiskFlags);
+  }
+
   // Any single major structural flag = Risk Entry
-  const majorFlags = riskFlags.filter(f => f.includes('counter-trend') || f.includes('Daily EMA') || f.includes('OB —'));
+  const majorFlags = riskFlags.filter(f => f.includes('counter-trend') || f.includes('Daily EMA') || f.includes('OB —') || f.includes('HIGH FUNDING'));
   const isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 60) || majorFlags.length >= 1;
 
   // === SL / TP / Entry Calculation ===
@@ -1606,6 +1610,10 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
 
   // Educational explanations for each risk flag type
   function getRiskExplanation(flag) {
+    if (flag.includes('HIGH FUNDING') && flag.includes('Longs'))
+      return `Funding rate +${fr !== null ? (fr*100).toFixed(3) : '?'}% means longs are paying heavily to stay open. Exchanges use cascading liquidations — even if all indicators are bullish, a sudden flush can drop price violently. Reduce size to 50% or less.`;
+    if (flag.includes('HIGH FUNDING') && flag.includes('Shorts'))
+      return `Funding rate ${fr !== null ? (fr*100).toFixed(3) : '?'}% means shorts are paying heavily. A short squeeze can spike price rapidly. Dangerous for new short entries right now. Reduce size.`;
     if (flag.includes('ADX') && flag.includes('weak trend'))
       return `ADX measures trend strength (not direction). When ADX < ${IS('ind_adx_choppy_gate',18)}, price is ranging with no clear momentum — signals are unreliable and false breakouts are common. Market makers hunt stops in choppy conditions.`;
     if (flag.includes('counter-trend LONG') || flag.includes('counter-trend SHORT'))
@@ -1633,8 +1641,10 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
 
   const riskFlagsHtml = riskFlags.map(f => {
     const edu = getRiskExplanation(f);
+    const isFunding = f.includes('HIGH FUNDING');
+    const flagClr = isFunding ? 'var(--red)' : riskClr;
     return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-      <div style="font-size:.74rem;color:${riskClr};line-height:1.5">${f}</div>
+      <div style="font-size:.74rem;color:${flagClr};line-height:1.5">${f}</div>
       ${edu ? `<div style="font-size:.7rem;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.55;padding-left:10px">→ ${edu}</div>` : ''}
     </div>`;
   }).join('');
