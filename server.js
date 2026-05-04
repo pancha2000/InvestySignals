@@ -83,10 +83,13 @@ const reportSchema = new mongoose.Schema({
   category: { type:String, enum:['signal_accuracy','technical_bug','inappropriate_content','other'], required:true },
   message:  { type:String, required:true, maxlength:2000 },
   context:  { type:String, default:'' },
+  imageBase64: { type:String, default:'' },
   status:   { type:String, enum:['open','in_review','resolved','dismissed'], default:'open' },
   adminNote:{ type:String, default:'' },
+  adminReply:{ type:String, default:'' },
   resolvedBy:{ type:String, default:'' },
   resolvedAt:{ type:Date },
+  readByAdmin:{ type:Boolean, default:false },
 },{ timestamps:true });
 
 const Signal       = mongoose.model('Signal',       signalSchema);
@@ -508,15 +511,18 @@ app.get('/health', (req, res) => res.json({ status:'ok', clients:wss.clients.siz
 app.post('/api/reports', async (req, res) => {
   try {
     if (!mongoConnected) return res.status(503).json({ success:false, error:'Database not available. Please try again shortly.' });
-    const { category, message, context, reporterUid, reporterEmail } = req.body;
-    if (!category || !message || message.trim().length < 5)
+    const { category, message, context, reporterUid, reporterEmail, imageBase64 } = req.body;
+    if (!category || !message || message.trim().length < 3)
       return res.status(400).json({ success:false, error:'category and message required' });
     const allowed = ['signal_accuracy','technical_bug','inappropriate_content','other'];
     if (!allowed.includes(category))
       return res.status(400).json({ success:false, error:'Invalid category' });
+    if (imageBase64 && imageBase64.length > 2*1024*1024)
+      return res.status(400).json({ success:false, error:'Image too large (max 2MB)' });
     const report = await Report.create({
       category, message:message.trim().slice(0,2000),
       context:(context||'').slice(0,500),
+      imageBase64: imageBase64 || '',
       reporterUid:  reporterUid  || 'anonymous',
       reporterEmail:reporterEmail|| '',
     });
@@ -543,12 +549,23 @@ app.get('/api/admin/reports', adminAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
+/* Admin: get single report with image */
+app.get('/api/admin/reports/:id/detail', adminAuth, async (req, res) => {
+  try {
+    const r = await Report.findById(req.params.id);
+    if (!r) return res.status(404).json({ success:false, error:'Not found' });
+    res.json({ success:true, data:r });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
 app.put('/api/admin/reports/:id', adminAuth, async (req, res) => {
   try {
-    const { status, adminNote } = req.body;
+    const { status, adminNote, adminReply, readByAdmin } = req.body;
     const update = {};
     if (status) update.status = status;
     if (adminNote !== undefined) update.adminNote = adminNote;
+    if (adminReply !== undefined) update.adminReply = adminReply;
+    if (readByAdmin !== undefined) update.readByAdmin = readByAdmin;
     if (status === 'resolved' || status === 'dismissed') {
       update.resolvedBy = req.admin.username;
       update.resolvedAt = new Date();
@@ -564,6 +581,31 @@ app.delete('/api/admin/reports/:id', adminAuth, async (req, res) => {
     await Report.findByIdAndDelete(req.params.id);
     res.json({ success:true });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* User: get own reports */
+app.get('/api/my-reports', async (req, res) => {
+  try {
+    if (!mongoConnected) return res.status(503).json({ success:false, error:'DB unavailable' });
+    const { uid } = req.query;
+    if (!uid) return res.status(400).json({ success:false, error:'uid required' });
+    const data = await Report.find({ reporterUid: uid })
+      .sort({ createdAt:-1 }).limit(20)
+      .select('-imageBase64'); // exclude heavy base64 from list
+    res.json({ success:true, data });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* User: get single report (with image) */
+app.get('/api/my-reports/:id', async (req, res) => {
+  try {
+    if (!mongoConnected) return res.status(503).json({ success:false, error:'DB unavailable' });
+    const { uid } = req.query;
+    const r = await Report.findById(req.params.id);
+    if (!r) return res.status(404).json({ success:false, error:'Not found' });
+    if (r.reporterUid !== uid) return res.status(403).json({ success:false, error:'Forbidden' });
+    res.json({ success:true, data:r });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
 app.get('/api/admin/reports/unread-count', adminAuth, async (req, res) => {

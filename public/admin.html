@@ -1628,10 +1628,21 @@ function escHtml(str) {
 
 async function openReportDetail(id) {
   currentReportId = id;
-  const res = await authFetch('/api/admin/reports?limit=200');
-  if (!res?.success) return;
-  const r = res.data.find(x => x._id === id);
+  // Fetch single report with image
+  const res = await authFetch('/api/admin/reports/'+id+'/detail');
+  let r;
+  if (res?.success) {
+    r = res.data;
+  } else {
+    // fallback: get from list
+    const listRes = await authFetch('/api/admin/reports?limit=200');
+    if (!listRes?.success) return;
+    r = listRes.data.find(x => x._id === id);
+  }
   if (!r) return;
+
+  // Mark as read
+  authFetch('/api/admin/reports/'+id, { method:'PUT', body:JSON.stringify({ readByAdmin:true }) });
 
   document.getElementById('reportDetailBody').innerHTML = `
     <div style="margin-bottom:12px">
@@ -1642,6 +1653,10 @@ async function openReportDetail(id) {
       <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Message</div>
       <div style="font-family:var(--font-n);font-size:.8rem;color:rgba(255,255,255,.85);line-height:1.6;background:rgba(0,0,0,.2);padding:10px 12px;border-radius:8px">${escHtml(r.message)}</div>
     </div>
+    ${r.imageBase64 ? `<div style="margin-bottom:12px">
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Screenshot</div>
+      <img src="${r.imageBase64}" style="max-width:100%;border-radius:8px;border:1px solid rgba(255,255,255,.1);cursor:pointer" onclick="window.open(this.src,'_blank')">
+    </div>` : ''}
     ${r.context ? `<div style="margin-bottom:12px">
       <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Context / Page</div>
       <div style="font-family:var(--font-n);font-size:.76rem;color:var(--muted)">${escHtml(r.context)}</div>
@@ -1664,10 +1679,15 @@ async function openReportDetail(id) {
         `).join('')}
       </div>
     </div>
+    <div style="margin-bottom:14px">
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">💬 Reply to User</div>
+      <textarea id="reportAdminReply" class="f-inp" rows="3" placeholder="Write a reply visible to the user…" style="resize:vertical">${escHtml(r.adminReply||'')}</textarea>
+      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="saveAdminReply('${id}')">📤 Send Reply</button>
+    </div>
     <div>
-      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Admin Note</div>
-      <textarea id="reportAdminNote" class="f-inp" rows="3" placeholder="Internal note…" style="resize:vertical">${escHtml(r.adminNote||'')}</textarea>
-      <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="saveAdminNote('${id}')">💾 Save Note</button>
+      <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">🔒 Internal Note</div>
+      <textarea id="reportAdminNote" class="f-inp" rows="2" placeholder="Internal note (not visible to user)…" style="resize:vertical">${escHtml(r.adminNote||'')}</textarea>
+      <button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="saveAdminNote('${id}')">💾 Save Note</button>
     </div>
   `;
   openModal('reportDetailOverlay');
@@ -1676,6 +1696,13 @@ async function openReportDetail(id) {
 async function updateReportStatus(id, status) {
   const res = await authFetch('/api/admin/reports/'+id, { method:'PUT', body:JSON.stringify({ status }) });
   if (res?.success) { showToast('Status updated to: ' + status.replace('_',' ')); closeModal('reportDetailOverlay'); loadReports(); }
+}
+
+async function saveAdminReply(id) {
+  const adminReply = document.getElementById('reportAdminReply')?.value || '';
+  const res = await authFetch('/api/admin/reports/'+id, { method:'PUT', body:JSON.stringify({ adminReply }) });
+  if (res?.success) showToast('Reply sent to user ✅');
+  else showToast('Failed to save reply', 'danger');
 }
 
 async function saveAdminNote(id) {
