@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Create Account — InvestySignals</title>
-<meta name="description" content="Join InvestySignals free. Get real-time crypto trading signals for Binance Futures traders.">
+<meta name="description" content="Create a free InvestySignals account and get access to real-time Binance Futures trading signals.">
 <meta property="og:title" content="Register — InvestySignals">
 <meta property="og:description" content="Create a free InvestySignals account to access professional crypto trading signals for Binance Futures.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -180,8 +180,8 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
   .auth-right { padding:28px 18px; }
 }
 </style>
-
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5034247623532581" crossorigin="anonymous"></script>
+<link rel="canonical" href="https://investysignals.store/register.html">
 </head>
 <body>
 
@@ -506,5 +506,20 @@ document.querySelectorAll('.form-input').forEach(el => {
 });
 </script>
 
+
+<script>
+(async function checkRegOpen(){
+  try{
+    const r=await fetch('/api/settings/public');
+    const j=await r.json();
+    if(j.success && j.data.register_open === false){
+      document.getElementById('registerForm')?.setAttribute('style','display:none');
+      const msg=document.createElement('div');
+      msg.innerHTML='<div style="background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:#ff3d5a;padding:16px;border-radius:10px;font-size:.88rem;text-align:center;margin-bottom:20px">Registrations are currently closed. Please check back later.</div>';
+      document.querySelector('.auth-right')?.insertBefore(msg, document.querySelector('.auth-right')?.firstChild);
+    }
+  }catch(_){}
+})();
+</script>
 </body>
 </html>

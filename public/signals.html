@@ -3,13 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live Signals — InvestySignals</title>
-<meta name="description" content="Free real-time crypto trading signals for Binance Futures. Professional BTC, ETH, SOL, XRP signals with entry, TP and SL levels.">
+<title>Live Crypto Signals — InvestySignals</title>
+<meta name="description" content="Live Binance Futures trading signals with entry price, take profit, and stop loss. Updated in real-time. Free signal tracking and paper trading.">
 <meta name="keywords" content="free crypto signals, binance futures signals, bitcoin trading signals">
 <meta property="og:title" content="Live Crypto Signals — InvestySignals">
 <meta property="og:description" content="Real-time crypto trading signals for Binance Futures. Entry, TP, SL and signal grade for every trade.">
-<!-- Google AdSense -->
-<!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5034247623532581" crossorigin="anonymous"></script> -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -209,6 +207,8 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
 .toast-title{font-family:var(--font-h);font-size:.95rem;font-weight:700;margin-bottom:2px;}
 .toast-body{font-size:.78rem;color:var(--muted);}
 </style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5034247623532581" crossorigin="anonymous"></script>
+<link rel="canonical" href="https://investysignals.store/signals.html">
 </head>
 <body>
 
@@ -634,5 +634,17 @@ async function submitReport() {
 }
 </script>
 
+
+<script>
+// Pause/resume polling when tab is hidden to save resources
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    // Tab hidden — intervals will still fire but WS messages won't process
+    window._tabHidden = true;
+  } else {
+    window._tabHidden = false;
+  }
+});
+</script>
 </body>
 </html>
