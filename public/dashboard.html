@@ -377,6 +377,7 @@ const auth = getAuth(initializeApp({
   appId:"1:619954501803:web:559d48b801f072abd71fee"
 }));
 onAuthStateChanged(auth, u => {
+  window._currentUser = u;  // expose for report submit
   document.getElementById('authGuard').style.display='none';
   if(!u){window.location.href='login.html';return;}
   document.getElementById('dashMain').style.display='block';
@@ -622,7 +623,7 @@ async function submitReport() {
   if (!message || message.length < 5) { resultEl.style.color='#ef4444'; resultEl.textContent='Please describe the issue.'; return; }
   btn.disabled=true; btn.textContent='Sending…';
   try {
-    const user = firebase.auth().currentUser;
+    const user = window._currentUser;
     const body = { category, message, context: window._reportContext||'',
                    reporterUid: user?.uid||'anonymous', reporterEmail: user?.email||'' };
     const res = await fetch('/api/reports', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });

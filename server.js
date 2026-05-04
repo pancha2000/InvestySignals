@@ -489,11 +489,13 @@ app.get('/api/stats/public', async (req, res) => {
 });
 app.get('/api/market/top-gainers', (req, res) => res.json({ success:true, data:topGainers.slice(0,5) }));
 app.get('/api/market/ticker',      (req, res) => res.json({ success:true, data:tickerCoins }));
+app.get('/api/ping', (req, res) => res.json({ ok:true, ts:Date.now(), mongo:mongoConnected }));
 app.get('/health', (req, res) => res.json({ status:'ok', clients:wss.clients.size, uptime:process.uptime(), marketCoins:Object.keys(marketData).length, wsState:binanceWsState, mongoConnected }));
 
 /* ══ USER REPORT SUBMISSION ══ */
 app.post('/api/reports', async (req, res) => {
   try {
+    if (!mongoConnected) return res.status(503).json({ success:false, error:'Database not available. Please try again shortly.' });
     const { category, message, context, reporterUid, reporterEmail } = req.body;
     if (!category || !message || message.trim().length < 5)
       return res.status(400).json({ success:false, error:'category and message required' });
