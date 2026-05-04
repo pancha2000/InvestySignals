@@ -1185,7 +1185,7 @@ async function saveEditSignal() {
   const data = await api('PUT','/api/admin/signals/'+id, payload);
   if (data?.success) { closeModal('editSignalOverlay'); loadSignals(); loadDashboard();
   loadNotifBell();
-  setInterval(loadNotifBell, 30000); // poll every 30s showToast('Signal updated'); }
+  showToast('Signal updated'); }
   else showToast('Save failed: '+(data?.error||'Unknown'), 'danger');
 }
 
@@ -1194,7 +1194,7 @@ function deleteSignal(id, pair) {
     const data = await api('DELETE','/api/admin/signals/'+id);
     if (data?.success) { loadSignals(); loadDashboard();
   loadNotifBell();
-  setInterval(loadNotifBell, 30000); // poll every 30s showToast('Signal deleted', 'warn'); }
+  showToast('Signal deleted', 'warn'); }
   });
 }
 
