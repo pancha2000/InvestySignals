@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Report an Issue — InvestySignals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070b14;--surface:#0c1220;--card:#101827;--border:#1a2640;--border2:#243350;
+  --cyan:#00d4ff;--green:#00ff88;--red:#ff3d5a;--yellow:#ffc333;
+  --text:#e2e8f0;--muted:#64748b;
+  --font-h:'Rajdhani',sans-serif;--font-n:'IBM Plex Mono',monospace;--font-b:'Outfit',sans-serif;
+  --sidebar-w:240px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height:100vh;}
+#authGuard{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.guard-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ticker-bar{background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden;height:34px;position:sticky;top:0;z-index:300;}
+.ticker-track{display:flex;animation:tScroll 32s linear infinite;white-space:nowrap;height:100%;}
+@keyframes tScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.ticker-item{display:inline-flex;align-items:center;gap:7px;padding:0 16px;height:100%;border-right:1px solid var(--border);font-family:var(--font-n);font-size:.69rem;flex-shrink:0;}
+.t-sym{color:var(--muted);font-size:.64rem;letter-spacing:.06em;}
+.t-price{color:var(--text);font-weight:500;}
+.t-chg.up{color:var(--green);}.t-chg.down{color:var(--red);}
+.dash-layout{display:flex;min-height:calc(100vh - 34px);}
+.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:34px;left:0;height:calc(100vh - 34px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+.ds-brand{padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.ds-logo{font-family:var(--font-h);font-size:1.1rem;font-weight:700;letter-spacing:.06em;}
+.ds-logo span{color:var(--cyan);}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ds-user{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;min-width:0;}
+.ds-avatar{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--cyan),#7c3aed);display:flex;align-items:center;justify-content:center;font-family:var(--font-h);font-weight:700;font-size:.85rem;color:#000;flex-shrink:0;}
+.ds-uname{font-family:var(--font-b);font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ds-uemail{font-family:var(--font-b);font-size:.65rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ds-nav{flex:1;overflow-y:auto;padding:10px 0;}
+.ds-section{font-family:var(--font-n);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:10px 16px 4px;}
+.ds-nav a{display:flex;align-items:center;gap:10px;padding:9px 16px;font-family:var(--font-b);font-size:.82rem;color:var(--muted);text-decoration:none;transition:all .15s;border-radius:8px;margin:1px 8px;}
+.ds-nav a:hover,.ds-nav a.active{background:rgba(0,212,255,.07);color:var(--text);}
+.ds-nav a.active{color:var(--cyan);}
+.ni{font-size:.85rem;width:18px;text-align:center;}
+.ds-footer{padding:12px 16px;border-top:1px solid var(--border);}
+.btn-signout{width:100%;background:none;border:1px solid rgba(255,255,255,.1);color:var(--muted);padding:7px;border-radius:8px;font-family:var(--font-b);font-size:.75rem;cursor:pointer;transition:all .2s;}
+.btn-signout:hover{border-color:var(--red);color:var(--red);}
+@media(max-width:768px){
+  .dash-sidebar{transform:translateX(-100%);top:0;height:100vh;}
+  .dash-sidebar.open{transform:translateX(0);}
+  .dash-main{margin-left:0!important;}
+  .mob-topbar{display:flex!important;}
+  .mob-menu-btn{display:flex!important;}
+}
+.mob-topbar{display:none;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:34px;z-index:150;}
+.mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.25rem;cursor:pointer;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:190;}
+.mob-overlay.show{display:block;}
+.dash-main{margin-left:var(--sidebar-w);flex:1;padding:28px 24px 60px;}
+/* Main content */
+.page-header{margin-bottom:28px;}
+.page-title{font-family:var(--font-h);font-size:1.6rem;font-weight:700;color:var(--text);}
+.page-sub{font-family:var(--font-b);font-size:.84rem;color:var(--muted);margin-top:4px;}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:24px;}
+.tab-btn{padding:10px 18px;font-family:var(--font-b);font-size:.84rem;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;transition:all .18s;}
+.tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan);}
+.tab-panel{display:none;}.tab-panel.active{display:block;}
+/* Form */
+.form-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:640px;}
+.field{margin-bottom:18px;}
+.field label{display:block;font-family:var(--font-b);font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.field select,.field textarea{width:100%;background:var(--card);border:1px solid var(--border2);color:var(--text);padding:10px 14px;border-radius:9px;font-family:var(--font-b);font-size:.84rem;transition:border-color .2s;}
+.field select:focus,.field textarea:focus{outline:none;border-color:var(--cyan);}
+.field textarea{resize:vertical;line-height:1.6;}
+.img-zone{border:1.5px dashed rgba(255,255,255,.15);border-radius:9px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s;}
+.img-zone:hover{border-color:rgba(0,212,255,.4);}
+.img-zone-label{font-family:var(--font-b);font-size:.8rem;color:var(--muted);margin-top:6px;}
+.img-thumb{max-width:100%;max-height:180px;border-radius:8px;object-fit:contain;margin-bottom:8px;display:none;}
+.btn-submit{background:linear-gradient(135deg,#ef4444,#dc2626);border:none;color:#fff;padding:11px 28px;border-radius:9px;font-family:var(--font-b);font-size:.9rem;font-weight:600;cursor:pointer;width:100%;margin-top:4px;transition:opacity .2s;}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed;}
+.result-msg{margin-top:12px;font-family:var(--font-b);font-size:.82rem;text-align:center;min-height:22px;}
+/* My Reports */
+.report-list{display:flex;flex-direction:column;gap:12px;max-width:640px;}
+.report-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:border-color .2s;}
+.report-card:hover{border-color:var(--border2);}
+.rc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;}
+.rc-cat{font-family:var(--font-b);font-size:.78rem;font-weight:600;color:var(--text);}
+.rc-status{font-family:var(--font-b);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:20px;}
+.rc-msg{font-family:var(--font-b);font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.55;margin-bottom:8px;}
+.rc-reply{background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.18);border-radius:8px;padding:10px 12px;margin-top:8px;}
+.rc-reply-label{font-family:var(--font-b);font-size:.66rem;color:rgba(0,212,255,.7);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.rc-reply-text{font-family:var(--font-b);font-size:.8rem;color:rgba(255,255,255,.85);line-height:1.5;}
+.rc-date{font-family:var(--font-n);font-size:.65rem;color:var(--muted);}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);font-family:var(--font-b);font-size:.85rem;}
+.empty-state .ei{font-size:2.5rem;margin-bottom:12px;}
+</style>
+</head>
+<body>
+
+<div id="authGuard"><div class="guard-spinner"></div></div>
+
+<div id="appShell" style="display:none">
+
+<!-- Ticker bar -->
+<div class="ticker-bar"><div class="ticker-track" id="tickerTrack">
+  <div class="ticker-item"><span class="t-sym">BTC</span><span class="t-price" id="t-BTC">—</span><span class="t-chg" id="c-BTC">—</span></div>
+  <div class="ticker-item"><span class="t-sym">ETH</span><span class="t-price" id="t-ETH">—</span><span class="t-chg" id="c-ETH">—</span></div>
+  <div class="ticker-item"><span class="t-sym">BNB</span><span class="t-price" id="t-BNB">—</span><span class="t-chg" id="c-BNB">—</span></div>
+  <div class="ticker-item"><span class="t-sym">SOL</span><span class="t-price" id="t-SOL">—</span><span class="t-chg" id="c-SOL">—</span></div>
+  <div class="ticker-item"><span class="t-sym">XRP</span><span class="t-price" id="t-XRP">—</span><span class="t-chg" id="c-XRP">—</span></div>
+  <div class="ticker-item"><span class="t-sym">BTC</span><span class="t-price" id="t-BTC2">—</span><span class="t-chg" id="c-BTC2">—</span></div>
+  <div class="ticker-item"><span class="t-sym">ETH</span><span class="t-price" id="t-ETH2">—</span><span class="t-chg" id="c-ETH2">—</span></div>
+</div></div>
+
+<!-- Mobile top bar -->
+<div class="mob-topbar">
+  <button class="mob-menu-btn" onclick="openMob()">☰</button>
+  <div style="font-family:var(--font-h);font-weight:700;letter-spacing:.06em">INVESTY<span style="color:var(--cyan)">SIGNALS</span></div>
+  <div style="width:44px"></div>
+</div>
+<div class="mob-overlay" id="mobOverlay" onclick="closeMob()"></div>
+
+<div class="dash-layout">
+  <aside class="dash-sidebar" id="dashSidebar">
+    <div class="ds-brand">
+      <div class="ds-logo">INVESTY<span>SIGNALS</span></div>
+      <div class="live-dot"></div>
+    </div>
+    <div class="ds-user">
+      <div class="ds-avatar" id="userAvatar">?</div>
+      <div style="min-width:0"><div class="ds-uname" id="userName">—</div><div class="ds-uemail" id="userEmail">—</div></div>
+    </div>
+    <nav class="ds-nav">
+      <div class="ds-section">Main</div>
+      <a href="dashboard.html"><span class="ni">📊</span> Dashboard</a>
+      <a href="live-signals.html"><span class="ni">📝</span> Paper Trades <span style="font-size:.6rem;background:rgba(0,255,136,.15);color:#00ff88;padding:1px 6px;border-radius:10px;margin-left:4px">LIVE</span></a>
+      <a href="analysis.html"><span class="ni">🔬</span> Analysis</a>
+      <a href="backtest.html"><span class="ni">📈</span> Signal Tracker</a>
+      <div class="ds-section">Market</div>
+      <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
+      <a href="dashboard.html#news"><span class="ni">📰</span> Market News</a>
+      <div class="ds-section">Account</div>
+      <a href="profile.html"><span class="ni">👤</span> Profile & Settings</a>
+      <div class="ds-section">Support</div>
+      <a href="index.html"><span class="ni">🏠</span> Home</a>
+      <a href="report.html" class="active"><span class="ni">🚩</span> Report Issue</a>
+    </nav>
+    <div class="ds-footer">
+      <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="dash-main">
+    <div class="page-header">
+      <div class="page-title">🚩 Report an Issue</div>
+      <div class="page-sub">Submit a bug report, signal complaint, or any other issue. Our team will review and respond.</div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('submit')">📤 Submit Report</button>
+      <button class="tab-btn" onclick="switchTab('history')">📋 My Reports</button>
+    </div>
+
+    <!-- Submit Tab -->
+    <div class="tab-panel active" id="tab-submit">
+      <div class="form-card">
+        <div class="field">
+          <label>Category</label>
+          <select id="repCategory">
+            <option value="signal_accuracy">📉 Signal Accuracy (Wrong signal / bad call)</option>
+            <option value="technical_bug">🐛 Technical Bug / Error</option>
+            <option value="inappropriate_content">⚠️ Inappropriate Content</option>
+            <option value="other">💬 Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea id="repMessage" rows="5" placeholder="Describe the issue in detail. What happened? What did you expect?"></textarea>
+        </div>
+        <div class="field">
+          <label>Screenshot (optional)</label>
+          <div class="img-zone" id="imgZone" onclick="document.getElementById('imgInput').click()">
+            <img id="imgThumb" class="img-thumb">
+            <div style="font-size:1.5rem;margin-bottom:6px">📷</div>
+            <div class="img-zone-label" id="imgLabel">Tap to attach a screenshot</div>
+            <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="handleImg(this)">
+          </div>
+          <div id="imgClearRow" style="display:none;text-align:right;margin-top:5px">
+            <button onclick="clearImg()" style="background:none;border:none;color:rgba(239,68,68,.7);font-family:var(--font-b);font-size:.72rem;cursor:pointer">✕ Remove image</button>
+          </div>
+        </div>
+        <button class="btn-submit" id="btnSubmit" onclick="submitReport()">Submit Report</button>
+        <div class="result-msg" id="resultMsg"></div>
+      </div>
+    </div>
+
+    <!-- My Reports Tab -->
+    <div class="tab-panel" id="tab-history">
+      <div class="report-list" id="reportList">
+        <div class="empty-state"><div class="ei">📋</div>Loading your reports…</div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+const auth = getAuth(initializeApp({
+  apiKey:"AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
+  authDomain:"crypto-98b33.firebaseapp.com",projectId:"crypto-98b33",
+  storageBucket:"crypto-98b33.firebasestorage.app",messagingSenderId:"619954501803",
+  appId:"1:619954501803:web:559d48b801f072abd71fee"
+}));
+onAuthStateChanged(auth, async u => {
+  document.getElementById('authGuard').style.display='none';
+  if(!u){window.location.href='login.html';return;}
+
+  // Status check
+  try {
+    const sr = await fetch('/api/user/status?uid='+encodeURIComponent(u.uid));
+    const sj = await sr.json();
+    if(sj.success){
+      if(sj.status.maintenance){
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">We\'re making improvements. Please check back shortly.</div></div>';
+        return;
+      }
+      if(sj.status.suspended){
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:20px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Account Suspended</div><div style="color:#64748b;font-size:.9rem;max-width:400px;margin-top:8px">'+(sj.status.suspendReason||'Your account has been suspended.')+'</div></div>';
+        return;
+      }
+    }
+  } catch(_) {}
+
+  window._currentUser = u;
+  document.getElementById('appShell').style.display='block';
+  const name=u.displayName||u.email?.split('@')[0]||'Trader';
+  const ini=name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)||'U';
+  document.getElementById('userAvatar').textContent=ini;
+  document.getElementById('userName').textContent=name;
+  document.getElementById('userEmail').textContent=u.email||'';
+
+  // Ticker
+  initTicker();
+});
+window.handleSignOut=async()=>{
+  const {signOut:so,getAuth:ga}=await import("https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js");
+  await signOut(auth);window.location.href='index.html';
+};
+</script>
+
+<script>
+function openMob(){document.getElementById('dashSidebar').classList.add('open');document.getElementById('mobOverlay').classList.add('show');}
+function closeMob(){document.getElementById('dashSidebar').classList.remove('open');document.getElementById('mobOverlay').classList.remove('show');}
+
+// Tabs
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{b.classList.toggle('active',['submit','history'][i]===name);});
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='history') loadMyReports();
+}
+
+// Image handling
+let _imgBase64='';
+function handleImg(input){
+  const file=input.files[0]; if(!file)return;
+  if(file.size>3*1024*1024){alert('Image must be under 3MB');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    _imgBase64=e.target.result;
+    const thumb=document.getElementById('imgThumb');
+    thumb.src=_imgBase64;thumb.style.display='block';
+    document.getElementById('imgLabel').textContent='✅ '+file.name;
+    document.getElementById('imgClearRow').style.display='block';
+  };
+  reader.readAsDataURL(file);
+}
+function clearImg(){
+  _imgBase64='';
+  document.getElementById('imgInput').value='';
+  document.getElementById('imgThumb').style.display='none';
+  document.getElementById('imgThumb').src='';
+  document.getElementById('imgLabel').textContent='Tap to attach a screenshot';
+  document.getElementById('imgClearRow').style.display='none';
+}
+
+// Submit report
+async function submitReport(){
+  const category=document.getElementById('repCategory').value;
+  const message=document.getElementById('repMessage').value.trim();
+  const resultEl=document.getElementById('resultMsg');
+  const btn=document.getElementById('btnSubmit');
+  if(!message||message.length<3){resultEl.style.color='#ef4444';resultEl.textContent='⚠️ Please enter at least 3 characters.';return;}
+  btn.disabled=true;btn.textContent='Sending…';resultEl.textContent='';
+  try{
+    const user=window._currentUser;
+    const body={category,message,context:window.location.href,
+                 reporterUid:user?.uid||'anonymous',reporterEmail:user?.email||'',
+                 imageBase64:_imgBase64||''};
+    const res=await fetch('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(data.success){
+      resultEl.style.color='#22c55e';
+      resultEl.textContent='✅ Report submitted! We will review and get back to you.';
+      document.getElementById('repMessage').value='';
+      clearImg();
+      btn.disabled=false;btn.textContent='Submit Report';
+      setTimeout(()=>{switchTab('history');},2000);
+    } else {
+      resultEl.style.color='#ef4444';resultEl.textContent='Error: '+data.error;
+      btn.disabled=false;btn.textContent='Submit Report';
+    }
+  } catch(e){
+    resultEl.style.color='#ef4444';resultEl.textContent='Network error. Please try again.';
+    btn.disabled=false;btn.textContent='Submit Report';
+  }
+}
+
+// Status colors/labels
+const S_COLOR={open:'#f59e0b',in_review:'#3b82f6',resolved:'#22c55e',dismissed:'rgba(255,255,255,.3)'};
+const S_LABEL={open:'Open',in_review:'In Review',resolved:'Resolved',dismissed:'Dismissed'};
+const CAT_LABEL={signal_accuracy:'📉 Signal Accuracy',technical_bug:'🐛 Technical Bug',inappropriate_content:'⚠️ Inappropriate Content',other:'💬 Other'};
+
+async function loadMyReports(){
+  const user=window._currentUser;
+  const list=document.getElementById('reportList');
+  if(!user){list.innerHTML='<div class="empty-state"><div class="ei">🔒</div>Please log in to view your reports.</div>';return;}
+  list.innerHTML='<div class="empty-state"><div class="guard-spinner" style="margin:0 auto"></div></div>';
+  try{
+    const res=await fetch('/api/my-reports?uid='+encodeURIComponent(user.uid));
+    const data=await res.json();
+    if(!data.success||!data.data.length){
+      list.innerHTML='<div class="empty-state"><div class="ei">📭</div>No reports submitted yet.<br><span style="font-size:.78rem">Submit a report and it will appear here.</span></div>';
+      return;
+    }
+    list.innerHTML=data.data.map(r=>`
+      <div class="report-card">
+        <div class="rc-head">
+          <span class="rc-cat">${CAT_LABEL[r.category]||r.category}</span>
+          <span class="rc-status" style="color:${S_COLOR[r.status]||'#fff'};background:${S_COLOR[r.status]||'#fff'}18;border:1px solid ${S_COLOR[r.status]||'#fff'}40">${S_LABEL[r.status]||r.status}</span>
+        </div>
+        <div class="rc-msg">${escHtml(r.message)}</div>
+        ${r.adminReply?`<div class="rc-reply"><div class="rc-reply-label">💬 Admin Reply</div><div class="rc-reply-text">${escHtml(r.adminReply)}</div></div>`:''}
+        <div class="rc-date" style="margin-top:10px">${new Date(r.createdAt).toLocaleString()}</div>
+      </div>
+    `).join('');
+  } catch(e){
+    list.innerHTML='<div class="empty-state" style="color:#ef4444">Failed to load reports. Please try again.</div>';
+  }
+}
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// Ticker
+function initTicker(){
+  fetch('/api/market/ticker').then(r=>r.json()).then(j=>{
+    if(!j.success)return;
+    const syms=['BTC','ETH','BNB','SOL','XRP'];
+    syms.forEach((s,i)=>{
+      const d=j.data[s+'USDT'];if(!d)return;
+      const p=d.price>=1000?'$'+d.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'$'+d.price.toFixed(4);
+      const c=(d.change>=0?'+':'')+d.change.toFixed(2)+'%';
+      const cls=d.change>=0?'up':'down';
+      [s,s+'2'].forEach(id=>{
+        const pe=document.getElementById('t-'+id),ce=document.getElementById('c-'+id);
+        if(pe)pe.textContent=p;
+        if(ce){ce.textContent=c;ce.className='t-chg '+cls;}
+      });
+    });
+  }).catch(_=>{});
+}
+</script>
+</body>
+</html>

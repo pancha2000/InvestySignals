@@ -230,15 +230,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
       <a href="dashboard.html#news"><span class="ni">📰</span> Market News</a>
       <div class="ds-section">Account</div>
-      <a href="profile.html"><span class="ni">👤</span> My Profile</a>
-      <a href="profile.html#settings" onclick="location.href='profile.html';return false"><span class="ni">⚙️</span> Settings</a>
+      <a href="profile.html"><span class="ni">👤</span> Profile & Settings</a>
       <div class="ds-section">Support</div>
       <a href="index.html"><span class="ni">🏠</span> Home</a>
+      <a href="report.html"><span class="ni">🚩</span> Report Issue</a>
       <a href="#my-reports" onclick="showMyReports();closeMob();return false"><span class="ni">🎫</span> My Reports</a>
     </nav>
     <div class="ds-footer">
       <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
-      <button onclick="openReportModal()" style="background:none;border:1px solid rgba(239,68,68,.35);color:rgba(239,68,68,.8);padding:5px 12px;border-radius:7px;font-family:'Outfit',sans-serif;font-size:.72rem;cursor:pointer;margin-top:6px;width:100%">🚩 Report Issue</button>
+      <a href="report.html" style="display:block;text-align:center;text-decoration:none;background:none;border:1px solid rgba(239,68,68,.35);color:rgba(239,68,68,.8);padding:5px 12px;border-radius:7px;font-family:'Outfit',sans-serif;font-size:.72rem;margin-top:6px">🚩 Report Issue</a>
     </div>
   </aside>
 
@@ -379,10 +379,28 @@ const auth = getAuth(initializeApp({
   storageBucket:"crypto-98b33.firebasestorage.app",messagingSenderId:"619954501803",
   appId:"1:619954501803:web:559d48b801f072abd71fee"
 }));
-onAuthStateChanged(auth, u => {
-  window._currentUser = u;  // expose for report submit
+onAuthStateChanged(auth, async u => {
+  window._currentUser = u;
   document.getElementById('authGuard').style.display='none';
   if(!u){window.location.href='login.html';return;}
+
+  // Check maintenance mode + suspend status
+  try {
+    const sr = await fetch('/api/user/status?uid='+encodeURIComponent(u.uid));
+    const sj = await sr.json();
+    if(sj.success){
+      if(sj.status.maintenance){
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">We're making improvements. Please check back shortly.</div></div>';
+        return;
+      }
+      if(sj.status.suspended){
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:20px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Account Suspended</div><div style="color:#64748b;font-size:.9rem;max-width:400px;margin-top:8px">'+(sj.status.suspendReason||'Your account has been suspended. Contact support for assistance.')+'</div><a href="mailto:support@investysignals.store" style="color:#00d4ff;font-size:.85rem;text-decoration:none;margin-top:8px">Contact Support →</a></div>';
+        return;
+      }
+      window._userRole = sj.status.role || 'user';
+    }
+  } catch(_) {}
+
   document.getElementById('dashMain').style.display='block';
   const name=u.displayName||u.email?.split('@')[0]||'Trader';
   const ini=name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)||'U';
@@ -391,6 +409,16 @@ onAuthStateChanged(auth, u => {
   document.getElementById('userEmail').textContent=u.email||'';
   document.getElementById('welcomeName').textContent=name.split(' ')[0];
   initDash();
+
+  // Poll every 60s for suspension/maintenance changes
+  setInterval(async()=>{
+    try{
+      const r=await fetch('/api/user/status?uid='+encodeURIComponent(u.uid));
+      const j=await r.json();
+      if(!j.success)return;
+      if(j.status.maintenance||j.status.suspended)window.location.reload();
+    }catch(_){}
+  },60000);
 });
 window.handleSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
 </script>

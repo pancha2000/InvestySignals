@@ -311,9 +311,22 @@ const firebaseConfig = {
 };
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   document.getElementById('authGuard').style.display = 'none';
   if (!user) { window.location.href = 'login.html'; return; }
+
+  // Maintenance + suspend check
+  try {
+    const _uid = u?.uid || user?.uid || '';
+    if(_uid){
+      const _sr=await fetch('/api/user/status?uid='+encodeURIComponent(_uid));
+      const _sj=await _sr.json();
+      if(_sj.success){
+        if(_sj.status.maintenance){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">We\'re making improvements. Please check back shortly.</div></div>';return;}
+        if(_sj.status.suspended){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:20px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Account Suspended</div><div style="color:#64748b;font-size:.9rem;max-width:400px;margin-top:8px">'+(_sj.status.suspendReason||'Your account has been suspended.')+'</div></div>';return;}
+      }
+    }
+  } catch(_e){}
   document.getElementById('dashMain').style.display = 'block';
   if (window.innerWidth <= 768) document.getElementById('mobBtn').style.display = 'flex';
   const name     = user.displayName || user.email?.split('@')[0] || 'Trader';

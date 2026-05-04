@@ -220,6 +220,24 @@ function adminAuth(req, res, next) {
   catch (e) { res.status(401).json({ success:false, error:'Invalid token' }); }
 }
 
+/* ── User status check endpoint (suspend/role/maintenance) ── */
+app.get('/api/user/status', async (req, res) => {
+  try {
+    if (!mongoConnected) return res.json({ success:true, status:{ maintenance:false, suspended:false } });
+    const settingsRow = await Settings.findOne({ key:'maintenance_mode' });
+    const maintenance = settingsRow?.value === true || settingsRow?.value === 'true';
+    const { uid } = req.query;
+    if (!uid) return res.json({ success:true, status:{ maintenance, suspended:false } });
+    const record = await UserRecord.findOne({ firebaseUid: uid });
+    res.json({ success:true, status:{
+      maintenance,
+      suspended: record?.suspended || false,
+      suspendReason: record?.suspendReason || '',
+      role: record?.role || 'user',
+    }});
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
 /* ── Firebase token middleware ── */
 async function verifyFirebaseToken(req, res, next) {
   const auth = req.headers['authorization'];

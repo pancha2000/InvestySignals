@@ -197,8 +197,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
       <a href="#" onclick="openTab('tab-watchlist');return false"><span class="ni">⭐</span> Watchlist</a>
       <div class="ds-section">Account</div>
-      <a href="profile.html" class="active"><span class="ni">👤</span> My Profile</a>
-      <a href="profile.html#settings" onclick="openTab('tab-settings');return false"><span class="ni">⚙️</span> Settings</a>
+      <a href="profile.html" class="active"><span class="ni">👤</span> Profile & Settings</a>
+      
       <div class="ds-section">Support</div>
       <a href="index.html"><span class="ni">🏠</span> Home</a>
     </nav>
@@ -235,7 +235,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       <button class="tab-btn" onclick="openTab('tab-watchlist')">⭐ Watchlist</button>
       <button class="tab-btn" onclick="openTab('tab-stats')">📈 My Stats</button>
       <button class="tab-btn" onclick="openTab('tab-security')">🔒 Security</button>
-      <button class="tab-btn" onclick="openTab('tab-settings')">📐 Indicator Settings</button>
+      <button class="tab-btn" onclick="openTab('tab-settings')">⚙️ Settings</button>
     </div>
 
     <!-- Tab: Profile -->
@@ -708,23 +708,34 @@ window._auth = auth;
 window._updateProfile = updateProfile;
 window._updatePassword = updatePassword;
 
-onAuthStateChanged(auth, u => {
+onAuthStateChanged(auth, async u => {
   document.getElementById('authGuard').style.display='none';
   if(!u){window.location.href='login.html';return;}
+
+  // Maintenance + suspend check
+  try {
+    const sr = await fetch('/api/user/status?uid='+encodeURIComponent(u.uid));
+    const sj = await sr.json();
+    if(sj.success){
+      if(sj.status.maintenance){
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">We're making improvements. Please check back shortly.</div></div>';
+        return;
+      }
+      if(sj.status.suspended){
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:20px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Account Suspended</div><div style="color:#64748b;font-size:.9rem;max-width:400px;margin-top:8px">'+(sj.status.suspendReason||'Your account has been suspended.')+'</div><a href="mailto:support@investysignals.store" style="color:#00d4ff;font-size:.85rem;text-decoration:none;margin-top:8px">Contact Support →</a></div>';
+        return;
+      }
+    }
+  } catch(_) {}
+
   document.getElementById('dashMain').style.display='block';
   const name=u.displayName||u.email?.split('@')[0]||'Trader';
   const ini=name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)||'U';
-  ['userAvatar','bigAvatar'].forEach(id=>document.getElementById(id).textContent=ini);
-  document.getElementById('userName').textContent=name;
-  document.getElementById('userEmail').textContent=u.email||'';
-  document.getElementById('heroName').textContent=name;
-  document.getElementById('heroEmail').textContent=u.email||'';
-  const created=u.metadata?.creationTime?new Date(u.metadata.creationTime).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'Unknown';
-  document.getElementById('heroJoined').textContent='Member since '+created;
-  document.getElementById('inp-displayName').value=name;
-  document.getElementById('inp-email').value=u.email||'';
-  loadPrefs();loadPaperStats();loadWatchlist();
-  if(location.hash==='#settings')openTab('tab-settings');
+  ['userAvatar','bigAvatar'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=ini;});
+  ['userName','bigName'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=name;});
+  ['userEmail','bigEmail'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=u.email||'';});
+  loadProfile();
+  if(window.location.hash==='#settings') openTab('tab-settings');
 });
 window.handleSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
 </script>
