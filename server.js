@@ -245,11 +245,23 @@ async function verifyFirebaseToken(req, res, next) {
 
 /* Admin login — rate limited */
 app.post('/api/admin/login', loginLimiter, async (req, res) => {
-  const { username, password } = req.body;
-  if (username !== (process.env.ADMIN_USERNAME||'admin') || password !== (process.env.ADMIN_PASSWORD||'admin123'))
-    return res.status(401).json({ success:false, error:'Invalid credentials' });
-  const token = jwt.sign({ username, role:'admin' }, JWT_SECRET, { expiresIn:'12h' });
-  res.json({ success:true, token, expiresIn:'12h' });
+  try {
+    const { username, password } = req.body;
+    if (!username || !password)
+      return res.status(400).json({ success:false, error:'Username and password required' });
+    const expectedUser = process.env.ADMIN_USERNAME || 'admin';
+    const expectedPass = process.env.ADMIN_PASSWORD || 'admin123';
+    if (username !== expectedUser || password !== expectedPass) {
+      console.warn(`[ADMIN] Failed login attempt — user: "${username}" from IP: ${req.ip}`);
+      return res.status(401).json({ success:false, error:'Invalid credentials' });
+    }
+    const token = jwt.sign({ username, role:'admin' }, JWT_SECRET, { expiresIn:'12h' });
+    console.log(`[ADMIN] Login success — user: "${username}" from IP: ${req.ip}`);
+    res.json({ success:true, token, expiresIn:'12h' });
+  } catch(e) {
+    console.error('[ADMIN] Login error:', e.message);
+    res.status(500).json({ success:false, error:'Server error during login' });
+  }
 });
 app.get('/api/admin/verify', adminAuth, (req, res) => res.json({ success:true, admin:req.admin }));
 

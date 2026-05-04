@@ -622,7 +622,7 @@ async function submitReport() {
   const message  = document.getElementById('repMessage').value.trim();
   const resultEl = document.getElementById('repResult');
   const btn      = document.getElementById('btnSubmitReport');
-  if (!message || message.length < 5) { resultEl.style.color='#ef4444'; resultEl.textContent='Please describe the issue.'; return; }
+  if (!message || message.length < 3) { resultEl.style.color='#ef4444'; resultEl.textContent='⚠️ Please enter at least 3 characters to describe the issue.'; return; }
   btn.disabled=true; btn.textContent='Sending…';
   try {
     const user = window._currentUser;
