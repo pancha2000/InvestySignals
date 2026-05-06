@@ -39,7 +39,7 @@ try {
   console.log('✅ Rate limiter active (login: 20/15min)');
 } catch (_) {}
 
-/* ── Body parser — must come before static, limit covers base64 image uploads ── */
+/* ── Body parser (5mb covers base64 image uploads; must come before routes) ── */
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -169,6 +169,19 @@ async function seedDefaultSettings() {
     { key:'social_twitter',value:'',label:'Twitter / X URL',group:'social' },
     { key:'social_discord',value:'',label:'Discord Server URL',group:'social' },
     { key:'social_youtube',value:'',label:'YouTube Channel URL',group:'social' },
+    /* ── Feature Flags ── */
+    { key:'feature_analysis',value:true,label:'Analysis Feature',group:'features' },
+    { key:'feature_live_signals',value:true,label:'Live Signals Feature',group:'features' },
+    { key:'feature_paper_trading',value:true,label:'Paper Trading Feature',group:'features' },
+    { key:'feature_backtest',value:true,label:'Backtest Feature',group:'features' },
+    { key:'feature_scanner',value:true,label:'Scanner Feature',group:'features' },
+    { key:'allow_registration',value:true,label:'Allow New Registrations',group:'features' },
+    { key:'maintenance_message',value:'We are making improvements. Please check back shortly.',label:'Maintenance Message',group:'general' },
+    { key:'gate_analysis_login',value:false,label:'Analysis requires login',group:'gates' },
+    { key:'gate_analysis_premium',value:false,label:'Analysis requires premium',group:'gates' },
+    { key:'gate_signals_login',value:false,label:'Signals require login',group:'gates' },
+    { key:'gate_paper_login',value:false,label:'Paper trading requires login',group:'gates' },
+    { key:'min_publish_grade',value:'C',label:'Min Signal Grade to Publish',group:'signals' },
     ...indicatorDefaults,
   ];
   for (const d of defaults) {
@@ -497,7 +510,7 @@ app.get('/api/announcement', async (req, res) => {
 app.get('/api/settings/public', async (req, res) => {
   if (!mongoConnected) return res.json({ success:true, data:{} });
   try {
-    const PUBLIC_KEYS = ['site_name','site_tagline','site_url','footer_text','adsense_enabled','adsense_publisher_id','adsense_auto_ads','adsense_slot_header','adsense_slot_sidebar','adsense_slot_inline','adsense_slot_footer','seo_title','seo_description','seo_keywords','og_image','google_analytics_id','signals_disclaimer','social_telegram','social_twitter','social_discord','social_youtube','maintenance_mode','register_open'];
+    const PUBLIC_KEYS = ['site_name','site_tagline','site_url','footer_text','adsense_enabled','adsense_publisher_id','adsense_auto_ads','adsense_slot_header','adsense_slot_sidebar','adsense_slot_inline','adsense_slot_footer','seo_title','seo_description','seo_keywords','og_image','google_analytics_id','signals_disclaimer','social_telegram','social_twitter','social_discord','social_youtube','maintenance_mode','maintenance_message','register_open','allow_registration','feature_analysis','feature_live_signals','feature_paper_trading','feature_backtest','feature_scanner','gate_analysis_login','gate_analysis_premium','gate_signals_login','gate_paper_login','min_publish_grade'];
     const rows = await Settings.find({ key:{ $in:PUBLIC_KEYS } });
     const data = {};
     rows.forEach(r => { data[r.key] = r.value; });
@@ -570,7 +583,7 @@ app.get('/api/admin/reports', adminAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
-/* IMPORTANT: unread-count MUST be before /:id routes or Express catches it as an id */
+/* MUST be before /:id — otherwise 'unread-count' is caught as an id param */
 app.get('/api/admin/reports/unread-count', adminAuth, async (req, res) => {
   try {
     const count = await Report.countDocuments({ status:'open' });
@@ -620,7 +633,7 @@ app.get('/api/my-reports', async (req, res) => {
     if (!uid) return res.status(400).json({ success:false, error:'uid required' });
     const data = await Report.find({ reporterUid: uid })
       .sort({ createdAt:-1 }).limit(20)
-      .select('-imageBase64');
+      .select('-imageBase64'); // exclude heavy base64 from list
     res.json({ success:true, data });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
