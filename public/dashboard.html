@@ -371,8 +371,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 <div id="toastBox"></div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 const auth = getAuth(initializeApp({
   apiKey:"AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
   authDomain:"crypto-98b33.firebaseapp.com",projectId:"crypto-98b33",
@@ -390,7 +390,7 @@ onAuthStateChanged(auth, async u => {
     const sj = await sr.json();
     if(sj.success){
       if(sj.status.maintenance){
-        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">We're making improvements. Please check back shortly.</div></div>';
+        document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">We&#39;re making improvements. Please check back shortly.</div></div>';
         return;
       }
       if(sj.status.suspended){
