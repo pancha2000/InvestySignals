@@ -234,16 +234,23 @@ function adminAuth(req, res, next) {
 }
 
 /* ── User status check endpoint (suspend/role/maintenance) ── */
+let _lastMaintenance = false; // cache last known state
 app.get('/api/user/status', async (req, res) => {
   try {
-    if (!mongoConnected) return res.json({ success:true, status:{ maintenance:false, suspended:false } });
-    const settingsRow = await Settings.findOne({ key:'maintenance_mode' });
-    const maintenance = settingsRow?.value === true || settingsRow?.value === 'true';
+    if (!mongoConnected) return res.json({ success:true, status:{ maintenance:_lastMaintenance, suspended:false } });
+    const [settingsRow, msgRow] = await Promise.all([
+      Settings.findOne({ key:'maintenance_mode' }),
+      Settings.findOne({ key:'maintenance_message' }),
+    ]);
+    const maintenance = !!(settingsRow?.value === true || settingsRow?.value === 'true' || settingsRow?.value === 1);
+    _lastMaintenance = maintenance;
+    const maintenanceMsg = msgRow?.value || 'We are making improvements. Please check back shortly.';
     const { uid } = req.query;
-    if (!uid) return res.json({ success:true, status:{ maintenance, suspended:false } });
+    if (!uid) return res.json({ success:true, status:{ maintenance, maintenanceMsg, suspended:false } });
     const record = await UserRecord.findOne({ firebaseUid: uid });
     res.json({ success:true, status:{
       maintenance,
+      maintenanceMsg,
       suspended: record?.suspended || false,
       suspendReason: record?.suspendReason || '',
       role: record?.role || 'user',
@@ -345,22 +352,7 @@ app.get('/api/admin/settings', adminAuth, async (req, res) => {
   catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 app.put('/api/admin/settings/:key', adminAuth, async (req, res) => {
-  try {
-    const saved = await Settings.findOneAndUpdate({ key:req.params.key }, { value:req.body.value }, { new:true, upsert:true });
-    // Broadcast maintenance changes instantly to all connected clients
-    if (req.params.key === 'maintenance_mode' || req.params.key === 'maintenance_message') {
-      const [modeRow, msgRow] = await Promise.all([
-        Settings.findOne({ key:'maintenance_mode' }),
-        Settings.findOne({ key:'maintenance_message' }),
-      ]);
-      const active = modeRow?.value === true || modeRow?.value === 'true';
-      const message = msgRow?.value || 'We are making improvements. Please check back shortly.';
-      wss.clients.forEach(c => {
-        if (c.readyState === WebSocket.OPEN) try { c.send(JSON.stringify({ type:'maintenance', active, message })); } catch(_) {}
-      });
-    }
-    res.json({ success:true, data:saved });
-  }
+  try { const s = await Settings.findOneAndUpdate({ key:req.params.key }, { value:req.body.value }, { new:true, upsert:true }); res.json({ success:true, data:s }); }
   catch (e) { res.status(400).json({ success:false, error:e.message }); }
 });
 app.post('/api/admin/settings/bulk', adminAuth, async (req, res) => {
