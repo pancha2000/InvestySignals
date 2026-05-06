@@ -339,6 +339,16 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
 
 <!-- Firebase SDK -->
 <script type="module">
+// Maintenance check
+(async()=>{
+  try{
+    const r=await fetch('/api/settings/public');
+    const j=await r.json();
+    if(j.success && j.data.maintenance_mode){
+      document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">'+(j.data.maintenance_message||'We are making improvements. Please check back shortly.')+'</div></div>';
+    }
+  }catch(_){}
+})();
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js";
