@@ -261,13 +261,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       <a href="analysis.html" class="active"><span class="ni">🔬</span> Analysis</a>
       <a href="backtest.html"><span class="ni">📈</span> Signal Tracker <span class="ds-badge cyan">BACKTEST</span></a>
       <div class="ds-section">Market</div>
-      <a href="dashboard.html"><span class="ni">📈</span> Top Gainers</a>
-      <a href="dashboard.html"><span class="ni">📰</span> Market News</a>
+      <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
+      <a href="dashboard.html#news"><span class="ni">📰</span> Market News</a>
       <div class="ds-section">Account</div>
-      <a href="profile.html"><span class="ni">👤</span> My Profile</a>
-      <a href="profile.html"><span class="ni">⚙️</span> Settings</a>
+      <a href="profile.html"><span class="ni">👤</span> Profile & Settings</a>
       <div class="ds-section">Support</div>
       <a href="index.html"><span class="ni">🏠</span> Home</a>
+      <a href="report.html"><span class="ni">🚩</span> Report Issue</a>
     </nav>
     <div class="ds-footer">
       <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
@@ -381,7 +381,7 @@ onAuthStateChanged(auth,async(user)=>{
 
   // Maintenance + suspend check
   try {
-    const _uid = u?.uid || user?.uid || '';
+    const _uid = user?.uid || '';
     if(_uid){
       const _sr=await fetch('/api/user/status?uid='+encodeURIComponent(_uid));
       const _sj=await _sr.json();
@@ -392,6 +392,9 @@ onAuthStateChanged(auth,async(user)=>{
     }
   } catch(_e){}
   document.getElementById('dashMain').style.display='block';
+  // Re-load indicator settings now that Firebase auth is ready (merges user overrides)
+  window._auth = auth;
+  if (typeof loadGlobalIndicatorSettings === 'function') loadGlobalIndicatorSettings();
   const name=user.displayName||user.email?.split('@')[0]||'Trader';
   const ini=name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)||'U';
   document.getElementById('userAvatar').textContent=ini;
@@ -879,8 +882,8 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     else { ls += 5; ss += 5; } // truly ambiguous surge
   } else if (vol.ratio >= 0.8) { ls += 3; ss += 3; }
 
-  // F9: 4H Trend — highest weight, primary direction bias
-  if (t4) { if (t4.bias==='bull') { ls+=22; ss=Math.max(ss-12,0); } else if (t4.bias==='bear') { ss+=22; ls=Math.max(ls-12,0); } }
+  // F9: 4H Trend — highest weight, primary direction bias (counter penalty raised to -18)
+  if (t4) { if (t4.bias==='bull') { ls+=22; ss=Math.max(ss-18,0); } else if (t4.bias==='bear') { ss+=22; ls=Math.max(ls-18,0); } }
 
   // F10: Funding Rate — passed hard gate above; now nuanced scoring
   if (fr !== null) {
@@ -938,8 +941,11 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // N2: 15m EMA
   if (ema15m) { if (ema15m.stack?.includes('bull')) ls+=7; else if (ema15m.stack?.includes('bear')) ss+=7; }
 
-  // N3: 1D EMA
-  if (ema1d) { if (ema1d.stack?.includes('bull')) ls+=11; else if (ema1d.stack?.includes('bear')) ss+=11; }
+  // N3: 1D EMA - strong macro trend, high weight + counter penalty
+  if (ema1d) {
+    if (ema1d.stack?.includes('bull')) { ls+=13; ss=Math.max(ss-6,0); }
+    else if (ema1d.stack?.includes('bear')) { ss+=13; ls=Math.max(ls-6,0); }
+  }
 
   // N4: 15m BOS — CHoCH fix applied here too
   if (bos15m) {
@@ -955,8 +961,11 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     if (bos4h.choch) { if (bos4h.bullBOS) ls += 5; else if (bos4h.bearBOS) ss += 5; }
   }
 
-  // N6: BTC Context
-  if (btc && btc.bias !== 'neutral') { if (btc.bias==='bull') ls+=15; else ss+=15; }
+  // N6: BTC Context — macro signal with counter-direction penalty
+  if (btc && btc.bias !== 'neutral') {
+    if (btc.bias==='bull') { ls+=15; ss=Math.max(ss-8,0); }
+    else { ss+=15; ls=Math.max(ls-8,0); }
+  }
 
   // N7: MTF FVGs — capped at 18pts per direction
   if (mtfFVGs) {
@@ -1047,9 +1056,25 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   const MAX = 220;
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
-  let dir = lc > sc ? 'LONG' : sc > lc ? 'SHORT' : (macd && macd.trend==='bullish' ? 'LONG' : 'SHORT');
-  let conf = dir === 'LONG' ? lc : sc;
-  if (conf < 10) conf = Math.max(lc, sc, 10);
+  // Require minimum 8-point gap between LONG and SHORT scores to avoid coin-flip signals
+  const MIN_DIR_GAP = 8;
+  let dir, conf;
+  if (lc > sc && (lc - sc) >= MIN_DIR_GAP) {
+    dir = 'LONG';  conf = lc;
+  } else if (sc > lc && (sc - lc) >= MIN_DIR_GAP) {
+    dir = 'SHORT'; conf = sc;
+  } else {
+    // Scores too close — ambiguous, use 4H/MACD as tiebreaker but cap confidence
+    if (t4 && t4.bias !== 'neutral') {
+      dir = t4.bias === 'bull' ? 'LONG' : 'SHORT';
+    } else if (macd) {
+      dir = macd.trend === 'bullish' ? 'LONG' : 'SHORT';
+    } else {
+      dir = lc >= sc ? 'LONG' : 'SHORT';
+    }
+    conf = Math.min(Math.max(lc, sc), 55); // cap at 55 = always risk entry
+  }
+  if (conf < 10) conf = 10;
 
   const ind = { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
                 divergence:div, vwap, supertrend:st, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
@@ -1391,6 +1416,8 @@ async function runManualDeepScan() {
    DEEP SCAN v5
    ═════════════════════════════ */
 async function runDeepScan(symbol) {
+  // Refresh indicator settings to get latest admin/user values
+  if (typeof loadGlobalIndicatorSettings === 'function') { try { await loadGlobalIndicatorSettings(); } catch(_) {} }
   const container = document.getElementById('deepResult');
   container.style.display = 'block';
   container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">🔬</div><div class="empty-text">Deep scanning ${symbol}…</div><div class="empty-sub">15m · 1H · 4H · 1D · BTC · OBs · Fibonacci · S/R · Pivots · Patterns · Taker Ratio</div></div></div></div>`;
@@ -1494,7 +1521,7 @@ async function runDeepScan(symbol) {
     }
 
     // Low confidence — show signal with risk warning instead of blocking
-    const minConf = IS('ind_min_confidence', 62);
+    const minConf = IS('ind_min_confidence', 68);
     if (entry.confidence < minConf) {
       if (!entry.riskFlags) entry.riskFlags = [];
       entry.riskFlags.unshift('Low confluence score (' + entry.confidence + '%) — below minimum ' + minConf + '%. Reduce position size or skip.');
@@ -1616,7 +1643,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const borderCol  = isRisky ? 'rgba(255,195,51,.35)' : (dir==='LONG' ? 'rgba(0,255,136,.3)' : 'rgba(255,61,90,.3)');
   const headerBg   = isRisky ? 'linear-gradient(135deg,rgba(255,195,51,.06),rgba(255,195,51,.02))' : (dir==='LONG' ? 'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))' : 'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))');
 
-  const isLowConf = conf < IS('ind_min_confidence', 62);
+  const isLowConf = conf < IS('ind_min_confidence', 68);
   const riskBg    = isLowConf ? 'rgba(255,61,90,.06)' : 'rgba(255,195,51,.05)';
   const riskBdr   = isLowConf ? 'rgba(255,61,90,.25)' : 'rgba(255,195,51,.18)';
   const riskClr   = isLowConf ? 'var(--red)' : 'var(--yellow)';

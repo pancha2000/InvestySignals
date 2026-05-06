@@ -401,6 +401,7 @@ onAuthStateChanged(auth, async u => {
     }
   } catch(_) {}
 
+  window._auth = auth;
   document.getElementById('dashMain').style.display='block';
   const name=u.displayName||u.email?.split('@')[0]||'Trader';
   const ini=name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)||'U';

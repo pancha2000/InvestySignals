@@ -1,21 +1,56 @@
 /**
- * InvestySignals — Fibonacci + Utility Engine  v4
+ * InvestySignals — Fibonacci + Utility Engine  v5
  * public/analysis/indicator.js
+ *
+ * FIXED:
+ * - Renamed loadIndicatorSettings → loadGlobalIndicatorSettings (avoids conflict with profile.html)
+ * - Merges user overrides from /api/user/settings on top of admin defaults
+ * - IS() helper reads merged window.ISETTINGS
  */
 'use strict';
 
 window.ISETTINGS        = {};
 window.ISETTINGS_LOADED = false;
 
-async function loadIndicatorSettings() {
+async function loadGlobalIndicatorSettings() {
   try {
+    // 1. Load admin defaults (public endpoint)
     const r = await fetch('/api/settings/indicators');
     const j = await r.json();
-    if (j.success && j.data) { window.ISETTINGS = j.data; window.ISETTINGS_LOADED = true; }
+    if (j.success && j.data) {
+      window.ISETTINGS = Object.assign({}, j.data);
+      window.ISETTINGS_LOADED = true;
+    }
+  } catch (_) {}
+
+  // 2. Try merging user overrides on top (requires Firebase auth)
+  try {
+    const auth = window._auth || (window.firebase && window.firebase.auth && window.firebase.auth());
+    const user = auth && auth.currentUser;
+    if (user) {
+      const idToken = await user.getIdToken();
+      const ur = await fetch('/api/user/settings', {
+        headers: { Authorization: 'Bearer ' + idToken }
+      });
+      const uj = await ur.json();
+      if (uj.success && uj.overrides && Object.keys(uj.overrides).length > 0) {
+        // User overrides take precedence over admin defaults
+        Object.assign(window.ISETTINGS, uj.overrides);
+      }
+    }
   } catch (_) {}
 }
-function IS(key, def) { const v = window.ISETTINGS && window.ISETTINGS[key]; return (v != null && !isNaN(+v)) ? +v : def; }
-loadIndicatorSettings();
+
+function IS(key, def) {
+  const v = window.ISETTINGS && window.ISETTINGS[key];
+  return (v != null && !isNaN(+v)) ? +v : def;
+}
+
+// Call on load — also re-call after Firebase auth ready if needed
+loadGlobalIndicatorSettings();
+
+// Backward compat alias (profile.html defines its own loadIndicatorSettings — no conflict)
+window.loadGlobalIndicatorSettings = loadGlobalIndicatorSettings;
 
 /* ─── snapToFibEntry ─── */
 function snapToFibEntry(price, fibData, direction, atr) {

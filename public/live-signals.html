@@ -229,13 +229,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       <a href="analysis.html"><span class="ni">🔬</span> Analysis</a>
       <a href="backtest.html"><span class="ni">📈</span> Signal Tracker <span class="ds-badge cyan">BACKTEST</span></a>
       <div class="ds-section">Market</div>
-      <a href="dashboard.html"><span class="ni">📈</span> Top Gainers</a>
-      <a href="dashboard.html"><span class="ni">📰</span> Market News</a>
+      <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
+      <a href="dashboard.html#news"><span class="ni">📰</span> Market News</a>
       <div class="ds-section">Account</div>
-      <a href="profile.html"><span class="ni">👤</span> My Profile</a>
-      <a href="profile.html"><span class="ni">⚙️</span> Settings</a>
+      <a href="profile.html"><span class="ni">👤</span> Profile & Settings</a>
       <div class="ds-section">Support</div>
       <a href="index.html"><span class="ni">🏠</span> Home</a>
+      <a href="report.html"><span class="ni">🚩</span> Report Issue</a>
     </nav>
     <div class="ds-footer">
       <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
@@ -317,7 +317,7 @@ onAuthStateChanged(auth, async (user) => {
 
   // Maintenance + suspend check
   try {
-    const _uid = u?.uid || user?.uid || '';
+    const _uid = user?.uid || '';
     if(_uid){
       const _sr=await fetch('/api/user/status?uid='+encodeURIComponent(_uid));
       const _sj=await _sr.json();
@@ -327,6 +327,7 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
   } catch(_e){}
+  window._auth = auth;
   document.getElementById('dashMain').style.display = 'block';
   if (window.innerWidth <= 768) document.getElementById('mobBtn').style.display = 'flex';
   const name     = user.displayName || user.email?.split('@')[0] || 'Trader';
