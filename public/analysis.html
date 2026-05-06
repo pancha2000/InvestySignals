@@ -371,8 +371,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 <!-- Firebase auth -->
 <!-- Firebase -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 const app=initializeApp({apiKey:"AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",authDomain:"crypto-98b33.firebaseapp.com",projectId:"crypto-98b33",storageBucket:"crypto-98b33.firebasestorage.app",messagingSenderId:"619954501803",appId:"1:619954501803:web:559d48b801f072abd71fee"});
 const auth=getAuth(app);
 onAuthStateChanged(auth,async(user)=>{

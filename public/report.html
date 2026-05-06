@@ -206,8 +206,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 const auth = getAuth(initializeApp({
   apiKey:"AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",
   authDomain:"crypto-98b33.firebaseapp.com",projectId:"crypto-98b33",
@@ -246,7 +246,7 @@ onAuthStateChanged(auth, async u => {
   initTicker();
 });
 window.handleSignOut=async()=>{
-  const {signOut:so,getAuth:ga}=await import("https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js");
+  const {signOut:so,getAuth:ga}=await import("https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js");
   await signOut(auth);window.location.href='index.html';
 };
 </script>

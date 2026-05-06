@@ -570,6 +570,14 @@ app.get('/api/admin/reports', adminAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
+/* Admin: unread count — MUST be before /:id routes */
+app.get('/api/admin/reports/unread-count', adminAuth, async (req, res) => {
+  try {
+    const count = await Report.countDocuments({ status:'open' });
+    res.json({ success:true, count });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
 /* Admin: get single report with image */
 app.get('/api/admin/reports/:id/detail', adminAuth, async (req, res) => {
   try {
@@ -627,13 +635,6 @@ app.get('/api/my-reports/:id', async (req, res) => {
     if (r.reporterUid !== uid) return res.status(403).json({ success:false, error:'Forbidden' });
     res.json({ success:true, data:r });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
-});
-
-app.get('/api/admin/reports/unread-count', adminAuth, async (req, res) => {
-  try {
-    const count = await Report.countDocuments({ status:'open' });
-    res.json({ success:true, count });
-  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
 /* ── Market data ── */
