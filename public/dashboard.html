@@ -420,7 +420,7 @@ onAuthStateChanged(auth, async u => {
       if(!j.success)return;
       if(j.status.maintenance||j.status.suspended)window.location.reload();
     }catch(_){}
-  },60000);
+  },15000);
 });
 window.handleSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
 </script>
@@ -532,6 +532,9 @@ function wsStatus(s){
     else{el.textContent=s==='connected'?'Live market data connected':s==='connecting'?'Connecting to live data…':'Market data offline';}
   });
 }
+function _showMaintenance(msg){
+  document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">'+(msg||'We are making improvements. Please check back shortly.')+'</div></div>';
+}
 function connectWS(){
   wsStatus('connecting');
   try{
@@ -543,6 +546,7 @@ function connectWS(){
         if(d.type==='market_update'){if(d.ticker)updatePrices(d.ticker);if(d.topGainers)updateGainers(d.topGainers);}
         if(d.type==='signal_update'){loadSignals();addAct('sig','📡 New signal published!');showToast('sig','📡 New Signal!','A new signal was just published.',()=>location.href='analysis.html');}
         if(d.type==='announcement'&&d.data){const a=d.data,el=document.getElementById('annBanner');el.className=a.type;el.style.display='block';document.getElementById('annTitle').textContent=a.title;document.getElementById('annMsg').textContent=a.message;addAct('ann',`📢 <strong>${a.title}</strong>`);showToast('ann','📢 '+a.title,a.message);}
+        if(d.type==='maintenance'&&d.active){_showMaintenance(d.message);}
       }catch(_){}
     };
     ws.onclose=()=>{wsStatus('disconnected');setTimeout(connectWS,wsRetry=Math.min(wsRetry*1.5,15000));};

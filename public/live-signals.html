@@ -430,6 +430,7 @@ function initPage() {
   renderAll();
   setInterval(fetchPricesNow,5000);
   connectWS();
+  if(window._uid) setInterval(async()=>{try{const r=await fetch('/api/user/status?uid='+encodeURIComponent(window._uid));const j=await r.json();if(j.success&&(j.status.maintenance||j.status.suspended))window.location.reload();}catch(_){}},15000);
 }
 function renderAll() { updateStats(); renderTradeList(); }
 
@@ -797,6 +798,9 @@ function doCancelOrder() {
   saveTrades(trades); closeConfirmModal(); renderAll();
 }
 
+function _showMaintenance(msg){
+  document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">'+(msg||'We are making improvements. Please check back shortly.')+'</div></div>';
+}
 /* ── WebSocket ──────────────────────────────────────────────── */
 const wsProto=location.protocol==='https:'?'wss:':'ws:';
 let ws,wsRetry=1000;
@@ -808,6 +812,7 @@ function connectWS(){
       try{
         const data=JSON.parse(e.data);
         if(data.type==='market_update'&&data.ticker){data.ticker.forEach(c=>{livePrices[c.symbol]=c.price;});updateTicker(data.ticker);}
+        if(data.type==='maintenance'&&data.active){_showMaintenance(data.message);}
       }catch(_){}
     };
     ws.onclose=()=>setTimeout(connectWS,wsRetry=Math.min(wsRetry*1.5,15000));
