@@ -39,9 +39,9 @@ try {
   console.log('✅ Rate limiter active (login: 20/15min)');
 } catch (_) {}
 
-/* ── Body size limit (1MB max — prevents large payload attacks) ── */
+/* ── Body parser — must come before static, limit covers base64 image uploads ── */
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json({ limit: '1mb' }));
 
 /* ── Schemas ── */
 const signalSchema = new mongoose.Schema({
@@ -570,7 +570,7 @@ app.get('/api/admin/reports', adminAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
-/* Admin: unread count — MUST be before /:id routes */
+/* IMPORTANT: unread-count MUST be before /:id routes or Express catches it as an id */
 app.get('/api/admin/reports/unread-count', adminAuth, async (req, res) => {
   try {
     const count = await Report.countDocuments({ status:'open' });
@@ -620,7 +620,7 @@ app.get('/api/my-reports', async (req, res) => {
     if (!uid) return res.status(400).json({ success:false, error:'uid required' });
     const data = await Report.find({ reporterUid: uid })
       .sort({ createdAt:-1 }).limit(20)
-      .select('-imageBase64'); // exclude heavy base64 from list
+      .select('-imageBase64');
     res.json({ success:true, data });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
