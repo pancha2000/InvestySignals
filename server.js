@@ -185,7 +185,12 @@ async function seedDefaultSettings() {
     ...indicatorDefaults,
   ];
   for (const d of defaults) {
-    await Settings.findOneAndUpdate({ key:d.key }, d, { upsert:true, new:true });
+    // $setOnInsert: only set value when creating NEW doc, never overwrite admin changes
+    await Settings.findOneAndUpdate(
+      { key:d.key },
+      { $setOnInsert: d },
+      { upsert:true, new:true }
+    );
   }
   console.log('[MongoDB] Settings seeded (' + defaults.length + ' keys)');
 }
