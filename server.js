@@ -234,16 +234,17 @@ function adminAuth(req, res, next) {
 }
 
 /* ── User status check endpoint (suspend/role/maintenance) ── */
-let _lastMaintenance = false; // cache last known state
+let _cachedMaintenance = false;
 app.get('/api/user/status', async (req, res) => {
   try {
-    if (!mongoConnected) return res.json({ success:true, status:{ maintenance:_lastMaintenance, suspended:false } });
-    const [settingsRow, msgRow] = await Promise.all([
+    if (!mongoConnected) return res.json({ success:true, status:{ maintenance:_cachedMaintenance, maintenanceMsg:'We are making improvements. Please check back shortly.', suspended:false } });
+    const [modeRow, msgRow] = await Promise.all([
       Settings.findOne({ key:'maintenance_mode' }),
       Settings.findOne({ key:'maintenance_message' }),
     ]);
-    const maintenance = !!(settingsRow?.value === true || settingsRow?.value === 'true' || settingsRow?.value === 1);
-    _lastMaintenance = maintenance;
+    const v = modeRow?.value;
+    const maintenance = v === true || v === 'true' || v === 1 || v === '1';
+    _cachedMaintenance = maintenance;
     const maintenanceMsg = msgRow?.value || 'We are making improvements. Please check back shortly.';
     const { uid } = req.query;
     if (!uid) return res.json({ success:true, status:{ maintenance, maintenanceMsg, suspended:false } });
@@ -352,7 +353,26 @@ app.get('/api/admin/settings', adminAuth, async (req, res) => {
   catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 app.put('/api/admin/settings/:key', adminAuth, async (req, res) => {
-  try { const s = await Settings.findOneAndUpdate({ key:req.params.key }, { value:req.body.value }, { new:true, upsert:true }); res.json({ success:true, data:s }); }
+  try {
+    const saved = await Settings.findOneAndUpdate({ key:req.params.key }, { value:req.body.value }, { new:true, upsert:true });
+    // Instantly push maintenance changes to all connected clients
+    if (req.params.key === 'maintenance_mode' || req.params.key === 'maintenance_message') {
+      const [modeRow, msgRow] = await Promise.all([
+        Settings.findOne({ key:'maintenance_mode' }),
+        Settings.findOne({ key:'maintenance_message' }),
+      ]);
+      const v = modeRow?.value;
+      const active = v === true || v === 'true' || v === 1 || v === '1';
+      _cachedMaintenance = active;
+      const message = msgRow?.value || 'We are making improvements. Please check back shortly.';
+      wss.clients.forEach(c => {
+        if (c.readyState === WebSocket.OPEN) {
+          try { c.send(JSON.stringify({ type:'maintenance', active, message })); } catch(_) {}
+        }
+      });
+    }
+    res.json({ success:true, data:saved });
+  }
   catch (e) { res.status(400).json({ success:false, error:e.message }); }
 });
 app.post('/api/admin/settings/bulk', adminAuth, async (req, res) => {
@@ -441,7 +461,13 @@ app.delete('/api/admin/users/:uid', adminAuth, async (req, res) => {
 app.put('/api/admin/users/:uid/role', adminAuth, async (req, res) => {
   try {
     if (!['user','premium','admin'].includes(req.body.role)) return res.status(400).json({ success:false, error:'Invalid role' });
-    res.json({ success:true, data: await UserRecord.findOneAndUpdate({ firebaseUid:req.params.uid }, { role:req.body.role }, { new:true }) });
+    const r = await UserRecord.findOneAndUpdate(
+      { firebaseUid:req.params.uid },
+      { $set:{ role:req.body.role } },
+      { new:true, upsert:true, setDefaultsOnInsert:true }
+    );
+    if (!r) return res.status(404).json({ success:false, error:'User not found' });
+    res.json({ success:true, data:r });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
