@@ -247,15 +247,15 @@ app.get('/api/user/status', async (req, res) => {
     _cachedMaintenance = maintenance;
     const maintenanceMsg = msgRow?.value || 'We are making improvements. Please check back shortly.';
     const { uid } = req.query;
-    if (!uid) return res.json({ success:true, status:{ maintenance, maintenanceMsg, suspended:false } });
-    const record = await UserRecord.findOne({ firebaseUid: uid });
-    // Load feature flags and gates for frontend enforcement
+    // Load feature flags always (needed even without uid)
     const flagKeys = ['feature_analysis','feature_live_signals','feature_paper_trading',
       'feature_backtest','feature_scanner','gate_analysis_login','gate_analysis_premium',
       'gate_signals_login','gate_paper_login','allow_registration'];
     const flagRows = await Settings.find({ key:{ $in:flagKeys } });
     const flags = {};
     flagRows.forEach(r => { flags[r.key] = r.value; });
+    if (!uid) return res.json({ success:true, status:{ maintenance, maintenanceMsg, suspended:false, flags } });
+    const record = await UserRecord.findOne({ firebaseUid: uid });
     res.json({ success:true, status:{
       maintenance,
       maintenanceMsg,
