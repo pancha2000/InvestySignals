@@ -180,6 +180,47 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 
 <meta name="robots" content="noindex,nofollow">
 <meta property="og:description" content="Access your InvestySignals dashboard. Live signals, market analysis, and paper trading.">
+<script>
+window._adCfg={};
+(async function(){
+  try{
+    var r=await fetch('/api/settings/public');
+    var j=await r.json();
+    if(!j.success)return;
+    var d=j.data||{};
+    window._adCfg={
+      adsense_enabled: d.adsense_enabled,
+      publisher_id: d.adsense_publisher_id,
+      slot_header: d.adsense_slot_header,
+      slot_sidebar: d.adsense_slot_sidebar,
+      slot_inline: d.adsense_slot_inline,
+      slot_footer: d.adsense_slot_footer,
+    };
+    if(!d.adsense_enabled||!d.adsense_publisher_id)return;
+    // Load AdSense script
+    var s=document.createElement('script');
+    s.async=true;s.crossOrigin='anonymous';
+    s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+d.adsense_publisher_id;
+    s.onload=function(){
+      document.querySelectorAll('.is-ad-ins').forEach(function(el){
+        el.setAttribute('data-ad-client',d.adsense_publisher_id);
+        // Pick appropriate slot
+        var slot='';
+        var pos=el.closest('[data-ad-pos]');
+        if(pos){
+          var p=pos.getAttribute('data-ad-pos');
+          slot=p==='header'?d.adsense_slot_header:p==='inline'?d.adsense_slot_inline:p==='footer'?d.adsense_slot_footer:d.adsense_slot_header;
+        }
+        if(slot)el.setAttribute('data-ad-slot',slot);
+        el.closest('.is-ad-unit').style.display='block';
+        try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}
+      });
+      if(d.adsense_auto_ads)try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}
+    };
+    document.head.appendChild(s);
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 
@@ -188,6 +229,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
   <div class="guard-spinner"></div>
 </div>
 
+
+<!-- Ad: Header Banner -->
+<div class="is-ad-unit" data-ad-pos="header" style="display:none;text-align:center;padding:6px 16px;background:var(--surface);border-bottom:1px solid var(--border)">
+  <ins class="adsbygoogle is-ad-ins"
+    style="display:block;min-height:50px"
+    data-ad-format="auto"
+    data-full-width-responsive="true"></ins>
+</div>
 <div id="annBanner">
   <strong id="annTitle"></strong>&nbsp;<span id="annMsg"></span>
   <button class="ann-close" onclick="this.parentElement.style.display='none'">✕</button>
@@ -365,7 +414,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
         </div>
       </div>
     </div>
-  </main>
+  
+<!-- Ad: Footer -->
+<div class="is-ad-unit" data-ad-pos="footer" style="display:none;text-align:center;padding:12px 16px;background:var(--surface);border-top:1px solid var(--border)">
+  <ins class="adsbygoogle is-ad-ins"
+    style="display:block;min-height:50px"
+    data-ad-format="auto"
+    data-full-width-responsive="true"></ins>
+</div>
+</main>
 </div>
 
 <div id="toastBox"></div>
@@ -399,12 +456,6 @@ onAuthStateChanged(auth, async u => {
         return;
       }
       window._userRole = sj.status.role || 'user';
-      window._userFlags = sj.status.flags || {};
-      // Hide paper trading section if disabled
-      if(window._userFlags.feature_paper_trading === false){
-        const ptEl = document.getElementById('paperSection');
-        if(ptEl) ptEl.style.display='none';
-      }
     }
   } catch(_) {}
 
@@ -586,37 +637,7 @@ function initDash(){
 }
 </script>
 
-<script>
-/* AdSense loader — reads config from /api/settings/public */
-(async function loadAdSense(){
-  try{
-    const r = await fetch('/api/settings/public');
-    const j = await r.json();
-    const cfg = j.data || {};
-    if(!cfg.adsense_enabled || !cfg.adsense_publisher_id) return;
-    // Inject AdSense script
-    const s = document.createElement('script');
-    s.async = true;
-    s.crossOrigin = 'anonymous';
-    s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + cfg.adsense_publisher_id;
-    document.head.appendChild(s);
-    // Auto ads
-    if(cfg.adsense_auto_ads){
-      s.onload = function(){ (window.adsbygoogle=window.adsbygoogle||[]).push({}); };
-    }
-    // Inject Google Analytics if configured
-    if(cfg.google_analytics_id){
-      const ga = document.createElement('script');
-      ga.async = true;
-      ga.src = 'https://www.googletagmanager.com/gtag/js?id=' + cfg.google_analytics_id;
-      document.head.appendChild(ga);
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date()); gtag('config', cfg.google_analytics_id);
-    }
-  }catch(_){}
-})();
-</script>
+
 
 
 <!-- ══ REPORT MODAL ══ -->
