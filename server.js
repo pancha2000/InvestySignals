@@ -185,12 +185,7 @@ async function seedDefaultSettings() {
     ...indicatorDefaults,
   ];
   for (const d of defaults) {
-    // $setOnInsert: only set value when creating NEW doc, never overwrite admin changes
-    await Settings.findOneAndUpdate(
-      { key:d.key },
-      { $setOnInsert: d },
-      { upsert:true, new:true }
-    );
+    await Settings.findOneAndUpdate({ key:d.key }, d, { upsert:true, new:true });
   }
   console.log('[MongoDB] Settings seeded (' + defaults.length + ' keys)');
 }
@@ -254,12 +249,20 @@ app.get('/api/user/status', async (req, res) => {
     const { uid } = req.query;
     if (!uid) return res.json({ success:true, status:{ maintenance, maintenanceMsg, suspended:false } });
     const record = await UserRecord.findOne({ firebaseUid: uid });
+    // Load feature flags and gates for frontend enforcement
+    const flagKeys = ['feature_analysis','feature_live_signals','feature_paper_trading',
+      'feature_backtest','feature_scanner','gate_analysis_login','gate_analysis_premium',
+      'gate_signals_login','gate_paper_login','allow_registration'];
+    const flagRows = await Settings.find({ key:{ $in:flagKeys } });
+    const flags = {};
+    flagRows.forEach(r => { flags[r.key] = r.value; });
     res.json({ success:true, status:{
       maintenance,
       maintenanceMsg,
       suspended: record?.suspended || false,
       suspendReason: record?.suspendReason || '',
       role: record?.role || 'user',
+      flags,
     }});
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
@@ -442,7 +445,7 @@ app.get('/api/admin/users', adminAuth, async (req, res) => {
 });
 app.post('/api/admin/users/:uid/suspend', adminAuth, async (req, res) => {
   try {
-    const r = await UserRecord.findOneAndUpdate({ firebaseUid:req.params.uid }, { suspended:true, suspendedAt:new Date(), suspendReason:req.body.reason||'Suspended by admin' }, { new:true });
+    const r = await UserRecord.findOneAndUpdate({ firebaseUid:req.params.uid }, { suspended:true, suspendedAt:new Date(), suspendReason:req.body.reason||'Suspended by admin' }, { new:true, upsert:true, setDefaultsOnInsert:true });
     if (!r) return res.status(404).json({ success:false, error:'User not found' });
     if (firebaseAdminReady) try { await firebaseAdmin.auth().updateUser(req.params.uid, { disabled:true }); } catch (_) {}
     res.json({ success:true, message:'User suspended', data:r });
@@ -450,7 +453,7 @@ app.post('/api/admin/users/:uid/suspend', adminAuth, async (req, res) => {
 });
 app.post('/api/admin/users/:uid/unsuspend', adminAuth, async (req, res) => {
   try {
-    const r = await UserRecord.findOneAndUpdate({ firebaseUid:req.params.uid }, { suspended:false, $unset:{ suspendedAt:1, suspendReason:1 } }, { new:true });
+    const r = await UserRecord.findOneAndUpdate({ firebaseUid:req.params.uid }, { suspended:false, $unset:{ suspendedAt:1, suspendReason:1 } }, { new:true, upsert:true, setDefaultsOnInsert:true });
     if (!r) return res.status(404).json({ success:false, error:'User not found' });
     if (firebaseAdminReady) try { await firebaseAdmin.auth().updateUser(req.params.uid, { disabled:false }); } catch (_) {}
     res.json({ success:true, message:'User unsuspended', data:r });

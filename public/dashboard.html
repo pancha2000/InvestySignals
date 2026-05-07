@@ -399,6 +399,12 @@ onAuthStateChanged(auth, async u => {
         return;
       }
       window._userRole = sj.status.role || 'user';
+      window._userFlags = sj.status.flags || {};
+      // Hide paper trading section if disabled
+      if(window._userFlags.feature_paper_trading === false){
+        const ptEl = document.getElementById('paperSection');
+        if(ptEl) ptEl.style.display='none';
+      }
     }
   } catch(_) {}
 
