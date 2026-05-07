@@ -207,8 +207,48 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
 .toast-title{font-family:var(--font-h);font-size:.95rem;font-weight:700;margin-bottom:2px;}
 .toast-body{font-size:.78rem;color:var(--muted);}
 </style>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5034247623532581" crossorigin="anonymous"></script>
 <link rel="canonical" href="https://investysignals.store/signals.html">
+<script>
+window._adCfg={};
+(async function(){
+  try{
+    var r=await fetch('/api/settings/public');
+    var j=await r.json();
+    if(!j.success)return;
+    var d=j.data||{};
+    window._adCfg={
+      adsense_enabled: d.adsense_enabled,
+      publisher_id: d.adsense_publisher_id,
+      slot_header: d.adsense_slot_header,
+      slot_sidebar: d.adsense_slot_sidebar,
+      slot_inline: d.adsense_slot_inline,
+      slot_footer: d.adsense_slot_footer,
+    };
+    if(!d.adsense_enabled||!d.adsense_publisher_id)return;
+    // Load AdSense script
+    var s=document.createElement('script');
+    s.async=true;s.crossOrigin='anonymous';
+    s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+d.adsense_publisher_id;
+    s.onload=function(){
+      document.querySelectorAll('.is-ad-ins').forEach(function(el){
+        el.setAttribute('data-ad-client',d.adsense_publisher_id);
+        // Pick appropriate slot
+        var slot='';
+        var pos=el.closest('[data-ad-pos]');
+        if(pos){
+          var p=pos.getAttribute('data-ad-pos');
+          slot=p==='header'?d.adsense_slot_header:p==='inline'?d.adsense_slot_inline:p==='footer'?d.adsense_slot_footer:d.adsense_slot_header;
+        }
+        if(slot)el.setAttribute('data-ad-slot',slot);
+        el.closest('.is-ad-unit').style.display='block';
+        try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}
+      });
+      if(d.adsense_auto_ads)try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}
+    };
+    document.head.appendChild(s);
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 
@@ -352,9 +392,6 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-b); line-
     const j=await r.json();
     if(j.success && j.data.maintenance_mode){
       document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">'+(j.data.maintenance_message||'We are making improvements. Please check back shortly.')+'</div></div>';
-    }
-    if(j.success && j.data.feature_scanner === false){
-      document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Feature Unavailable</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">The Market Scanner feature has been disabled by the administrator.</div></div>';return;
     }
   }catch(_){}
 })();
@@ -660,5 +697,13 @@ document.addEventListener('visibilitychange', function() {
   }
 });
 </script>
+
+<!-- Ad: Footer -->
+<div class="is-ad-unit" data-ad-pos="footer" style="display:none;text-align:center;padding:12px 16px;background:var(--surface);border-top:1px solid var(--border)">
+  <ins class="adsbygoogle is-ad-ins"
+    style="display:block;min-height:50px"
+    data-ad-format="auto"
+    data-full-width-responsive="true"></ins>
+</div>
 </body>
 </html>
