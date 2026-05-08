@@ -461,8 +461,18 @@ app.post('/api/admin/users/:uid/unsuspend', adminAuth, async (req, res) => {
 });
 app.delete('/api/admin/users/:uid', adminAuth, async (req, res) => {
   try {
-    await UserRecord.findOneAndDelete({ firebaseUid:req.params.uid });
-    if (firebaseAdminReady) try { await firebaseAdmin.auth().deleteUser(req.params.uid); } catch (_) {}
+    const uid = req.params.uid;
+    // Try by firebaseUid first, fallback to _id (ObjectId)
+    let deleted = await UserRecord.findOneAndDelete({ firebaseUid: uid });
+    if (!deleted) {
+      try { deleted = await UserRecord.findByIdAndDelete(uid); } catch (_) {}
+    }
+    if (!deleted) return res.status(404).json({ success:false, error:'User not found in database' });
+    // Delete from Firebase Auth
+    const fbUid = deleted.firebaseUid || (uid.length < 36 ? uid : null);
+    if (firebaseAdminReady && fbUid) {
+      try { await firebaseAdmin.auth().deleteUser(fbUid); } catch (_) {}
+    }
     res.json({ success:true, message:'User deleted' });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });

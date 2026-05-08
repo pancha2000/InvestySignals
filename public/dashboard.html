@@ -849,21 +849,46 @@ document.addEventListener('visibilitychange', function() {
           <p style="color:#64748b;font-size:.83rem">InvestySignals uses a 17-factor confluence engine</p>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-          ${[
-            ['📊','RSI + Stoch RSI','Overbought / oversold zones'],
-            ['📈','EMA Stack 20/50/200','Trend direction filter'],
-            ['⚡','MACD + Bollinger','Momentum & volatility'],
-            ['🏛️','Order Blocks (OB)','Smart Money levels'],
-            ['📐','Fibonacci + FVG','Precision entry zones'],
-            ['₿','BTC 4H Context','Macro market bias'],
-            ['📖','Order Book Depth','Buy/Sell wall detection'],
-            ['🕐','Candle Close Timer','Confirmation timing'],
-          ].map(([icon,title,desc]) => `
-            <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
-              <div style="font-size:1.1rem;margin-bottom:5px">${icon}</div>
-              <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">${title}</div>
-              <div style="font-size:.7rem;color:#64748b">${desc}</div>
-            </div>`).join('')}
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">📊</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">RSI + Stoch RSI</div>
+            <div style="font-size:.7rem;color:#64748b">Overbought / oversold zones</div>
+          </div>
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">📈</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">EMA Stack 20/50/200</div>
+            <div style="font-size:.7rem;color:#64748b">Trend direction filter</div>
+          </div>
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">⚡</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">MACD + Bollinger</div>
+            <div style="font-size:.7rem;color:#64748b">Momentum &amp; volatility</div>
+          </div>
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">🏛️</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Order Blocks (OB)</div>
+            <div style="font-size:.7rem;color:#64748b">Smart Money levels</div>
+          </div>
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">📐</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Fibonacci + FVG</div>
+            <div style="font-size:.7rem;color:#64748b">Precision entry zones</div>
+          </div>
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">₿</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">BTC 4H Context</div>
+            <div style="font-size:.7rem;color:#64748b">Macro market bias</div>
+          </div>
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">📖</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Order Book Depth</div>
+            <div style="font-size:.7rem;color:#64748b">Buy/Sell wall detection</div>
+          </div>
+          <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+            <div style="font-size:1.1rem;margin-bottom:5px">🕐</div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Candle Close Timer</div>
+            <div style="font-size:.7rem;color:#64748b">Confirmation timing</div>
+          </div>
         </div>
         <div style="display:flex;gap:10px">
           <button onclick="tutBack(2)" style="flex:1;padding:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;color:#64748b;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer">← Back</button>
@@ -879,20 +904,39 @@ document.addEventListener('visibilitychange', function() {
           <p style="color:#64748b;font-size:.83rem">What each part of an analysis card means</p>
         </div>
         <div style="background:#101827;border:1px solid #1a2640;border-radius:12px;padding:16px;margin-bottom:16px">
-          ${[
-            ['🟢 LONG / 🔴 SHORT','Direction — LONG = buy, SHORT = sell (futures)'],
-            ['Confidence %','How many of the 17 factors align. 80%+ = strong setup'],
-            ['Entry Price','Best confluence zone to place your order'],
-            ['TP1 / TP2','Take-profit targets. TP1 = first exit (50%), TP2 = runner'],
-            ['Stop Loss','Your invalidation level. Exit immediately if reached'],
-            ['⚡ Momentum','Last closed 1H candle confirms direction or not'],
-            ['🚫 Invalidation','Price level that "breaks" the setup thesis'],
-            ['⏳ Candle Close','Time left until 1H candle closes — wait before MARKET entry'],
-          ].map(([label, desc]) => `
-            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
-              <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">${label}</div>
-              <div style="font-size:.78rem;color:#94a3b8">${desc}</div>
-            </div>`).join('')}
+          <div style="display:flex;flex-direction:column;gap:0;">
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">🟢 LONG / 🔴 SHORT</div>
+            <div style="font-size:.78rem;color:#94a3b8">Direction — LONG = buy, SHORT = sell (futures)</div>
+          </div>
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">Confidence %</div>
+            <div style="font-size:.78rem;color:#94a3b8">How many of the 17 factors align. 80%+ = strong setup</div>
+          </div>
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">Entry Price</div>
+            <div style="font-size:.78rem;color:#94a3b8">Best confluence zone to place your order</div>
+          </div>
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">TP1 / TP2</div>
+            <div style="font-size:.78rem;color:#94a3b8">Take-profit targets. TP1 = first exit (50%), TP2 = runner</div>
+          </div>
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">Stop Loss</div>
+            <div style="font-size:.78rem;color:#94a3b8">Your invalidation level. Exit immediately if reached</div>
+          </div>
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">⚡ Momentum</div>
+            <div style="font-size:.78rem;color:#94a3b8">Last closed 1H candle confirms direction or not</div>
+          </div>
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">🚫 Invalidation</div>
+            <div style="font-size:.78rem;color:#94a3b8">Price level that "breaks" the setup thesis</div>
+          </div>
+          <div style="display:flex;gap:10px;padding:8px 0;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">⏳ Candle Close</div>
+            <div style="font-size:.78rem;color:#94a3b8">Time left until 1H candle closes — wait before MARKET entry</div>
+          </div>
         </div>
         <div style="display:flex;gap:10px">
           <button onclick="tutBack(3)" style="flex:1;padding:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;color:#64748b;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer">← Back</button>
@@ -908,21 +952,49 @@ document.addEventListener('visibilitychange', function() {
           <p style="color:#64748b;font-size:.83rem">Follow these rules to protect your capital</p>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
-          ${[
-            ['🎯','Use Stop Losses Always','Never enter a trade without a pre-set stop loss. Our SL levels are ATR-calibrated.'],
-            ['💰','Risk 1-2% Per Trade','Never risk more than 1-2% of your portfolio on a single signal.'],
-            ['⏳','Wait for Candle Close','For LIMIT entries, always wait for the 1H candle to close before confirming direction.'],
-            ['📉','80%+ Confidence Only','Low confidence signals (below 70%) are shown as RISK ENTRY — reduce size or skip.'],
-            ['🔄','Paper Trade First','Use our paper trading feature to practice before using real money.'],
-            ['❌','Signals ≠ Guarantees','No algorithm predicts the future. Always do your own research (DYOR).'],
-          ].map(([icon, title, desc]) => `
-            <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
-              <div style="font-size:1.2rem;flex-shrink:0">${icon}</div>
-              <div>
-                <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">${title}</div>
-                <div style="font-size:.75rem;color:#64748b">${desc}</div>
-              </div>
-            </div>`).join('')}
+          <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
+            <div style="font-size:1.2rem;flex-shrink:0">🎯</div>
+            <div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Use Stop Losses Always</div>
+              <div style="font-size:.75rem;color:#64748b">Never enter a trade without a pre-set stop loss. Our SL levels are ATR-calibrated.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
+            <div style="font-size:1.2rem;flex-shrink:0">💰</div>
+            <div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Risk 1-2% Per Trade</div>
+              <div style="font-size:.75rem;color:#64748b">Never risk more than 1-2% of your portfolio on a single signal.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
+            <div style="font-size:1.2rem;flex-shrink:0">⏳</div>
+            <div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Wait for Candle Close</div>
+              <div style="font-size:.75rem;color:#64748b">For LIMIT entries, always wait for the 1H candle to close before confirming direction.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
+            <div style="font-size:1.2rem;flex-shrink:0">📉</div>
+            <div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">80%+ Confidence Only</div>
+              <div style="font-size:.75rem;color:#64748b">Low confidence signals (below 70%) are shown as RISK ENTRY — reduce size or skip.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
+            <div style="font-size:1.2rem;flex-shrink:0">🔄</div>
+            <div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Paper Trade First</div>
+              <div style="font-size:.75rem;color:#64748b">Use our paper trading feature to practice before using real money.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
+            <div style="font-size:1.2rem;flex-shrink:0">❌</div>
+            <div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">Signals ≠ Guarantees</div>
+              <div style="font-size:.75rem;color:#64748b">No algorithm predicts the future. Always do your own research (DYOR).</div>
+            </div>
+          </div>
         </div>
         <div style="display:flex;gap:10px">
           <button onclick="tutBack(4)" style="flex:1;padding:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;color:#64748b;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer">← Back</button>
@@ -934,7 +1006,10 @@ document.addEventListener('visibilitychange', function() {
 
     <!-- Step dots -->
     <div style="display:flex;justify-content:center;gap:8px;padding:0 28px 20px">
-      ${[1,2,3,4].map(i => `<div class="tut-dot" id="tDot${i}" style="width:8px;height:8px;border-radius:50%;background:${i===1?'#00d4ff':'#1a2640'};transition:background .3s"></div>`).join('')}
+      <div class="tut-dot" id="tDot1" style="width:8px;height:8px;border-radius:50%;background:#00d4ff;transition:background .3s"></div>
+      <div class="tut-dot" id="tDot2" style="width:8px;height:8px;border-radius:50%;background:#1a2640;transition:background .3s"></div>
+      <div class="tut-dot" id="tDot3" style="width:8px;height:8px;border-radius:50%;background:#1a2640;transition:background .3s"></div>
+      <div class="tut-dot" id="tDot4" style="width:8px;height:8px;border-radius:50%;background:#1a2640;transition:background .3s"></div>
     </div>
   </div>
 </div>

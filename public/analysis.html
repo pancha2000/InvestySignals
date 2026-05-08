@@ -388,7 +388,12 @@ onAuthStateChanged(auth,async(user)=>{
       if(_sj.success){
         if(_sj.status.maintenance){const _mm=_sj.status.maintenanceMsg||'We are making improvements. Please check back shortly.';document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">'+_mm+'</div></div>';return;}
         if(_sj.status.suspended){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:20px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Account Suspended</div><div style="color:#64748b;font-size:.9rem;max-width:400px;margin-top:8px">'+(_sj.status.suspendReason||'Your account has been suspended.')+'</div></div>';return;}
+        // Feature gate checks from admin settings
+        const _fl = _sj.status.flags || {};
+        if(_fl.feature_analysis === false){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Feature Unavailable</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">The Deep Analysis feature has been disabled by the administrator.</div></div>';return;}
+        if(_fl.gate_analysis_premium && _sj.status.role !== 'premium' && _sj.status.role !== 'admin'){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">👑</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#00d4ff">Premium Required</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">Deep Analysis is a Premium feature. Upgrade your account to access it.</div></div>';return;}
         window._uid=_uid;
+        window._userRole=_sj.status.role||'user';
         // Poll every 15s for maintenance/suspend changes
         setInterval(async()=>{try{const _r=await fetch('/api/user/status?uid='+encodeURIComponent(_uid));const _j=await _r.json();if(_j.success&&(_j.status.maintenance||_j.status.suspended))window.location.reload();}catch(_){}},15000);
         // WS for instant maintenance push
@@ -847,7 +852,7 @@ function scoreGrade(s){return s>=85?{cls:'score-s',label:'S'}:s>=70?{cls:'score-
    MAX achievable raw score breakdown:
    LONG  MAX raw ≈ 285  (normalise → 100)
    ══════════════════════════════════════════════════════════ */
-function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, ex) {
+function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr, ex) {
   ex = ex || {};
   const {
     trend4h:t4=null, fundingRate:fr=null, oiChange:oi=null, divergence:div=null,
@@ -1796,7 +1801,7 @@ async function runDeepScan(symbol) {
       candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol, candleCloseTimer
     };
 
-    const entry = decideEntry(rsi, vol, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
+    const entry = decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
 
     // HARD BLOCK — market conditions unsafe, show explanation panel instead of signal
     if (entry.hardBlock) {
