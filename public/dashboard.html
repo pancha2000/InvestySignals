@@ -181,44 +181,41 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 <meta name="robots" content="noindex,nofollow">
 <meta property="og:description" content="Access your InvestySignals dashboard. Live signals, market analysis, and paper trading.">
 <script>
-window._adCfg={};
+/* AdSense + Analytics loader */
 (async function(){
   try{
-    var r=await fetch('/api/settings/public');
-    var j=await r.json();
-    if(!j.success)return;
-    var d=j.data||{};
-    window._adCfg={
-      adsense_enabled: d.adsense_enabled,
-      publisher_id: d.adsense_publisher_id,
-      slot_header: d.adsense_slot_header,
-      slot_sidebar: d.adsense_slot_sidebar,
-      slot_inline: d.adsense_slot_inline,
-      slot_footer: d.adsense_slot_footer,
-    };
-    if(!d.adsense_enabled||!d.adsense_publisher_id)return;
-    // Load AdSense script
-    var s=document.createElement('script');
-    s.async=true;s.crossOrigin='anonymous';
-    s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+d.adsense_publisher_id;
-    s.onload=function(){
-      document.querySelectorAll('.is-ad-ins').forEach(function(el){
-        el.setAttribute('data-ad-client',d.adsense_publisher_id);
-        // Pick appropriate slot
-        var slot='';
-        var pos=el.closest('[data-ad-pos]');
-        if(pos){
-          var p=pos.getAttribute('data-ad-pos');
-          slot=p==='header'?d.adsense_slot_header:p==='inline'?d.adsense_slot_inline:p==='footer'?d.adsense_slot_footer:d.adsense_slot_header;
-        }
-        if(slot)el.setAttribute('data-ad-slot',slot);
-        el.closest('.is-ad-unit').style.display='block';
+    const r = await fetch('/api/settings/public');
+    const d = (await r.json()).data || {};
+    // Google Analytics
+    if(d.google_analytics_id){
+      const ga=document.createElement('script');ga.async=true;
+      ga.src='https://www.googletagmanager.com/gtag/js?id='+d.google_analytics_id;
+      document.head.appendChild(ga);
+      window.dataLayer=window.dataLayer||[];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js',new Date());gtag('config',d.google_analytics_id);
+    }
+    // AdSense — only load if enabled AND publisher ID set
+    if(!d.adsense_enabled || !d.adsense_publisher_id) return;
+    const sc=document.createElement('script');
+    sc.async=true;sc.crossOrigin='anonymous';
+    sc.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+d.adsense_publisher_id;
+    sc.onload=function(){
+      // Show ad units and push them
+      document.querySelectorAll('.is-ad-wrap').forEach(function(wrap){
+        var ins=wrap.querySelector('ins');
+        if(!ins)return;
+        ins.setAttribute('data-ad-client',d.adsense_publisher_id);
+        var pos=wrap.getAttribute('data-pos');
+        var slot=pos==='header'?d.adsense_slot_header:pos==='footer'?d.adsense_slot_footer:d.adsense_slot_inline;
+        if(slot)ins.setAttribute('data-ad-slot',slot);
+        wrap.style.display='block';
         try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}
       });
       if(d.adsense_auto_ads)try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}
     };
-    document.head.appendChild(s);
-  }catch(e){}
+    document.head.appendChild(sc);
+  }catch(_){}
 })();
 </script>
 </head>
@@ -229,14 +226,6 @@ window._adCfg={};
   <div class="guard-spinner"></div>
 </div>
 
-
-<!-- Ad: Header Banner -->
-<div class="is-ad-unit" data-ad-pos="header" style="display:none;text-align:center;padding:6px 16px;background:var(--surface);border-bottom:1px solid var(--border)">
-  <ins class="adsbygoogle is-ad-ins"
-    style="display:block;min-height:50px"
-    data-ad-format="auto"
-    data-full-width-responsive="true"></ins>
-</div>
 <div id="annBanner">
   <strong id="annTitle"></strong>&nbsp;<span id="annMsg"></span>
   <button class="ann-close" onclick="this.parentElement.style.display='none'">✕</button>
@@ -307,6 +296,11 @@ window._adCfg={};
         <span id="heroWs">Connecting…</span>
       </div>
     </div>
+
+<!-- Ad: Header (inside content, after hero) -->
+<div class="is-ad-wrap" data-pos="header" style="display:none;margin:0 -24px 16px;padding:6px 0;background:var(--surface);border-bottom:1px solid var(--border);text-align:center">
+  <ins class="adsbygoogle" style="display:block" data-ad-format="auto" data-full-width-responsive="true"></ins>
+</div>
 
     <!-- Stats (real data only) -->
     <div class="stat-grid">
@@ -414,15 +408,12 @@ window._adCfg={};
         </div>
       </div>
     </div>
-  
+
 <!-- Ad: Footer -->
-<div class="is-ad-unit" data-ad-pos="footer" style="display:none;text-align:center;padding:12px 16px;background:var(--surface);border-top:1px solid var(--border)">
-  <ins class="adsbygoogle is-ad-ins"
-    style="display:block;min-height:50px"
-    data-ad-format="auto"
-    data-full-width-responsive="true"></ins>
+<div class="is-ad-wrap" data-pos="footer" style="display:none;margin:16px 0 0;padding:8px 0;border-top:1px solid var(--border);text-align:center">
+  <ins class="adsbygoogle" style="display:block" data-ad-format="auto" data-full-width-responsive="true"></ins>
 </div>
-</main>
+  </main>
 </div>
 
 <div id="toastBox"></div>
