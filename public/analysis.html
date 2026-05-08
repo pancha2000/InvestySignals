@@ -388,11 +388,6 @@ onAuthStateChanged(auth,async(user)=>{
       if(_sj.success){
         if(_sj.status.maintenance){const _mm=_sj.status.maintenanceMsg||'We are making improvements. Please check back shortly.';document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">'+_mm+'</div></div>';return;}
         if(_sj.status.suspended){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:20px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Account Suspended</div><div style="color:#64748b;font-size:.9rem;max-width:400px;margin-top:8px">'+(_sj.status.suspendReason||'Your account has been suspended.')+'</div></div>';return;}
-        // Feature flag + gate checks
-        const _fl = _sj.status.flags || {};
-        if(_fl.feature_analysis === false){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Feature Unavailable</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">The Analysis feature has been disabled by the administrator.</div></div>';return;}
-        if(_fl.gate_analysis_login && !_uid){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔒</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Login Required</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">Please log in to access this feature.</div><a href=\'login.html\' style=\'margin-top:12px;padding:10px 24px;background:#00d4ff;color:#070b14;border-radius:8px;text-decoration:none;font-weight:700\'>Login</a></div>';return;}
-        if(_fl.gate_analysis_premium && _sj.status.role !== 'premium' && _sj.status.role !== 'admin'){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">⭐</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ffd700">Premium Required</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">This feature requires a premium account. Contact admin to upgrade.</div></div>';return;}
         window._uid=_uid;
         // Poll every 15s for maintenance/suspend changes
         setInterval(async()=>{try{const _r=await fetch('/api/user/status?uid='+encodeURIComponent(_uid));const _j=await _r.json();if(_j.success&&(_j.status.maintenance||_j.status.suspended))window.location.reload();}catch(_){}},15000);
@@ -494,8 +489,11 @@ function calcVWAP(kl) {
   const sessionStart = now - (now % 86400000); // today 00:00 UTC
   // Filter candles from session start
   let sessionKl = kl.filter(k => k[0] >= sessionStart);
-  // Fallback: if fewer than 4 candles use last 24h
-  if (sessionKl.length < 4) sessionKl = kl.slice(-24);
+  // Fallback: use current UTC hour count (correct session candle count)
+  if (sessionKl.length < 2) {
+    const utcHour = new Date().getUTCHours();
+    sessionKl = kl.slice(-Math.max(utcHour, 1));
+  }
   let pv = 0, vol = 0;
   sessionKl.forEach(k => {
     const h = parseFloat(k[2]), l = parseFloat(k[3]), c = parseFloat(k[4]), v = parseFloat(k[5]);
@@ -801,7 +799,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // Funding: warning only, not a hard block
   // ══════════════════════════════════════════════════════
   const fundingGate = IS('ind_funding_gate', 0.25) / 100; // warning threshold only
-  const adxGate     = IS('ind_adx_choppy_gate', 18);
+  const adxGate     = IS('ind_adx_choppy_gate', 20);
 
   // ADX hard block — choppy market, no signal
   if (adx && adx.adx < adxGate) {
@@ -893,7 +891,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   } else if (vol.ratio >= 0.8) { ls += 3; ss += 3; }
 
   // F9: 4H Trend — highest weight, primary direction bias (counter penalty raised to -18)
-  if (t4) { if (t4.bias==='bull') { ls+=22; ss=Math.max(ss-18,0); } else if (t4.bias==='bear') { ss+=22; ls=Math.max(ls-18,0); } }
+  if (t4) { if (t4.bias==='bull') { ls+=22; ss=Math.max(ss-22,0); } else if (t4.bias==='bear') { ss+=22; ls=Math.max(ls-22,0); } }
 
   // F10: Funding Rate — passed hard gate above; now nuanced scoring
   if (fr !== null) {
@@ -924,8 +922,13 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     if (div.obvBull)     ls += 8;  if (div.obvBear)     ss += 8;
   }
 
-  // F13: VWAP (session-based)
-  if (vwap) { if (vwap.above && vwap.pct > 1.5) ls+=13; else if (vwap.above) ls+=8; else if (!vwap.above && vwap.pct < -1.5) ss+=13; else ss+=8; }
+  // F13: VWAP (session-based) — directional with counter-direction penalty
+  if (vwap) {
+    if (vwap.above && vwap.pct > 1.5)       { ls += 13; ss = Math.max(ss - 6, 0); }
+    else if (vwap.above)                     { ls += 8;  ss = Math.max(ss - 3, 0); }
+    else if (!vwap.above && vwap.pct < -1.5) { ss += 13; ls = Math.max(ls - 6, 0); }
+    else                                     { ss += 8;  ls = Math.max(ls - 3, 0); }
+  }
 
   // F14: Supertrend
   if (st) { if (st.bullish) ls+=13; else ss+=13; }
@@ -1062,12 +1065,12 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
-  // MAX recalibrated: realistic achievable max ≈ 220 (was 340 which inflated % gaps)
-  const MAX = 220;
+  // MAX recalibrated: realistic achievable max ≈ 260 (prevents score inflation)
+  const MAX = 260;
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
   // Require minimum 8-point gap between LONG and SHORT scores to avoid coin-flip signals
-  const MIN_DIR_GAP = 8;
+  const MIN_DIR_GAP = 12;
   let dir, conf;
   if (lc > sc && (lc - sc) >= MIN_DIR_GAP) {
     dir = 'LONG';  conf = lc;
@@ -1082,7 +1085,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     } else {
       dir = lc >= sc ? 'LONG' : 'SHORT';
     }
-    conf = Math.min(Math.max(lc, sc), 55); // cap at 55 = always risk entry
+    conf = Math.min(Math.max(lc, sc), 48); // cap at 48 = always risk entry
   }
   if (conf < 10) conf = 10;
 
@@ -1302,6 +1305,8 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   }
 
   const risk = dir === 'LONG' ? ep - sl : sl - ep;
+  // Enforce minimum RR 1.0 on TP1
+  if (risk > 0) { const rr1check = Math.abs(tp1 - ep) / risk; if (rr1check < 1.0) { if (dir === 'LONG') tp1 = ep + risk * 1.2; else tp1 = ep - risk * 1.2; } }
   const rrr1 = risk > 0 ? (Math.abs(tp1 - ep) / risk).toFixed(2) : '—';
   const rrr2 = risk > 0 ? (Math.abs(tp2 - ep) / risk).toFixed(2) : '—';
 
@@ -1561,7 +1566,7 @@ function renderBlocked(container, symbol, entry, curP, adx, fr) {
   const pair = symbol.replace('USDT', '/USDT');
   const reasons = entry.riskFlags || [];
   const fundingGate = IS('ind_funding_gate', 0.25);
-  const adxGate     = IS('ind_adx_choppy_gate', 18);
+  const adxGate     = IS('ind_adx_choppy_gate', 20);
 
   // Build indicator status rows
   const adxStatus = adx ? `
@@ -1844,7 +1849,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
 
   <!-- Score Bar -->
   <div class="score-bar-wrap">
-    <div class="score-bar-title">🏆 Confluence Score — ${conf < IS('ind_min_confidence',62) ? '🔴 LOW CONFIDENCE' : isRisky ? '⚠ Risk Entry' : '✅ Valid Signal'} (v5 · 25-Factor Engine)</div>
+    <div class="score-bar-title">🏆 Confluence Score — ${conf < IS('ind_min_confidence',68) ? '🔴 LOW CONFIDENCE' : isRisky ? '⚠ Risk Entry' : '✅ Valid Signal'} (v5 · 25-Factor Engine)</div>
     <div class="score-total">
       <div class="score-num" style="color:${sColor}">${conf}</div>
       <span class="score-badge ${sg.cls}" style="font-size:.9rem;padding:3px 10px">${sg.label}</span>
