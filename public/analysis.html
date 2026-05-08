@@ -948,13 +948,9 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     // flat/neutral OBV = no points added (previously always added 8 to SHORT incorrectly)
   }
 
-  // F8: Volume — directional using taker ratio context
-  if (vol.surge) {
-    // surge: favour direction indicated by taker ratio if available, else split small
-    if (takerRatio && takerRatio.buyDominant)  ls += 9;
-    else if (takerRatio && takerRatio.sellDominant) ss += 9;
-    else { ls += 5; ss += 5; } // truly ambiguous surge
-  } else if (vol.ratio >= 0.8) { ls += 3; ss += 3; }
+  // F8: Volume — pure volume surge signal (taker context used in N14 ONLY, not here)
+  if (vol.surge) { ls += 7; ss += 7; }         // direction-neutral surge — taker (N14) picks side
+  else if (vol.ratio >= 0.8) { ls += 2; ss += 2; }
 
   // F9: 4H Trend — highest weight, primary direction bias (counter penalty raised to -18)
   if (t4) { if (t4.bias==='bull') { ls+=22; ss=Math.max(ss-22,0); } else if (t4.bias==='bear') { ss+=22; ls=Math.max(ls-22,0); } }
@@ -1112,12 +1108,12 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     });
   }
 
-  // N14: Taker Buy/Sell Ratio — already used in F8 volume; still add directional weight
+  // N14: Taker Buy/Sell Ratio — pure directional signal (no overlap with F8 now)
   if (takerRatio) {
-    if (takerRatio.buyDominant  && takerRatio.rising)  ls += 8;
-    else if (takerRatio.buyDominant)                   ls += 4;
-    if (takerRatio.sellDominant && !takerRatio.rising) ss += 8;
-    else if (takerRatio.sellDominant)                  ss += 4;
+    if (takerRatio.buyDominant  && takerRatio.rising)  { ls += 14; ss = Math.max(ss-4,0); }
+    else if (takerRatio.buyDominant)                   ls += 9;
+    if (takerRatio.sellDominant && !takerRatio.rising) { ss += 14; ls = Math.max(ls-4,0); }
+    else if (takerRatio.sellDominant)                  ss += 9;
   }
 
   // N15: Long/Short Ratio — contrarian
@@ -1164,8 +1160,8 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
-  // MAX recalibrated: +30 for N16 OrderBook (12+12+6) + N17 RVOL (10)
-  const MAX = 295;
+  // MAX: F8 reduced (neutral 7pts), N14 full weight now (14pts max). Net +8 per side.
+  const MAX = 300;
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
   // Require minimum 8-point gap between LONG and SHORT scores to avoid coin-flip signals
@@ -1275,19 +1271,33 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
 
   const strongTrend = st && t4 && ema1d && ((dir==='LONG' && st.bullish && t4.bias==='bull' && ema1d.stack?.includes('bull')) || (dir==='SHORT' && !st.bullish && t4.bias==='bear' && ema1d.stack?.includes('bear')));
 
+  // Momentum confirmation (last closed candle)
+  const momentumConf = checkMomentumConfirmation(O, C, H, L, dir, atr);
+
   if (dir === 'LONG') {
-    // Collect all LONG entry candidates
+    // Collect all LONG entry candidates — NOW INCLUDING FVG
     const fibEP = snapToFibEntry(price, fibonacci, 'LONG', aV);
     const bbEP  = bb?.lower || null;
     const srEP  = srZones?.below?.[0]?.price || null;
-    const obEP  = mtfOBs?.nearestBullOB ? (mtfOBs.nearestBullOB.high * 0.998) : null; // just above OB top
-    const pvEP  = pivotPoints ? [pivotPoints.S1, pivotPoints.PP].filter(p => p && p <= price + aV * 0.3 && p >= price - aV * 2)[0] : null;
-    const atrEP = price - aV * 0.25;
+    const obEP  = mtfOBs?.nearestBullOB ? (mtfOBs.nearestBullOB.high * 0.999) : null;
+    const pvEP  = pivotPoints ? [pivotPoints.S1, pivotPoints.PP].filter(p => p && p <= price + aV * 0.3 && p >= price - aV * 2.5)[0] : null;
+    // FVG entry: use top of bull FVG (price should retrace into FVG)
+    const fvgEP = mtfFVGs?.bullFVGs?.length
+      ? mtfFVGs.bullFVGs.reduce((best, f) => {
+          const mid = (f.high + f.low) / 2;
+          if (mid < price && mid > price - aV * 3) {
+            if (!best || Math.abs(mid - price) < Math.abs(best - price)) return mid;
+          }
+          return best;
+        }, null)
+      : null;
+    const atrEP = price - aV * 0.3;
     const candidates = [
       { label:'fib',  price: fibEP },
       { label:'bb',   price: bbEP  },
       { label:'sr',   price: srEP  },
       { label:'ob',   price: obEP  },
+      { label:'fvg',  price: fvgEP },
       { label:'piv',  price: pvEP  },
       { label:'mkt',  price: price },
       { label:'atr',  price: atrEP },
@@ -1298,13 +1308,20 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     candidates.sort((a,b) => b.score - a.score);
     const best = candidates[0];
 
-    // Decide entry type
+    // Decide entry type — momentum confirmation changes logic
     const atMarket = Math.abs(best.price - price) <= aV * 0.4;
-    const highConf  = conf >= 75 && (vol.surge || strongTrend);
+    const highConf = conf >= 75 && (vol.surge || strongTrend);
+    const momentumOk = momentumConf.confirmed && momentumConf.strength >= 2;
     if (isRisky) {
-      ep = best.price; entryType = 'RISK ENTRY';
-    } else if (atMarket && (highConf || best.score >= 75)) {
+      // Risky: always limit at best confluence level, never market chase
+      ep = best.price < price ? best.price : price - aV * 0.2;
+      entryType = 'RISK ENTRY';
+    } else if (atMarket && momentumOk && (highConf || best.score >= 75)) {
+      // At key level AND momentum confirmed → Market
       ep = price; entryType = 'MARKET';
+    } else if (atMarket && !momentumOk) {
+      // At key level but no momentum → wait for confirmation → Limit slightly below
+      ep = price - aV * 0.15; entryType = 'LIMIT';
     } else {
       ep = best.price; entryType = best.price < price ? 'LIMIT' : 'MARKET';
     }
@@ -1343,18 +1360,29 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     if (tp2 <= tp1) tp2 = tp1 + aV * 3;
 
   } else {
-    // Collect all SHORT entry candidates
+    // Collect all SHORT entry candidates — INCLUDING FVG
     const fibEP = snapToFibEntry(price, fibonacci, 'SHORT', aV);
     const bbEP  = bb?.upper || null;
     const srEP  = srZones?.above?.[0]?.price || null;
-    const obEP  = mtfOBs?.nearestBearOB ? (mtfOBs.nearestBearOB.low * 1.002) : null; // just below OB bottom
-    const pvEP  = pivotPoints ? [pivotPoints.R1, pivotPoints.PP].filter(p => p && p >= price - aV * 0.3 && p <= price + aV * 2)[0] : null;
-    const atrEP = price + aV * 0.25;
+    const obEP  = mtfOBs?.nearestBearOB ? (mtfOBs.nearestBearOB.low * 1.001) : null;
+    const pvEP  = pivotPoints ? [pivotPoints.R1, pivotPoints.PP].filter(p => p && p >= price - aV * 0.3 && p <= price + aV * 2.5)[0] : null;
+    // FVG SHORT entry: price should retrace into bear FVG
+    const fvgEP = mtfFVGs?.bearFVGs?.length
+      ? mtfFVGs.bearFVGs.reduce((best, f) => {
+          const mid = (f.high + f.low) / 2;
+          if (mid > price && mid < price + aV * 3) {
+            if (!best || Math.abs(mid - price) < Math.abs(best - price)) return mid;
+          }
+          return best;
+        }, null)
+      : null;
+    const atrEP = price + aV * 0.3;
     const candidates = [
       { label:'fib',  price: fibEP },
       { label:'bb',   price: bbEP  },
       { label:'sr',   price: srEP  },
       { label:'ob',   price: obEP  },
+      { label:'fvg',  price: fvgEP },
       { label:'piv',  price: pvEP  },
       { label:'mkt',  price: price },
       { label:'atr',  price: atrEP },
@@ -1365,11 +1393,15 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     const best = candidates[0];
 
     const atMarket = Math.abs(best.price - price) <= aV * 0.4;
-    const highConf  = conf >= 75 && (vol.surge || strongTrend);
+    const highConf = conf >= 75 && (vol.surge || strongTrend);
+    const momentumOk = momentumConf.confirmed && momentumConf.strength >= 2;
     if (isRisky) {
-      ep = best.price; entryType = 'RISK ENTRY';
-    } else if (atMarket && (highConf || best.score >= 75)) {
+      ep = best.price > price ? best.price : price + aV * 0.2;
+      entryType = 'RISK ENTRY';
+    } else if (atMarket && momentumOk && (highConf || best.score >= 75)) {
       ep = price; entryType = 'MARKET';
+    } else if (atMarket && !momentumOk) {
+      ep = price + aV * 0.15; entryType = 'LIMIT';
     } else {
       ep = best.price; entryType = best.price > price ? 'LIMIT' : 'MARKET';
     }
@@ -1404,16 +1436,46 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   }
 
   const risk = dir === 'LONG' ? ep - sl : sl - ep;
-  // Enforce minimum RR 1.0 on TP1
-  if (risk > 0) { const rr1check = Math.abs(tp1 - ep) / risk; if (rr1check < 1.0) { if (dir === 'LONG') tp1 = ep + risk * 1.2; else tp1 = ep - risk * 1.2; } }
+
+  // ── RRR Minimum Gate: if RR1 < 1.2 after all calcs → adjust TP1 ──
+  if (risk > 0) {
+    const rr1check = Math.abs(tp1 - ep) / risk;
+    if (rr1check < 1.2) {
+      if (dir === 'LONG') tp1 = ep + risk * 1.2;
+      else                tp1 = ep - risk * 1.2;
+    }
+    // Also enforce TP2 >= 2.0R
+    const rr2check = Math.abs(tp2 - ep) / risk;
+    if (rr2check < 2.0) {
+      if (dir === 'LONG') tp2 = ep + risk * 2.0;
+      else                tp2 = ep - risk * 2.0;
+    }
+  }
+
   const rrr1 = risk > 0 ? (Math.abs(tp1 - ep) / risk).toFixed(2) : '—';
   const rrr2 = risk > 0 ? (Math.abs(tp2 - ep) / risk).toFixed(2) : '—';
 
   // DCA Point
   const dcaPoint = calcDCAPoint(ep, sl, dir, fibonacci, srZones, mtfOBs, atr);
 
+  // Entry Invalidation level
+  const invalidation = calcEntryInvalidation(dir, ep, sl, fibonacci, srZones, mtfOBs, atr);
+
+  // Limit Expiry (only for LIMIT orders)
+  const limitExpiry = calcLimitExpiry(entryType, atr, price);
+
+  // Add momentum risk flag if not confirmed
+  if (!momentumConf.confirmed && momentumConf.strength === 0) {
+    riskFlags.push(`⚠ No momentum confirmation — Last candle: ${momentumConf.label}. Wait for close.`);
+  }
+  // Also flag if entry is LIMIT but momentum says opposite direction
+  if (entryType === 'LIMIT' && momentumConf.confirmed && !momentumConf.confirmed) {
+    riskFlags.push(`⚠ Limit order pending — confirm direction on candle close before entering.`);
+  }
+
   return { direction:dir, entryType, confidence:conf, hardBlock:false, hardBlockReason:'', riskFlags, isRisky,
-           entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, indicators:ind };
+           entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2,
+           indicators:ind, momentumConf, invalidation, limitExpiry };
 }
 
 /* ── Reasoning Builder ── */
@@ -1746,7 +1808,8 @@ function renderBlocked(container, symbol, entry, curP, adx, fr) {
    ═════════════════════════════ */
 function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const { direction:dir, entryType, confidence:conf, entryPrice:ep, slPrice:sl,
-          tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, riskFlags=[], isRisky=false, indicators:ind } = entry;
+          tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, riskFlags=[], isRisky=false, indicators:ind,
+          momentumConf=null, invalidation=null, limitExpiry=null } = entry;
   const { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
           divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
           srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
@@ -1838,6 +1901,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   if (lsRatio)    chips.push({cls:lsRatio.longBias?'warn':lsRatio.shortBias?'ok':'neu', l:lsRatio.label});
   if (orderBook)  chips.push({cls:orderBook.buyWall&&orderBook.buyPressure?'ok':orderBook.sellWall&&orderBook.sellPressure?'bad':'neu', l:`📖 ${orderBook.label}`});
   if (rvol && (rvol.spike || rvol.elevated || rvol.dry)) chips.push({cls:rvol.climax?'warn':rvol.spike?'ok':rvol.dry?'bad':'neu', l:rvol.label});
+  if (momentumConf) chips.push({cls: momentumConf.confirmed && momentumConf.strength >= 2 ? 'ok' : momentumConf.strength === 1 ? 'warn' : 'bad', l:`⚡ ${momentumConf.label}`});
   if (candlePatterns?.latest) chips.push({cls:candlePatterns.latest.type==='bullish'?'ok':candlePatterns.latest.type==='bearish'?'bad':'neu', l:candlePatterns.latest.name});
   if (vol.surge) chips.push({cls:'ok', l:'Vol Surge 🔥'});
   if (btc) chips.push({cls:btc.bias==='bull'?'ok':btc.bias==='bear'?'bad':'neu', l:`BTC ${btc.label.replace(/[▲▼↔] /,'')}`});
@@ -2085,6 +2149,38 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">${srHtml}</div>
 
     <!-- Taker + L/S Ratio -->
+    <!-- Momentum Confirmation + Invalidation + Limit Expiry -->
+    <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">⚡ ENTRY QUALITY</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+
+      ${momentumConf ? `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">Momentum:</span>
+        <span style="font-size:.6rem;padding:2px 8px;border-radius:4px;font-weight:600;background:${momentumConf.confirmed && momentumConf.strength >= 2 ? 'rgba(0,255,136,.12)' : momentumConf.strength === 1 ? 'rgba(255,195,51,.1)' : 'rgba(255,61,90,.1)'};color:${momentumConf.confirmed && momentumConf.strength >= 2 ? 'var(--green)' : momentumConf.strength === 1 ? 'var(--yellow)' : 'var(--red)'}">
+          ${momentumConf.confirmed && momentumConf.strength >= 2 ? '✓' : momentumConf.strength === 1 ? '~' : '✗'} ${momentumConf.label}
+        </span>
+        ${'●'.repeat(Math.min(momentumConf.strength, 3)).split('').map((d,i) => `<span style="color:${i < momentumConf.strength ? (momentumConf.confirmed?'var(--green)':'var(--yellow)') : 'var(--border)'};font-size:.6rem">${d}</span>`).join('')}
+        ${!momentumConf.confirmed ? '<span style="font-size:.58rem;color:var(--red)">⚠ Wait for candle close</span>' : ''}
+      </div>` : ''}
+
+      ${invalidation ? `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">🚫 Invalidation:</span>
+        <span style="font-family:var(--font-n);font-size:.7rem;font-weight:600;color:var(--red)">${fmtPrice(invalidation.level)}</span>
+        <span style="font-size:.58rem;color:var(--muted)">(${invalidation.distPct}% from entry)</span>
+        <span style="font-size:.58rem;color:var(--dim)">Close beyond = exit immediately</span>
+      </div>` : ''}
+
+      ${limitExpiry ? `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">⏱ Limit Expiry:</span>
+        <span style="font-size:.6rem;padding:2px 8px;border-radius:4px;background:rgba(0,212,255,.1);color:var(--cyan)">Cancel in ${limitExpiry.hours}H</span>
+        <span style="font-size:.58rem;color:var(--dim)">${limitExpiry.note}</span>
+      </div>` : ''}
+    </div>
+
+    <!-- Momentum Chip in chips if not already shown -->
+
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">⚖️ MARKET SENTIMENT</div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
       ${takerHtml}

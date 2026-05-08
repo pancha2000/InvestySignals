@@ -52,57 +52,214 @@ loadGlobalIndicatorSettings();
 // Backward compat alias (profile.html defines its own loadIndicatorSettings — no conflict)
 window.loadGlobalIndicatorSettings = loadGlobalIndicatorSettings;
 
-/* ─── snapToFibEntry ─── */
+/* ─── snapToFibEntry v2 — direction-agnostic (works in ranging/counter-trend) ─── */
 function snapToFibEntry(price, fibData, direction, atr) {
-  if (!fibData || !fibData.levels || !fibData.trend) return null;
-  const aV = atr || price * 0.015, tol = aV * 2.0;
-  if (direction === 'LONG' && fibData.trend === 'uptrend') {
-    const c = fibData.levels.filter(l => l.key && l.type === 'retrace' && l.price <= price + tol).sort((a,b) => b.price - a.price);
-    return c.length ? c[0].price : null;
+  if (!fibData || !fibData.levels) return null;
+  const aV = atr || price * 0.015, tol = aV * 2.5;
+  // Ideal: use trend-aligned levels. Fallback: any key retracement level near price
+  if (direction === 'LONG') {
+    // First try aligned uptrend levels
+    if (fibData.trend === 'uptrend') {
+      const aligned = fibData.levels.filter(l => l.key && l.type === 'retrace' && l.price <= price + tol && l.price >= price - tol * 3).sort((a,b) => b.price - a.price);
+      if (aligned.length) return aligned[0].price;
+    }
+    // Fallback: any key fib level below price (acts as support)
+    const fallback = fibData.levels.filter(l => l.key && l.price < price && l.price >= price - tol * 3).sort((a,b) => b.price - a.price);
+    return fallback.length ? fallback[0].price : null;
   }
-  if (direction === 'SHORT' && fibData.trend === 'downtrend') {
-    const c = fibData.levels.filter(l => l.key && l.type === 'retrace' && l.price >= price - tol).sort((a,b) => a.price - b.price);
-    return c.length ? c[0].price : null;
+  if (direction === 'SHORT') {
+    if (fibData.trend === 'downtrend') {
+      const aligned = fibData.levels.filter(l => l.key && l.type === 'retrace' && l.price >= price - tol && l.price <= price + tol * 3).sort((a,b) => a.price - b.price);
+      if (aligned.length) return aligned[0].price;
+    }
+    const fallback = fibData.levels.filter(l => l.key && l.price > price && l.price <= price + tol * 3).sort((a,b) => a.price - b.price);
+    return fallback.length ? fallback[0].price : null;
   }
   return null;
 }
 
-/* ─── getFibSL ─── */
+/* ─── getFibSL v2 — uses nearest invalidation level, not just swing base ─── */
 function getFibSL(ep, fibData, direction, atr) {
   if (!fibData || !fibData.levels) return null;
-  const aV = atr || ep * 0.015, base = fibData.levels.find(l => l.r === 0);
-  if (!base) return null;
-  if (direction === 'LONG') { if (base.price >= ep) return null; return base.price - aV * 0.3; }
-  else { if (base.price <= ep) return null; return base.price + aV * 0.3; }
+  const aV = atr || ep * 0.015;
+  if (direction === 'LONG') {
+    // Find nearest key fib BELOW entry — that's our invalidation
+    const below = fibData.levels.filter(l => l.key && l.price < ep - aV * 0.1).sort((a,b) => b.price - a.price);
+    if (below.length) return below[0].price - aV * 0.2; // buffer below
+    // fallback: swing base
+    const base = fibData.levels.find(l => l.r === 0);
+    if (base && base.price < ep) return base.price - aV * 0.3;
+    return null;
+  } else {
+    const above = fibData.levels.filter(l => l.key && l.price > ep + aV * 0.1).sort((a,b) => a.price - b.price);
+    if (above.length) return above[0].price + aV * 0.2;
+    const base = fibData.levels.find(l => l.r === 0);
+    if (base && base.price > ep) return base.price + aV * 0.3;
+    return null;
+  }
 }
 
-/* ─── getFibTargets ─── */
+/* ─── getFibTargets v2 — multi-level TP ladder with RR enforcement ─── */
 function getFibTargets(ep, sl, fibData, direction, srZones) {
   const risk = Math.abs(ep - sl);
   if (!risk) return { tp1: ep, tp2: ep };
   let tp1 = null, tp2 = null;
-  const hasFib = fibData && fibData.levels && fibData.trend;
+  const hasFib = fibData && fibData.levels;
+  // Extension levels to use as targets (0.618ext, 1.0, 1.272, 1.618)
+  const extRatios = [0.618, 1.0, 1.272, 1.618, 2.0];
   if (direction === 'LONG') {
-    if (hasFib && fibData.trend === 'uptrend') {
-      const f100 = fibData.levels.find(l => l.r === 1), f1618 = fibData.levels.find(l => Math.abs(l.r - 1.618) < 0.01);
-      if (f100 && f100.price > ep && f100.price - ep <= risk * 4) tp1 = f100.price;
-      else { const m = fibData.levels.filter(l => l.key && l.type === 'retrace' && l.price > ep && (!f100 || l.price < f100.price)).sort((a,b) => a.price - b.price)[0]; if (m) tp1 = m.price; }
-      if (f1618 && tp1 !== null && f1618.price > tp1) tp2 = f1618.price; else if (f1618 && f1618.price > ep) tp2 = f1618.price;
+    if (hasFib) {
+      // TP1: first extension above entry with RR >= 1.2
+      for (const r of extRatios) {
+        const lvl = fibData.levels.find(l => Math.abs(l.r - r) < 0.05 && l.price > ep);
+        if (lvl && (lvl.price - ep) / risk >= 1.2) { tp1 = lvl.price; break; }
+      }
+      // TP2: next extension after TP1 with RR >= 2.0
+      if (tp1) {
+        for (const r of extRatios) {
+          const lvl = fibData.levels.find(l => Math.abs(l.r - r) < 0.05 && l.price > tp1 + risk * 0.3);
+          if (lvl && (lvl.price - ep) / risk >= 2.0) { tp2 = lvl.price; break; }
+        }
+      }
     }
-    if (tp1 === null) tp1 = ep + risk * 1.5;
-    if (tp2 === null) { const nr = srZones && srZones.above && srZones.above.find(z => z.price > tp1); tp2 = nr ? Math.min(nr.price, ep + risk * 2.8) : ep + risk * 2.8; }
+    // Fallbacks with S/R refinement
+    if (!tp1) {
+      const sr1 = srZones && srZones.above && srZones.above.find(z => (z.price - ep) / risk >= 1.2 && z.strength >= 2);
+      tp1 = sr1 ? sr1.price : ep + risk * 1.5;
+    }
+    if (!tp2) {
+      const sr2 = srZones && srZones.above && srZones.above.find(z => z.price > tp1 + risk * 0.3 && (z.price - ep) / risk >= 2.0 && z.strength >= 2);
+      tp2 = sr2 ? sr2.price : ep + risk * 2.8;
+    }
+    // Enforce min RR: TP1 >= 1.2R, TP2 >= 2.0R
+    if ((tp1 - ep) / risk < 1.2) tp1 = ep + risk * 1.2;
+    if ((tp2 - ep) / risk < 2.0) tp2 = ep + risk * 2.0;
   }
   if (direction === 'SHORT') {
-    if (hasFib && fibData.trend === 'downtrend') {
-      const f100 = fibData.levels.find(l => l.r === 1), f1618 = fibData.levels.find(l => Math.abs(l.r - 1.618) < 0.01);
-      if (f100 && f100.price < ep && ep - f100.price <= risk * 4) tp1 = f100.price;
-      else { const m = fibData.levels.filter(l => l.key && l.type === 'retrace' && l.price < ep && (!f100 || l.price > f100.price)).sort((a,b) => b.price - a.price)[0]; if (m) tp1 = m.price; }
-      if (f1618 && tp1 !== null && f1618.price < tp1) tp2 = f1618.price; else if (f1618 && f1618.price < ep) tp2 = f1618.price;
+    if (hasFib) {
+      for (const r of extRatios) {
+        const lvl = fibData.levels.find(l => Math.abs(l.r - r) < 0.05 && l.price < ep);
+        if (lvl && (ep - lvl.price) / risk >= 1.2) { tp1 = lvl.price; break; }
+      }
+      if (tp1) {
+        for (const r of extRatios) {
+          const lvl = fibData.levels.find(l => Math.abs(l.r - r) < 0.05 && l.price < tp1 - risk * 0.3);
+          if (lvl && (ep - lvl.price) / risk >= 2.0) { tp2 = lvl.price; break; }
+        }
+      }
     }
-    if (tp1 === null) tp1 = ep - risk * 1.5;
-    if (tp2 === null) { const ns = srZones && srZones.below && srZones.below.find(z => z.price < tp1); tp2 = ns ? Math.max(ns.price, ep - risk * 2.8) : ep - risk * 2.8; }
+    if (!tp1) {
+      const sr1 = srZones && srZones.below && srZones.below.find(z => (ep - z.price) / risk >= 1.2 && z.strength >= 2);
+      tp1 = sr1 ? sr1.price : ep - risk * 1.5;
+    }
+    if (!tp2) {
+      const sr2 = srZones && srZones.below && srZones.below.find(z => z.price < tp1 - risk * 0.3 && (ep - z.price) / risk >= 2.0 && z.strength >= 2);
+      tp2 = sr2 ? sr2.price : ep - risk * 2.8;
+    }
+    if ((ep - tp1) / risk < 1.2) tp1 = ep - risk * 1.2;
+    if ((ep - tp2) / risk < 2.0) tp2 = ep - risk * 2.0;
   }
   return { tp1, tp2 };
+}
+
+/* ─── checkMomentumConfirmation — last closed candle aligns with direction ─── */
+function checkMomentumConfirmation(O, C, H, L, direction, atr) {
+  if (!O || O.length < 3) return { confirmed: false, label: 'No data', strength: 0 };
+  const aV = atr || Math.abs(C[C.length-1]) * 0.01;
+  // Use last CLOSED candle (index -2; index -1 is still forming)
+  const i  = O.length - 2;
+  const o = O[i], c = C[i], h = H[i], l = L[i];
+  const body = Math.abs(c - o), range = h - l;
+  const isBull = c > o, isBear = c < o;
+  const bodyRatio = range > 0 ? body / range : 0;
+  const upWick = h - Math.max(o,c), downWick = Math.min(o,c) - l;
+
+  // Previous candle for momentum check
+  const pi = i - 1;
+  const pc = C[pi], po = O[pi];
+  const prevBull = pc > po, prevBear = pc < po;
+
+  let confirmed = false, label = '', strength = 0;
+
+  if (direction === 'LONG') {
+    if (isBull && bodyRatio >= 0.5) {
+      // Strong bull candle — good confirm
+      strength = bodyRatio >= 0.75 ? 3 : 2;
+      label = bodyRatio >= 0.75 ? 'Strong Bull Close' : 'Bull Close';
+      confirmed = true;
+    } else if (isBull && downWick >= body * 1.5) {
+      // Hammer-type with bull body
+      strength = 2; label = 'Hammer Close'; confirmed = true;
+    } else if (isBull && bodyRatio < 0.35) {
+      // Weak bull (doji-like) — weak confirm
+      strength = 1; label = 'Weak Bull (Doji)'; confirmed = false;
+    } else if (isBear) {
+      // Bear candle = no confirmation for LONG
+      strength = 0; label = 'Bear Candle ⚠ (no confirm)'; confirmed = false;
+    }
+    // 2-candle momentum: consecutive bulls = stronger
+    if (confirmed && prevBull) strength = Math.min(strength + 1, 3);
+  } else {
+    if (isBear && bodyRatio >= 0.5) {
+      strength = bodyRatio >= 0.75 ? 3 : 2;
+      label = bodyRatio >= 0.75 ? 'Strong Bear Close' : 'Bear Close';
+      confirmed = true;
+    } else if (isBear && upWick >= body * 1.5) {
+      strength = 2; label = 'Shooting Star Close'; confirmed = true;
+    } else if (isBear && bodyRatio < 0.35) {
+      strength = 1; label = 'Weak Bear (Doji)'; confirmed = false;
+    } else if (isBull) {
+      strength = 0; label = 'Bull Candle ⚠ (no confirm)'; confirmed = false;
+    }
+    if (confirmed && prevBear) strength = Math.min(strength + 1, 3);
+  }
+  return { confirmed, label, strength, isBull, isBear, bodyRatio };
+}
+
+/* ─── calcEntryInvalidation — price level that kills the setup ─── */
+function calcEntryInvalidation(dir, ep, sl, fibonacci, srZones, mtfOBs, atr) {
+  // The invalidation level is the structural level that if broken, the thesis is wrong.
+  // For LONG: highest significant resistance that if price breaks above FROM BELOW means OB/level broken
+  // Actually: invalidation = key support BELOW entry. If price drops to sl zone = invalidated.
+  // We return the specific price that triggers "setup failed" + a % distance from entry.
+  const risk = Math.abs(ep - sl);
+  const aV   = atr ? atr.atr : risk * 0.5;
+
+  if (dir === 'LONG') {
+    // Invalidation: below SL by 0.3 ATR (buffer). Also check if OB low is closer.
+    let invLevel = sl - aV * 0.2;
+    if (mtfOBs && mtfOBs.nearestBullOB) {
+      const obLow = mtfOBs.nearestBullOB.low;
+      if (obLow < ep && obLow > invLevel) invLevel = obLow - aV * 0.1; // tighten to OB
+    }
+    const distPct = ep > 0 ? ((ep - invLevel) / ep * 100).toFixed(2) : '—';
+    return { level: invLevel, distPct, note: `Setup fails if price closes below ${invLevel.toFixed(6)}` };
+  } else {
+    let invLevel = sl + aV * 0.2;
+    if (mtfOBs && mtfOBs.nearestBearOB) {
+      const obHigh = mtfOBs.nearestBearOB.high;
+      if (obHigh > ep && obHigh < invLevel) invLevel = obHigh + aV * 0.1;
+    }
+    const distPct = ep > 0 ? ((invLevel - ep) / ep * 100).toFixed(2) : '—';
+    return { level: invLevel, distPct, note: `Setup fails if price closes above ${invLevel.toFixed(6)}` };
+  }
+}
+
+/* ─── calcLimitExpiry — max time to wait for limit fill ─── */
+function calcLimitExpiry(entryType, atr, price) {
+  // If limit order: estimate fill window based on ATR volatility
+  // High ATR% = fills faster; Low ATR% = longer window
+  if (entryType === 'MARKET') return null;
+  const atrPct = atr ? atr.pct : 1.5;
+  // Hours to expiry: 2H for high vol, 4H for normal, 8H for low vol
+  const hours = atrPct > 3 ? 2 : atrPct > 1.5 ? 4 : 8;
+  const now = Date.now();
+  const expiry = new Date(now + hours * 3600 * 1000);
+  return {
+    hours,
+    expiryTime: expiry.toUTCString(),
+    note: `Cancel if not filled within ${hours}H (${expiry.toUTCString().slice(17,22)} UTC)`
+  };
 }
 
 /* ─── detectCandlePatterns ─── */
