@@ -460,6 +460,12 @@ onAuthStateChanged(auth, async u => {
   document.getElementById('welcomeName').textContent=name.split(' ')[0];
   initDash();
 
+  // ── First Login Tutorial ──
+  const tutorialKey = 'is_tutorial_done_v1_' + u.uid;
+  if (!localStorage.getItem(tutorialKey)) {
+    setTimeout(() => showWelcomeTutorial(u.displayName || name, tutorialKey), 800);
+  }
+
   // Poll every 60s for suspension/maintenance changes
   setInterval(async()=>{
     try{
@@ -801,6 +807,180 @@ document.addEventListener('visibilitychange', function() {
     window._tabHidden = false;
   }
 });
+</script>
+<!-- ══ FIRST LOGIN WELCOME TUTORIAL MODAL ══ -->
+<div id="welcomeModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(7,11,20,.92);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#0c1220;border:1px solid #1a2640;border-radius:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;position:relative;">
+
+    <!-- Progress bar -->
+    <div style="height:3px;background:#1a2640;border-radius:20px 20px 0 0;overflow:hidden">
+      <div id="tutProgress" style="height:100%;background:linear-gradient(90deg,#00d4ff,#00ff88);transition:width .4s ease;width:20%"></div>
+    </div>
+
+    <!-- Step content area -->
+    <div id="tutSteps" style="padding:32px 28px 24px">
+
+      <!-- STEP 1: Welcome + Terms -->
+      <div class="tut-step" id="tStep1">
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="font-size:2.8rem;margin-bottom:12px">🚀</div>
+          <h2 style="font-family:'Rajdhani',sans-serif;font-size:1.7rem;font-weight:700;color:#e2e8f0;margin-bottom:8px">Welcome to <span style="color:#00d4ff">InvestySignals</span>!</h2>
+          <p id="tutUserName" style="color:#64748b;font-size:.9rem"></p>
+        </div>
+        <div style="background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);border-radius:12px;padding:16px 18px;margin-bottom:20px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:#ff3d5a;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">⚠ Important Disclaimer</div>
+          <p style="font-size:.83rem;color:#fca5a5;line-height:1.6">InvestySignals provides cryptocurrency market analysis for <strong>educational purposes ONLY</strong>. We are NOT a licensed financial advisor. All signals are algorithmic suggestions — not guaranteed profits. Never trade with money you cannot afford to lose.</p>
+        </div>
+        <div style="background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.12);border-radius:12px;padding:14px 18px;margin-bottom:20px">
+          <p style="font-size:.83rem;color:#94a3b8;line-height:1.6">By continuing, you confirm that you have read and agree to our <a href="terms.html" target="_blank" style="color:#00d4ff;text-decoration:none">Terms of Service</a> and <a href="privacy.html" target="_blank" style="color:#00d4ff;text-decoration:none">Privacy Policy</a>, and that you are <strong style="color:#e2e8f0">18 years or older</strong>.</p>
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;margin-bottom:24px">
+          <input type="checkbox" id="tutAgreeCheck" style="margin-top:3px;accent-color:#00d4ff;width:16px;height:16px;flex-shrink:0">
+          <span style="font-size:.82rem;color:#94a3b8">I understand this is for educational purposes only, I accept all risks of cryptocurrency trading, and I agree to the Terms of Service.</span>
+        </label>
+        <button onclick="tutNext(1)" style="width:100%;padding:13px;background:linear-gradient(135deg,#00d4ff,#0096b3);border:none;border-radius:10px;color:#070b14;font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;letter-spacing:.05em;cursor:pointer">I Agree — Get Started →</button>
+      </div>
+
+      <!-- STEP 2: How Analysis Works -->
+      <div class="tut-step" id="tStep2" style="display:none">
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="font-size:2.4rem;margin-bottom:10px">🔍</div>
+          <h2 style="font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:700;color:#e2e8f0;margin-bottom:6px">How the Analysis Works</h2>
+          <p style="color:#64748b;font-size:.83rem">InvestySignals uses a 17-factor confluence engine</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+          ${[
+            ['📊','RSI + Stoch RSI','Overbought / oversold zones'],
+            ['📈','EMA Stack 20/50/200','Trend direction filter'],
+            ['⚡','MACD + Bollinger','Momentum & volatility'],
+            ['🏛️','Order Blocks (OB)','Smart Money levels'],
+            ['📐','Fibonacci + FVG','Precision entry zones'],
+            ['₿','BTC 4H Context','Macro market bias'],
+            ['📖','Order Book Depth','Buy/Sell wall detection'],
+            ['🕐','Candle Close Timer','Confirmation timing'],
+          ].map(([icon,title,desc]) => `
+            <div style="background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px">
+              <div style="font-size:1.1rem;margin-bottom:5px">${icon}</div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">${title}</div>
+              <div style="font-size:.7rem;color:#64748b">${desc}</div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:10px">
+          <button onclick="tutBack(2)" style="flex:1;padding:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;color:#64748b;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer">← Back</button>
+          <button onclick="tutNext(2)" style="flex:2;padding:12px;background:linear-gradient(135deg,#00d4ff,#0096b3);border:none;border-radius:10px;color:#070b14;font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;cursor:pointer">Next →</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: Reading a Signal -->
+      <div class="tut-step" id="tStep3" style="display:none">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:2.4rem;margin-bottom:10px">📋</div>
+          <h2 style="font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:700;color:#e2e8f0;margin-bottom:6px">Reading a Signal</h2>
+          <p style="color:#64748b;font-size:.83rem">What each part of an analysis card means</p>
+        </div>
+        <div style="background:#101827;border:1px solid #1a2640;border-radius:12px;padding:16px;margin-bottom:16px">
+          ${[
+            ['🟢 LONG / 🔴 SHORT','Direction — LONG = buy, SHORT = sell (futures)'],
+            ['Confidence %','How many of the 17 factors align. 80%+ = strong setup'],
+            ['Entry Price','Best confluence zone to place your order'],
+            ['TP1 / TP2','Take-profit targets. TP1 = first exit (50%), TP2 = runner'],
+            ['Stop Loss','Your invalidation level. Exit immediately if reached'],
+            ['⚡ Momentum','Last closed 1H candle confirms direction or not'],
+            ['🚫 Invalidation','Price level that "breaks" the setup thesis'],
+            ['⏳ Candle Close','Time left until 1H candle closes — wait before MARKET entry'],
+          ].map(([label, desc]) => `
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1a2640">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#00d4ff;min-width:130px;flex-shrink:0">${label}</div>
+              <div style="font-size:.78rem;color:#94a3b8">${desc}</div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:10px">
+          <button onclick="tutBack(3)" style="flex:1;padding:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;color:#64748b;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer">← Back</button>
+          <button onclick="tutNext(3)" style="flex:2;padding:12px;background:linear-gradient(135deg,#00d4ff,#0096b3);border:none;border-radius:10px;color:#070b14;font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;cursor:pointer">Next →</button>
+        </div>
+      </div>
+
+      <!-- STEP 4: Risk Tips -->
+      <div class="tut-step" id="tStep4" style="display:none">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:2.4rem;margin-bottom:10px">🛡️</div>
+          <h2 style="font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:700;color:#e2e8f0;margin-bottom:6px">Risk Management Tips</h2>
+          <p style="color:#64748b;font-size:.83rem">Follow these rules to protect your capital</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+          ${[
+            ['🎯','Use Stop Losses Always','Never enter a trade without a pre-set stop loss. Our SL levels are ATR-calibrated.'],
+            ['💰','Risk 1-2% Per Trade','Never risk more than 1-2% of your portfolio on a single signal.'],
+            ['⏳','Wait for Candle Close','For LIMIT entries, always wait for the 1H candle to close before confirming direction.'],
+            ['📉','80%+ Confidence Only','Low confidence signals (below 70%) are shown as RISK ENTRY — reduce size or skip.'],
+            ['🔄','Paper Trade First','Use our paper trading feature to practice before using real money.'],
+            ['❌','Signals ≠ Guarantees','No algorithm predicts the future. Always do your own research (DYOR).'],
+          ].map(([icon, title, desc]) => `
+            <div style="display:flex;gap:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;padding:12px 14px">
+              <div style="font-size:1.2rem;flex-shrink:0">${icon}</div>
+              <div>
+                <div style="font-family:'Rajdhani',sans-serif;font-size:.88rem;font-weight:700;color:#e2e8f0;margin-bottom:3px">${title}</div>
+                <div style="font-size:.75rem;color:#64748b">${desc}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:10px">
+          <button onclick="tutBack(4)" style="flex:1;padding:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;color:#64748b;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer">← Back</button>
+          <button onclick="tutNext(4)" style="flex:2;padding:12px;background:linear-gradient(135deg,#00ff88,#00b860);border:none;border-radius:10px;color:#070b14;font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;cursor:pointer">Let's Go! 🚀</button>
+        </div>
+      </div>
+
+    </div><!-- /tutSteps -->
+
+    <!-- Step dots -->
+    <div style="display:flex;justify-content:center;gap:8px;padding:0 28px 20px">
+      ${[1,2,3,4].map(i => `<div class="tut-dot" id="tDot${i}" style="width:8px;height:8px;border-radius:50%;background:${i===1?'#00d4ff':'#1a2640'};transition:background .3s"></div>`).join('')}
+    </div>
+  </div>
+</div>
+
+<script>
+function showWelcomeTutorial(name, storageKey) {
+  window._tutStorageKey = storageKey;
+  document.getElementById('tutUserName').textContent = 'Hey ' + name.split(' ')[0] + ', before you start — please read this carefully.';
+  const m = document.getElementById('welcomeModal');
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function tutNext(step) {
+  if (step === 1) {
+    if (!document.getElementById('tutAgreeCheck').checked) {
+      document.getElementById('tutAgreeCheck').style.outline = '2px solid #ff3d5a';
+      setTimeout(() => document.getElementById('tutAgreeCheck').style.outline = '', 2000);
+      return;
+    }
+  }
+  const steps = [1,2,3,4];
+  const next = step + 1;
+  if (next > 4) {
+    // Done
+    localStorage.setItem(window._tutStorageKey, '1');
+    document.getElementById('welcomeModal').style.display = 'none';
+    document.body.style.overflow = '';
+    return;
+  }
+  document.getElementById('tStep' + step).style.display = 'none';
+  document.getElementById('tStep' + next).style.display = 'block';
+  document.getElementById('tutProgress').style.width = (next / 4 * 100) + '%';
+  steps.forEach(s => {
+    document.getElementById('tDot' + s).style.background = s === next ? '#00d4ff' : s < next ? '#00ff8860' : '#1a2640';
+  });
+}
+function tutBack(step) {
+  const prev = step - 1;
+  if (prev < 1) return;
+  document.getElementById('tStep' + step).style.display = 'none';
+  document.getElementById('tStep' + prev).style.display = 'block';
+  document.getElementById('tutProgress').style.width = (prev / 4 * 100) + '%';
+  [1,2,3,4].forEach(s => {
+    document.getElementById('tDot' + s).style.background = s === prev ? '#00d4ff' : s < prev ? '#00ff8860' : '#1a2640';
+  });
+}
 </script>
 </body>
 </html>

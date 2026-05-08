@@ -1197,7 +1197,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
                 srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
                 candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol };
 
-  const confluenceLabel = getConfluenceLabel(ep, dir);
+  // confluenceLabel calculated AFTER ep is assigned (below) — moved to avoid TDZ error
 
   // Risk flags
   const riskFlags = [];
@@ -1557,10 +1557,12 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   if (!momentumConf.confirmed && momentumConf.strength === 0) {
     riskFlags.push(`⚠ No momentum confirmation — Last candle: ${momentumConf.label}. Wait for close.`);
   }
-  // Also flag if entry is LIMIT but momentum says opposite direction
-  if (entryType === 'LIMIT' && momentumConf.confirmed && !momentumConf.confirmed) {
-    riskFlags.push(`⚠ Limit order pending — confirm direction on candle close before entering.`);
+  // Flag: limit order pending — always warn user to confirm on close
+  if (entryType === 'LIMIT') {
+    riskFlags.push(`⏳ Limit order pending — confirm direction on 1H candle close before entering.`);
   }
+
+  const confluenceLabel = getConfluenceLabel(ep, dir);
 
   return { direction:dir, entryType, confidence:conf, hardBlock:false, hardBlockReason:'', riskFlags, isRisky,
            entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2,
