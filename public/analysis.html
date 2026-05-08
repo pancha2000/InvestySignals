@@ -712,6 +712,71 @@ async function fetchTakerRatio(sym){try{const d=await fetch(`${BINANCE_FAPI}/fut
 /* ── Long/Short Ratio (NEW) ── */
 async function fetchLSRatio(sym){try{const d=await fetch(`${BINANCE_FAPI}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=6`).then(r=>r.json());if(!Array.isArray(d)||!d.length)return null;const latest=d[d.length-1];const longPct=parseFloat(latest.longAccount)*100,shortPct=parseFloat(latest.shortAccount)*100;return{longPct,shortPct,longBias:longPct>65,shortBias:shortPct>65,extremeLong:longPct>75,extremeShort:shortPct>75,label:`L ${longPct.toFixed(0)}% / S ${shortPct.toFixed(0)}%`};}catch(_){return null;}}
 
+/* ── Order Book Depth (Buy/Sell Walls) ── */
+async function fetchOrderBook(sym) {
+  try {
+    // Use spot depth — futures depth also works but spot more reliable for wall detection
+    const d = await fetch(`${BINANCE_FAPI}/fapi/v1/depth?symbol=${sym}&limit=50`).then(r => r.json());
+    if (!d || !d.bids || !d.asks) return null;
+    const price = parseFloat(d.bids[0]?.[0] || 0);
+    if (!price) return null;
+    const wallRange = price * 0.005; // 0.5% from mid = wall zone
+    // Sum bid/ask volumes in ±1% range
+    let bidVol = 0, askVol = 0, bigBid = null, bigAsk = null;
+    for (const [p, q] of d.bids) {
+      const pf = parseFloat(p), qf = parseFloat(q);
+      if (price - pf <= wallRange * 2) bidVol += pf * qf;
+      if (!bigBid || qf > bigBid.qty) bigBid = { price: pf, qty: qf };
+    }
+    for (const [p, q] of d.asks) {
+      const pf = parseFloat(p), qf = parseFloat(q);
+      if (pf - price <= wallRange * 2) askVol += pf * qf;
+      if (!bigAsk || qf > bigAsk.qty) bigAsk = { price: pf, qty: qf };
+    }
+    const ratio = askVol > 0 ? bidVol / askVol : 1;
+    // Wall detection: if single level > 20% of total side volume → wall
+    const topBidWall = d.bids.slice(0,10).find(([p,q]) => parseFloat(q) * parseFloat(p) > bidVol * 0.20);
+    const topAskWall = d.asks.slice(0,10).find(([p,q]) => parseFloat(q) * parseFloat(p) > askVol * 0.20);
+    const buyWall  = !!topBidWall;
+    const sellWall = !!topAskWall;
+    return {
+      bidVol, askVol, ratio,
+      buyWall, sellWall,
+      buyWallPrice:  topBidWall ? parseFloat(topBidWall[0])  : null,
+      sellWallPrice: topAskWall ? parseFloat(topAskWall[0]) : null,
+      // ratio > 1.3 = strong buy pressure; < 0.7 = strong sell pressure
+      buyPressure:  ratio >= 1.3,
+      sellPressure: ratio <= 0.7,
+      label: ratio >= 1.5 ? 'Strong Buy Wall' : ratio >= 1.3 ? 'Buy Pressure' : ratio <= 0.67 ? 'Strong Sell Wall' : ratio <= 0.77 ? 'Sell Pressure' : 'Balanced',
+    };
+  } catch(_) { return null; }
+}
+
+/* ── Relative Volume (RVOL) Spike Detection ── */
+function calcRVOL(kl) {
+  // kl = 1H klines array; compare last 3 candles avg vs 20-bar average (excluding last 3)
+  if (!kl || kl.length < 25) return null;
+  const vols = kl.map(k => parseFloat(k[5]));
+  const avg20 = vols.slice(-24, -3).reduce((a, b) => a + b, 0) / 21;
+  const last3Avg = vols.slice(-4, -1).reduce((a, b) => a + b, 0) / 3;
+  const lastVol  = vols[vols.length - 2]; // most recent closed candle
+  const rvol     = avg20 > 0 ? lastVol / avg20 : 1;
+  const rvolAvg  = avg20 > 0 ? last3Avg / avg20 : 1;
+  // Check if volume is climaxing (last candle highest in past 20)
+  const max20 = Math.max(...vols.slice(-21, -1));
+  const isClimax = lastVol >= max20 * 0.95;
+  return {
+    rvol,         // single candle RVOL
+    rvolAvg,      // 3-candle average RVOL
+    spike:   rvol >= 2.0,              // 2x average = spike
+    elevated: rvol >= 1.4 && rvol < 2, // 1.4-2x = elevated
+    climax:  isClimax && rvol >= 2.0,  // highest vol in range
+    dry:     rvol < 0.5,               // volume drying up
+    label: rvol >= 2.5 ? `RVOL ${rvol.toFixed(1)}x ⚡` : rvol >= 2.0 ? `RVOL ${rvol.toFixed(1)}x` : rvol >= 1.4 ? `RVOL ${rvol.toFixed(1)}x (elevated)` : rvol < 0.5 ? `RVOL ${rvol.toFixed(1)}x (dry)` : `RVOL ${rvol.toFixed(1)}x`,
+    avg20,
+  };
+}
+
 /* ═══════════════════════════════════════
    SCANNER — Optimised for Setup Finding
    Goal: Find coins likely to give a clean
@@ -791,7 +856,8 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     srZones=null, fibonacci=null, trendLine=null,
     mtfOBs=null, mtfFVGs=null, ema15m=null, ema1d=null,
     rsi15m=null, rsi1d=null, bos15m=null, bos4h=null,
-    candlePatterns=null, pivotPoints=null, takerRatio=null, lsRatio=null
+    candlePatterns=null, pivotPoints=null, takerRatio=null, lsRatio=null,
+    orderBook=null, rvol=null
   } = ex;
 
   // ══════════════════════════════════════════════════════
@@ -1062,11 +1128,44 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     else if (lsRatio.shortBias){ ls += 4; }
   }
 
+  // N16: Order Book Depth — Buy/Sell Walls
+  if (orderBook) {
+    // Strong buy wall near price = support = favour LONG
+    if (orderBook.buyWall && orderBook.buyPressure)   { ls += 12; ss = Math.max(ss - 5, 0); }
+    else if (orderBook.buyWall)                        { ls += 7; }
+    else if (orderBook.buyPressure)                    { ls += 5; }
+    // Strong sell wall near price = resistance = favour SHORT
+    if (orderBook.sellWall && orderBook.sellPressure) { ss += 12; ls = Math.max(ls - 5, 0); }
+    else if (orderBook.sellWall)                       { ss += 7; }
+    else if (orderBook.sellPressure)                   { ss += 5; }
+    // If both walls present (no clear edge), no extra points — ambiguous
+  }
+
+  // N17: RVOL — Relative Volume Spike
+  if (rvol) {
+    if (rvol.climax) {
+      // Climax volume: exhaustion signal → favour AGAINST recent move
+      // Use MACD as direction proxy for exhaustion
+      if (macd && macd.trend === 'bullish')  { ss += 8; }  // bull climax → short exhaustion
+      else if (macd && macd.trend === 'bearish') { ls += 8; }  // bear climax → long exhaustion
+    } else if (rvol.spike && takerRatio) {
+      // High RVOL + taker direction = institutional move
+      if (takerRatio.buyDominant)  ls += 10;
+      else if (takerRatio.sellDominant) ss += 10;
+    } else if (rvol.elevated && takerRatio) {
+      if (takerRatio.buyDominant)  ls += 5;
+      else if (takerRatio.sellDominant) ss += 5;
+    } else if (rvol.dry) {
+      // Drying volume = weak move, reduce confidence both sides
+      ls = Math.max(ls - 5, 0); ss = Math.max(ss - 5, 0);
+    }
+  }
+
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
-  // MAX recalibrated: realistic achievable max ≈ 260 (prevents score inflation)
-  const MAX = 260;
+  // MAX recalibrated: +30 for N16 OrderBook (12+12+6) + N17 RVOL (10)
+  const MAX = 295;
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
   // Require minimum 8-point gap between LONG and SHORT scores to avoid coin-flip signals
@@ -1092,7 +1191,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
   const ind = { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
                 divergence:div, vwap, supertrend:st, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
                 srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
-                candlePatterns, pivotPoints, takerRatio, lsRatio };
+                candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol };
 
   // Risk flags
   const riskFlags = [];
@@ -1322,7 +1421,7 @@ function buildReasons(rsi, vol, result) {
   const { direction:dir, entryType, confidence:conf, indicators:ind, rrr1, rrr2 } = result;
   const { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
           divergence:div, vwap, supertrend:st, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
-          srZones, fibonacci, trendLine, mtfOBs, candlePatterns, pivotPoints, takerRatio, lsRatio } = ind;
+          srZones, fibonacci, trendLine, mtfOBs, candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol } = ind;
   const reasons = [];
   if (rsi !== null) reasons.push({ icon: dir==='LONG'?'📉':'📈', text: `RSI <strong>${rsi.toFixed(1)}</strong> — ${rsi<=30?'Extreme Oversold':rsi<=40?'Oversold zone':rsi>=70?'Extreme Overbought':rsi>=60?'Overbought zone':'Neutral'}.` });
   if (es)  reasons.push({ icon: '📊', text: `EMA Stack <strong>${es.stack.replace('perfect_','').replace('_',' ')}</strong> (1H).` });
@@ -1494,12 +1593,16 @@ async function runDeepScan(symbol) {
     // Pivot Points
     const pivotPoints = calcPivotPoints(kl1d);
 
-    // Async fetches (OI, Taker, L/S)
-    const [oi, takerRatio, lsRatio] = await Promise.all([
+    // Async fetches (OI, Taker, L/S, OrderBook)
+    const [oi, takerRatio, lsRatio, orderBook] = await Promise.all([
       fetchOIChange(symbol),
       fetchTakerRatio(symbol),
-      fetchLSRatio(symbol)
+      fetchLSRatio(symbol),
+      fetchOrderBook(symbol),
     ]);
+
+    // Relative Volume
+    const rvol = calcRVOL(kl1h);
 
     const sess = getSession();
 
@@ -1523,7 +1626,7 @@ async function runDeepScan(symbol) {
       trend4h: t4, fundingRate: fr, oiChange: oi, divergence: div, emaStack: es, vwap,
       supertrend: spt, bos, mtfRSI: mRSI, session: sess, btcContext: btc,
       srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
-      candlePatterns, pivotPoints, takerRatio, lsRatio
+      candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol
     };
 
     const entry = decideEntry(rsi, vol, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
@@ -1647,7 +1750,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
           divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
           srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
-          candlePatterns, pivotPoints, takerRatio, lsRatio } = ind;
+          candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol } = ind;
   const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h } = extra || {};
   const pair = symbol.replace('USDT', '/USDT');
 
@@ -1733,6 +1836,8 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   if (oi && oi.trend!=='unknown') chips.push({cls:oi.trend==='rising'?'ok':'warn', l:`OI ${oi.trend}`});
   if (takerRatio) chips.push({cls:takerRatio.buyDominant?'ok':takerRatio.sellDominant?'bad':'neu', l:`Taker ${takerRatio.label}`});
   if (lsRatio)    chips.push({cls:lsRatio.longBias?'warn':lsRatio.shortBias?'ok':'neu', l:lsRatio.label});
+  if (orderBook)  chips.push({cls:orderBook.buyWall&&orderBook.buyPressure?'ok':orderBook.sellWall&&orderBook.sellPressure?'bad':'neu', l:`📖 ${orderBook.label}`});
+  if (rvol && (rvol.spike || rvol.elevated || rvol.dry)) chips.push({cls:rvol.climax?'warn':rvol.spike?'ok':rvol.dry?'bad':'neu', l:rvol.label});
   if (candlePatterns?.latest) chips.push({cls:candlePatterns.latest.type==='bullish'?'ok':candlePatterns.latest.type==='bearish'?'bad':'neu', l:candlePatterns.latest.name});
   if (vol.surge) chips.push({cls:'ok', l:'Vol Surge 🔥'});
   if (btc) chips.push({cls:btc.bias==='bull'?'ok':btc.bias==='bear'?'bad':'neu', l:`BTC ${btc.label.replace(/[▲▼↔] /,'')}`});
@@ -1822,6 +1927,25 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
       <span style="font-family:var(--font-n);font-size:.7rem">L/S: <strong>${lsRatio.label}</strong></span>
       <div style="flex:1;min-width:80px;height:8px;background:rgba(255,61,90,.2);border-radius:4px;overflow:hidden"><div style="height:100%;background:var(--green);border-radius:4px;width:${lsRatio.longPct.toFixed(0)}%"></div></div>
       <span style="font-family:var(--font-n);font-size:.63rem;color:${lsRatio.extremeLong?'var(--red)':lsRatio.extremeShort?'var(--green)':'var(--muted)'}">${lsRatio.extremeLong?'⚠ Crowded Longs':lsRatio.extremeShort?'⚠ Crowded Shorts':''}</span>
+    </div>` : '';
+
+  // Order Book Depth HTML
+  const obkHtml = orderBook ? `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">📖 Order Book:</span>
+      <span style="font-family:var(--font-n);font-size:.7rem;color:${orderBook.buyPressure?'var(--green)':orderBook.sellPressure?'var(--red)':'var(--text)'}"><strong>${orderBook.label}</strong></span>
+      <span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">Bid/Ask: ${orderBook.ratio.toFixed(2)}x</span>
+      ${orderBook.buyWall ? `<span style="font-size:.6rem;padding:1px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:var(--green)">🛡 Buy Wall @ ${orderBook.buyWallPrice?.toFixed(4)}</span>` : ''}
+      ${orderBook.sellWall ? `<span style="font-size:.6rem;padding:1px 6px;border-radius:3px;background:rgba(255,61,90,.1);color:var(--red)">🧱 Sell Wall @ ${orderBook.sellWallPrice?.toFixed(4)}</span>` : ''}
+    </div>` : '';
+
+  // RVOL HTML
+  const rvolHtml = rvol ? `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">📊 Relative Vol:</span>
+      <span style="font-family:var(--font-n);font-size:.7rem;color:${rvol.climax?'var(--yellow)':rvol.spike?'var(--green)':rvol.dry?'var(--red)':'var(--text)'}"><strong>${rvol.label}</strong></span>
+      ${rvol.climax ? '<span style="font-size:.6rem;padding:1px 6px;border-radius:3px;background:rgba(255,195,51,.1);color:var(--yellow)">⚠ Volume Climax</span>' : ''}
+      ${rvol.dry ? '<span style="font-size:.6rem;padding:1px 6px;border-radius:3px;background:rgba(255,61,90,.1);color:var(--red)">Low Conviction</span>' : ''}
     </div>` : '';
 
   const reasons  = buildReasons(rsi, vol, entry);
@@ -1965,6 +2089,8 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
       ${takerHtml}
       ${lsHtml}
+      ${obkHtml}
+      ${rvolHtml}
     </div>
 
     <!-- Classic Indicators -->
