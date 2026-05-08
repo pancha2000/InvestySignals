@@ -857,7 +857,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     mtfOBs=null, mtfFVGs=null, ema15m=null, ema1d=null,
     rsi15m=null, rsi1d=null, bos15m=null, bos4h=null,
     candlePatterns=null, pivotPoints=null, takerRatio=null, lsRatio=null,
-    orderBook=null, rvol=null
+    orderBook=null, rvol=null, candleCloseTimer=null
   } = ex;
 
   // ══════════════════════════════════════════════════════
@@ -879,7 +879,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
       dcaPoint: null, rrr1: null, rrr2: null,
       indicators: { adx, fundingRate: fr, trend4h: t4, supertrend: st, emaStack: es,
                     macd, bb, stochRsi: stoch, obv, atr, vwap, bos, oiChange: oi,
-                    divergence: div, mtfRSI: mRSI, session: sess, btcContext: btc,
+                    divergence: div, mtfRSI: mRSI, session: ex.session, btcContext: btc,
                     srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d,
                     rsi15m, rsi1d, bos15m, bos4h, candlePatterns, pivotPoints, takerRatio, lsRatio }
     };
@@ -1036,10 +1036,18 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     if (bos4h.choch) { if (bos4h.bullBOS) ls += 5; else if (bos4h.bearBOS) ss += 5; }
   }
 
-  // N6: BTC Context — macro signal with counter-direction penalty
+  // N6: BTC Context — macro alignment critical; opposing BTC = strong counter-penalty
   if (btc && btc.bias !== 'neutral') {
-    if (btc.bias==='bull') { ls+=15; ss=Math.max(ss-8,0); }
-    else { ss+=15; ls=Math.max(ls-8,0); }
+    if (btc.bias === 'bull') {
+      ls += 18;
+      // BTC bullish but trying SHORT = significant macro risk
+      if (btc.score >= 70) ss = Math.max(ss - 20, 0);
+      else ss = Math.max(ss - 12, 0);
+    } else {
+      ss += 18;
+      if (btc.score >= 70) ls = Math.max(ls - 20, 0);
+      else ls = Math.max(ls - 12, 0);
+    }
   }
 
   // N7: MTF FVGs — capped at 18pts per direction
@@ -1189,6 +1197,8 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
                 srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
                 candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol };
 
+  const confluenceLabel = getConfluenceLabel(ep, dir);
+
   // Risk flags
   const riskFlags = [];
   const hasDivergence = div && (div.regularBull || div.regularBear || div.hiddenBull || div.hiddenBear);
@@ -1240,33 +1250,112 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
     if (candidate == null || isNaN(candidate)) return -999;
     const dist = Math.abs(candidate - price);
     const distAtr = dist / aV;
-    if (distAtr > 3.0) return -999; // too far — won't fill quickly
-    let score = 100 - distAtr * 28; // closer = higher base score
+    if (distAtr > 3.0) return -999;
+    let score = 100 - distAtr * 25;
 
-    // Confluence bonuses
     const tol = aV * 0.35;
-    if (fibonacci?.levels?.some(l => l.key && Math.abs(l.price - candidate) < tol)) score += 22;
-    if (srZones?.below?.some(z => Math.abs(z.price - candidate) < tol && z.strength >= 3)) score += dir==='LONG' ? 18 : 8;
-    if (srZones?.above?.some(z => Math.abs(z.price - candidate) < tol && z.strength >= 3)) score += dir==='SHORT' ? 18 : 8;
-    if (mtfOBs?.nearestBullOB && dir==='LONG') {
+
+    // ── Fib level: bonus by key ratio quality ──
+    if (fibonacci?.levels) {
+      const fibMatch = fibonacci.levels.find(l => l.key && Math.abs(l.price - candidate) < tol);
+      if (fibMatch) {
+        // Premium levels: 0.618, 0.5 = +28; others = +18
+        const premium = [0.618, 0.5, 0.382].includes(fibMatch.r);
+        score += premium ? 28 : 18;
+      }
+    }
+
+    // ── S/R zones with strength weighting ──
+    const srBelow = srZones?.below?.find(z => Math.abs(z.price - candidate) < tol);
+    const srAbove = srZones?.above?.find(z => Math.abs(z.price - candidate) < tol);
+    if (dir === 'LONG' && srBelow) score += srBelow.strength >= 4 ? 22 : srBelow.strength >= 3 ? 16 : 8;
+    if (dir === 'SHORT' && srAbove) score += srAbove.strength >= 4 ? 22 : srAbove.strength >= 3 ? 16 : 8;
+
+    // ── Order Block: bonus for being inside OB body, extra for OB midpoint ──
+    if (mtfOBs?.nearestBullOB && dir === 'LONG') {
       const ob = mtfOBs.nearestBullOB;
-      if (candidate >= ob.low - tol && candidate <= ob.high + tol) score += 20;
+      if (candidate >= ob.low - tol && candidate <= ob.high + tol) {
+        score += 20;
+        if (Math.abs(candidate - ob.mid) < tol * 0.5) score += 8; // midpoint bonus
+      }
     }
-    if (mtfOBs?.nearestBearOB && dir==='SHORT') {
+    if (mtfOBs?.nearestBearOB && dir === 'SHORT') {
       const ob = mtfOBs.nearestBearOB;
-      if (candidate >= ob.low - tol && candidate <= ob.high + tol) score += 20;
+      if (candidate >= ob.low - tol && candidate <= ob.high + tol) {
+        score += 20;
+        if (Math.abs(candidate - ob.mid) < tol * 0.5) score += 8;
+      }
     }
+
+    // ── FVG fill quality: midpoint = best entry ──
+    if (mtfFVGs) {
+      const fvgs = dir === 'LONG' ? mtfFVGs.bullFVGs : mtfFVGs.bearFVGs;
+      for (const f of (fvgs || [])) {
+        const fMid = (f.high + f.low) / 2;
+        const fRange = f.high - f.low;
+        if (candidate >= f.low - tol && candidate <= f.high + tol) {
+          const fillPct = fRange > 0 ? Math.abs(candidate - (dir === 'LONG' ? f.high : f.low)) / fRange : 0.5;
+          // Midpoint (50% fill) = best. Edge fill = weaker.
+          const fillScore = 18 - Math.abs(fillPct - 0.5) * 20;
+          score += Math.max(fillScore, 5);
+          const tfBonus = f.tf === '4H' ? 6 : f.tf === '1H' ? 4 : f.tf === '15m' ? 2 : 8;
+          score += tfBonus;
+          break;
+        }
+      }
+    }
+
+    // ── Pivot Points ──
     if (pivotPoints) {
       const pvLevels = [pivotPoints.PP, pivotPoints.S1, pivotPoints.S2, pivotPoints.R1, pivotPoints.R2];
       if (pvLevels.some(p => p && Math.abs(p - candidate) < tol)) score += 12;
     }
-    if (bb && dir==='LONG' && Math.abs(bb.lower - candidate) < tol) score += 14;
-    if (bb && dir==='SHORT' && Math.abs(bb.upper - candidate) < tol) score += 14;
+
+    // ── BB bands ──
+    if (bb && dir === 'LONG' && Math.abs(bb.lower - candidate) < tol) score += 14;
+    if (bb && dir === 'SHORT' && Math.abs(bb.upper - candidate) < tol) score += 14;
+
+    // ── VWAP ──
     if (vwap && Math.abs(vwap.vwap - candidate) < tol) score += 10;
-    // Penalty if wrong side of price for quick fill
+
+    // ── Multi-confluence bonus: 3+ levels overlap = institutional zone ──
+    let overlapCount = 0;
+    if (fibonacci?.levels?.some(l => l.key && Math.abs(l.price - candidate) < tol)) overlapCount++;
+    if ((srBelow && dir==='LONG') || (srAbove && dir==='SHORT')) overlapCount++;
+    if ((mtfOBs?.nearestBullOB && dir==='LONG') || (mtfOBs?.nearestBearOB && dir==='SHORT')) overlapCount++;
+    if (pivotPoints && [pivotPoints.PP, pivotPoints.S1, pivotPoints.R1].some(p => p && Math.abs(p - candidate) < tol)) overlapCount++;
+    if (overlapCount >= 3) score += 20; // confluence zone premium
+    else if (overlapCount >= 2) score += 10;
+
+    // ── Penalty: wrong side of price for quick fill ──
     if (dir === 'LONG' && candidate > price + aV * 0.15) score -= 40;
     if (dir === 'SHORT' && candidate < price - aV * 0.15) score -= 40;
+
     return Math.round(score);
+  }
+
+  // Helper: build confluence zone label for the chosen entry
+  function getConfluenceLabel(ep, dir) {
+    const tol = aV * 0.4;
+    const hits = [];
+    if (fibonacci?.levels?.some(l => l.key && Math.abs(l.price - ep) < tol)) {
+      const fl = fibonacci.levels.find(l => l.key && Math.abs(l.price - ep) < tol);
+      hits.push(`Fib ${fl.r}`);
+    }
+    if (dir==='LONG' && srZones?.below?.some(z => Math.abs(z.price - ep) < tol)) hits.push('Support');
+    if (dir==='SHORT' && srZones?.above?.some(z => Math.abs(z.price - ep) < tol)) hits.push('Resistance');
+    if (dir==='LONG' && mtfOBs?.nearestBullOB) { const ob=mtfOBs.nearestBullOB; if (ep >= ob.low-tol && ep <= ob.high+tol) hits.push('Bull OB'); }
+    if (dir==='SHORT' && mtfOBs?.nearestBearOB) { const ob=mtfOBs.nearestBearOB; if (ep >= ob.low-tol && ep <= ob.high+tol) hits.push('Bear OB'); }
+    if (mtfFVGs) {
+      const fvgs = dir==='LONG' ? mtfFVGs.bullFVGs : mtfFVGs.bearFVGs;
+      if ((fvgs||[]).some(f => ep >= f.low-tol && ep <= f.high+tol)) hits.push('FVG');
+    }
+    if (bb && dir==='LONG' && Math.abs(bb.lower - ep) < tol) hits.push('BB Lower');
+    if (bb && dir==='SHORT' && Math.abs(bb.upper - ep) < tol) hits.push('BB Upper');
+    if (pivotPoints && [pivotPoints.S1, pivotPoints.PP, pivotPoints.R1].some(p => p && Math.abs(p-ep)<tol)) hits.push('Pivot');
+    if (vwap && Math.abs(vwap.vwap - ep) < tol) hits.push('VWAP');
+    if (!hits.length) return 'ATR-based';
+    return hits.join(' + ');
   }
 
   const strongTrend = st && t4 && ema1d && ((dir==='LONG' && st.bullish && t4.bias==='bull' && ema1d.stack?.includes('bull')) || (dir==='SHORT' && !st.bullish && t4.bias==='bear' && ema1d.stack?.includes('bear')));
@@ -1475,7 +1564,7 @@ function decideEntry(rsi, vol, C, H, L, price, macd, bb, stoch, adx, obv, atr, e
 
   return { direction:dir, entryType, confidence:conf, hardBlock:false, hardBlockReason:'', riskFlags, isRisky,
            entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2,
-           indicators:ind, momentumConf, invalidation, limitExpiry };
+           indicators:ind, momentumConf, invalidation, limitExpiry, confluenceLabel, candleCloseTimer };
 }
 
 /* ── Reasoning Builder ── */
@@ -1666,7 +1755,21 @@ async function runDeepScan(symbol) {
     // Relative Volume
     const rvol = calcRVOL(kl1h);
 
-    const sess = getSession();
+    // ── Next 1H Candle Close Timer ──
+    // kl1h last entry [0]=openTime ms. 1H candle = 3600000ms. Close = openTime + 3600000.
+    const lastCandleOpenMs = kl1h.length ? parseInt(kl1h[kl1h.length - 1][0]) : null;
+    const nextCandleCloseMs = lastCandleOpenMs ? lastCandleOpenMs + 3600000 : null;
+    const candleCloseIn = nextCandleCloseMs ? Math.max(0, nextCandleCloseMs - Date.now()) : null;
+    const candleCloseTimer = candleCloseIn !== null ? {
+      ms: candleCloseIn,
+      mins: Math.floor(candleCloseIn / 60000),
+      secs: Math.floor((candleCloseIn % 60000) / 1000),
+      closeAt: nextCandleCloseMs,
+      label: candleCloseIn < 60000
+        ? `${Math.floor(candleCloseIn / 1000)}s`
+        : `${Math.floor(candleCloseIn / 60000)}m ${Math.floor((candleCloseIn % 60000) / 1000)}s`,
+      urgent: candleCloseIn < 300000, // last 5 mins = urgent
+    } : null;
 
     // Order Blocks
     const ob15m = detectOrderBlocks(O15, H15, L15, C15, '15m');
@@ -1686,9 +1789,9 @@ async function runDeepScan(symbol) {
 
     const ex = {
       trend4h: t4, fundingRate: fr, oiChange: oi, divergence: div, emaStack: es, vwap,
-      supertrend: spt, bos, mtfRSI: mRSI, session: sess, btcContext: btc,
+      supertrend: spt, bos, mtfRSI: mRSI, session: getSession(), btcContext: btc,
       srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
-      candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol
+      candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol, candleCloseTimer
     };
 
     const entry = decideEntry(rsi, vol, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
@@ -1715,7 +1818,7 @@ async function runDeepScan(symbol) {
       candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio
     });
 
-    btSaveSignal(symbol, entry, curP, sess, rsi);
+    btSaveSignal(symbol, entry, curP, getSession(), rsi);
 
   } catch(err) {
     container.innerHTML = `<div class="panel deep-card"><div class="panel-body"><div class="empty-state"><div class="empty-icon">⚠</div><div class="empty-text" style="color:var(--red)">Scan failed</div><div class="empty-sub">${err.message}</div></div></div></div>`;
@@ -1809,7 +1912,8 @@ function renderBlocked(container, symbol, entry, curP, adx, fr) {
 function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const { direction:dir, entryType, confidence:conf, entryPrice:ep, slPrice:sl,
           tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, riskFlags=[], isRisky=false, indicators:ind,
-          momentumConf=null, invalidation=null, limitExpiry=null } = entry;
+          momentumConf=null, invalidation=null, limitExpiry=null,
+          confluenceLabel=null, candleCloseTimer=null } = entry;
   const { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
           divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
           srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
@@ -2052,7 +2156,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     <div style="background:${isRisky?'rgba(255,195,51,.06)':'var(--surface)'};border:1px solid ${isRisky?'rgba(255,195,51,.3)':'var(--border)'};border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Entry</div>
       <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:${isRisky?'var(--yellow)':'var(--cyan)'}">${fmtPrice(ep)}</div>
-      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${entryType==='MARKET'?'Market':entryType==='RISK ENTRY'?'⚠ Risk':'Limit'}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${confluenceLabel || (entryType==='MARKET'?'Market':'Limit')}</div>
     </div>
     <div style="background:var(--surface);border:1px solid rgba(0,212,255,.25);border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--cyan);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">DCA Point</div>
@@ -2162,6 +2266,29 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
         ${'●'.repeat(Math.min(momentumConf.strength, 3)).split('').map((d,i) => `<span style="color:${i < momentumConf.strength ? (momentumConf.confirmed?'var(--green)':'var(--yellow)') : 'var(--border)'};font-size:.6rem">${d}</span>`).join('')}
         ${!momentumConf.confirmed ? '<span style="font-size:.58rem;color:var(--red)">⚠ Wait for candle close</span>' : ''}
       </div>` : ''}
+
+      ${candleCloseTimer ? `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">⏳ 1H Candle Closes:</span>
+        <span id="candleCountdown" style="font-size:.7rem;padding:2px 8px;border-radius:4px;font-weight:700;background:${candleCloseTimer.urgent ? 'rgba(255,195,51,.15)' : 'rgba(0,212,255,.08)'};color:${candleCloseTimer.urgent ? 'var(--yellow)' : 'var(--cyan)'}">${candleCloseTimer.label}</span>
+        ${candleCloseTimer.urgent ? '<span style="font-size:.58rem;color:var(--yellow)">⚡ Closing soon — confirm entry direction</span>' : '<span style="font-size:.58rem;color:var(--muted)">Wait for close to confirm</span>'}
+      </div>
+      <script>
+      (function(){
+        const closeAt = ${candleCloseTimer.closeAt};
+        const el = document.getElementById('candleCountdown');
+        if (!el || !closeAt) return;
+        function tick() {
+          const left = Math.max(0, closeAt - Date.now());
+          const m = Math.floor(left / 60000);
+          const s = Math.floor((left % 60000) / 1000);
+          el.textContent = left < 60000 ? s + 's' : m + 'm ' + s + 's';
+          if (left > 0) requestAnimationFrame(tick);
+          else { el.textContent = 'CLOSED ✓'; el.style.color = 'var(--green)'; }
+        }
+        tick();
+      })();
+      <\/script>` : ''}
 
       ${invalidation ? `
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
