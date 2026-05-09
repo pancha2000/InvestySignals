@@ -99,6 +99,47 @@ const Stats        = mongoose.model('Stats',        statsSchema);
 const UserRecord   = mongoose.model('UserRecord',   userSettingsSchema);
 const Report       = mongoose.model('Report',       reportSchema);
 
+/* ── Paper Trade Schema ── */
+const paperTradeSchema = new mongoose.Schema({
+  uid:       { type:String, required:true, index:true },
+  id:        { type:Number, required:true },  // client-side timestamp id
+  symbol:    { type:String, required:true },
+  pair:      { type:String, required:true },
+  direction: { type:String, enum:['LONG','SHORT'], required:true },
+  entryType: { type:String, default:'MARKET' },
+  entryPrice:{ type:Number, required:true },
+  tp1:       { type:Number, required:true },
+  tp2:       Number,
+  sl:        { type:Number, required:true },
+  amount:    { type:Number, required:true },
+  leverage:  { type:Number, default:5 },
+  size:      Number,
+  notional:  Number,
+  liqPrice:  Number,
+  status:    { type:String, default:'OPEN' },
+  openTime:  String,
+  fillTime:  String,
+  closeTime: String,
+  closePrice:Number,
+  pnl:       Number,
+  roe:       Number,
+  totalPnl:  Number,
+  totalRoe:  Number,
+  tp1Pnl:    Number,
+  tp1HitPrice:Number,
+  tp1HitTime: String,
+  currentSl: Number,
+  trailOffset:Number,
+}, { timestamps:true });
+
+const paperBalanceSchema = new mongoose.Schema({
+  uid:     { type:String, required:true, unique:true, index:true },
+  balance: { type:Number, default:1000 },
+}, { timestamps:true });
+
+const PaperTrade   = mongoose.model('PaperTrade',   paperTradeSchema);
+const PaperBalance = mongoose.model('PaperBalance', paperBalanceSchema);
+
 /* ── Indicator defaults ── */
 const indicatorDefaults = [
   { key:'ind_rsi_period',value:14,label:'RSI Period',group:'indicators' },
@@ -558,6 +599,101 @@ app.get('/api/announcement', async (req, res) => {
     res.json({ success:true, data: await Announcement.findOne({ active:true, showFrom:{ $lte:now }, $or:[{ showUntil:null },{ showUntil:{ $gte:now } }] }).sort({ createdAt:-1 }) });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
+/* ═══════════════════════════════════════════════════════════════
+   PAPER TRADING API — server-side persistence
+   All routes require Firebase auth (userAuth middleware)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* userAuth — lightweight: verify Firebase token, attach uid */
+async function userAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ success:false, error:'Unauthorized' });
+  try {
+    if (!firebaseAdminReady) return res.status(503).json({ success:false, error:'Auth service unavailable' });
+    const decoded = await firebaseAdmin.auth().verifyIdToken(auth.slice(7));
+    req.uid = decoded.uid;
+    next();
+  } catch (e) { res.status(401).json({ success:false, error:'Invalid token' }); }
+}
+
+/* GET /api/paper/trades — get all trades for user */
+app.get('/api/paper/trades', userAuth, async (req, res) => {
+  try {
+    const trades = await PaperTrade.find({ uid: req.uid }).sort({ id: -1 }).lean();
+    res.json({ success:true, trades });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* POST /api/paper/trades — open a new trade */
+app.post('/api/paper/trades', userAuth, async (req, res) => {
+  try {
+    const trade = new PaperTrade({ uid: req.uid, ...req.body });
+    await trade.save();
+    res.json({ success:true, trade });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* PATCH /api/paper/trades/:id — update trade (TP/SL hit, close, fill, trailing) */
+app.patch('/api/paper/trades/:id', userAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const trade = await PaperTrade.findOneAndUpdate(
+      { uid: req.uid, id },
+      { $set: req.body },
+      { new: true }
+    );
+    if (!trade) return res.status(404).json({ success:false, error:'Trade not found' });
+    res.json({ success:true, trade });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* DELETE /api/paper/trades/:id — cancel/remove a trade */
+app.delete('/api/paper/trades/:id', userAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await PaperTrade.findOneAndDelete({ uid: req.uid, id });
+    res.json({ success:true });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* DELETE /api/paper/trades — clear all closed trades */
+app.delete('/api/paper/trades', userAuth, async (req, res) => {
+  try {
+    const { scope } = req.body;
+    if (scope === 'all') {
+      await PaperTrade.deleteMany({ uid: req.uid });
+    } else {
+      // default: closed only
+      const closedStatuses = ['TP2','BE_CLOSE','TRAIL_WIN','SL','CLOSED','CANCELLED'];
+      await PaperTrade.deleteMany({ uid: req.uid, status: { $in: closedStatuses } });
+    }
+    res.json({ success:true });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* GET /api/paper/balance — get user's paper balance */
+app.get('/api/paper/balance', userAuth, async (req, res) => {
+  try {
+    let rec = await PaperBalance.findOne({ uid: req.uid });
+    if (!rec) rec = await PaperBalance.create({ uid: req.uid, balance: 1000 });
+    res.json({ success:true, balance: rec.balance });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* PUT /api/paper/balance — set/reset balance */
+app.put('/api/paper/balance', userAuth, async (req, res) => {
+  try {
+    const { balance } = req.body;
+    if (typeof balance !== 'number' || balance < 0) return res.status(400).json({ success:false, error:'Invalid balance' });
+    const rec = await PaperBalance.findOneAndUpdate(
+      { uid: req.uid },
+      { balance },
+      { upsert: true, new: true }
+    );
+    res.json({ success:true, balance: rec.balance });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
 app.get('/api/settings/public', async (req, res) => {
   if (!mongoConnected) return res.json({ success:true, data:{} });
   try {

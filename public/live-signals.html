@@ -331,6 +331,10 @@ onAuthStateChanged(auth, async (user) => {
     }
   } catch(_e){}
   window._auth = auth;
+  window._uid  = user.uid;
+  window._idToken = await user.getIdToken();
+  // Refresh token every 50 min
+  setInterval(async () => { try { window._idToken = await user.getIdToken(true); } catch(_){} }, 50*60*1000);
   document.getElementById('dashMain').style.display = 'block';
   if (window.innerWidth <= 768) document.getElementById('mobBtn').style.display = 'flex';
   const name     = user.displayName || user.email?.split('@')[0] || 'Trader';
@@ -373,11 +377,116 @@ function fmtTime(iso){const d=new Date(iso);return d.toLocaleDateString('en-US',
 /* ── State ──────────────────────────────────────────────────── */
 let currentTab='open', pendingActionId=null, pendingAction=null, livePrices={};
 
-/* ── localStorage ───────────────────────────────────────────── */
-function getTrades()   { return JSON.parse(localStorage.getItem('pt_trades')||'[]'); }
-function saveTrades(t) { localStorage.setItem('pt_trades',JSON.stringify(t)); }
-function getBalance()  { return parseFloat(localStorage.getItem('pt_balance')||'1000'); }
-function saveBalance(b){ localStorage.setItem('pt_balance',String(b)); }
+/* ── Server API helpers ─────────────────────────────────────── */
+function authHeader() { return window._idToken ? { 'Authorization': 'Bearer ' + window._idToken, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }; }
+
+/* In-memory cache — loaded once at init, then kept in sync */
+let _tradesCache = [];
+let _balanceCache = 1000;
+let _serverAvail = false;  // false = fallback to localStorage
+
+async function loadServerData() {
+  if (!window._idToken) return;
+  try {
+    const [tr, bl] = await Promise.all([
+      fetch('/api/paper/trades', { headers: authHeader() }).then(r => r.json()),
+      fetch('/api/paper/balance', { headers: authHeader() }).then(r => r.json()),
+    ]);
+    if (tr.success) { _tradesCache = tr.trades || []; _serverAvail = true; }
+    if (bl.success) _balanceCache = bl.balance;
+    // Migrate any localStorage trades to server (one-time)
+    const lsRaw = localStorage.getItem('pt_trades');
+    const lsBal = localStorage.getItem('pt_balance');
+    if (lsRaw && _serverAvail) {
+      const lsTrades = JSON.parse(lsRaw);
+      if (lsTrades.length > 0 && _tradesCache.length === 0) {
+        // Migrate
+        for (const t of lsTrades) {
+          try { await fetch('/api/paper/trades', { method:'POST', headers: authHeader(), body: JSON.stringify(t) }); } catch(_) {}
+        }
+        _tradesCache = lsTrades;
+        localStorage.removeItem('pt_trades');
+        console.log('[PaperTrade] Migrated', lsTrades.length, 'trades from localStorage to server');
+      } else {
+        localStorage.removeItem('pt_trades');
+      }
+    }
+    if (lsBal && _serverAvail) {
+      const bal = parseFloat(lsBal);
+      if (!isNaN(bal) && _tradesCache.length === 0) {
+        await fetch('/api/paper/balance', { method:'PUT', headers: authHeader(), body: JSON.stringify({ balance: bal }) });
+        _balanceCache = bal;
+      }
+      localStorage.removeItem('pt_balance');
+    }
+  } catch (e) {
+    console.warn('[PaperTrade] Server unavailable, using localStorage fallback', e);
+    _serverAvail = false;
+    _tradesCache = JSON.parse(localStorage.getItem('pt_trades') || '[]');
+    _balanceCache = parseFloat(localStorage.getItem('pt_balance') || '1000');
+  }
+}
+
+function getTrades() { return _tradesCache; }
+
+function saveTrades(trades) {
+  _tradesCache = trades;
+  if (!_serverAvail) { localStorage.setItem('pt_trades', JSON.stringify(trades)); }
+  // Server updates are done individually via updateTrade/deleteTrade
+}
+
+async function updateTrade(id, patch) {
+  _tradesCache = _tradesCache.map(t => t.id === id ? { ...t, ...patch } : t);
+  if (_serverAvail) {
+    try { await fetch('/api/paper/trades/' + id, { method:'PATCH', headers: authHeader(), body: JSON.stringify(patch) }); }
+    catch(_) {}
+  } else {
+    localStorage.setItem('pt_trades', JSON.stringify(_tradesCache));
+  }
+}
+
+async function deleteTrade(id) {
+  _tradesCache = _tradesCache.filter(t => t.id !== id);
+  if (_serverAvail) {
+    try { await fetch('/api/paper/trades/' + id, { method:'DELETE', headers: authHeader() }); }
+    catch(_) {}
+  } else {
+    localStorage.setItem('pt_trades', JSON.stringify(_tradesCache));
+  }
+}
+
+async function clearClosedTrades() {
+  const closedStatuses = ['TP2','BE_CLOSE','TRAIL_WIN','SL','CLOSED','CANCELLED'];
+  _tradesCache = _tradesCache.filter(t => !closedStatuses.includes(t.status));
+  if (_serverAvail) {
+    try { await fetch('/api/paper/trades', { method:'DELETE', headers: authHeader(), body: JSON.stringify({ scope:'closed' }) }); }
+    catch(_) {}
+  } else {
+    localStorage.setItem('pt_trades', JSON.stringify(_tradesCache));
+  }
+}
+
+async function addTrade(trade) {
+  _tradesCache.unshift(trade);
+  if (_serverAvail) {
+    try { await fetch('/api/paper/trades', { method:'POST', headers: authHeader(), body: JSON.stringify(trade) }); }
+    catch(_) {}
+  } else {
+    localStorage.setItem('pt_trades', JSON.stringify(_tradesCache));
+  }
+}
+
+function getBalance() { return _balanceCache; }
+
+async function saveBalance(b) {
+  _balanceCache = b;
+  if (_serverAvail) {
+    try { await fetch('/api/paper/balance', { method:'PUT', headers: authHeader(), body: JSON.stringify({ balance: b }) }); }
+    catch(_) {}
+  } else {
+    localStorage.setItem('pt_balance', String(b));
+  }
+}
 
 /* ── Status helpers ─────────────────────────────────────────── */
 function isPending(t) { return t.status==='PENDING_LONG'||t.status==='PENDING_SHORT'; }
@@ -429,7 +538,9 @@ function switchTab(tab) {
 }
 
 /* ── Init ───────────────────────────────────────────────────── */
-function initPage() {
+async function initPage() {
+  // Load trades and balance from server (migrates localStorage if needed)
+  await loadServerData();
   renderAll();
   setInterval(fetchPricesNow,5000);
   connectWS();
@@ -637,13 +748,22 @@ async function fetchPricesNow() {
 /* ── Pending fills ──────────────────────────────────────────── */
 function checkPendingFills() {
   const trades=getTrades(); let changed=false;
+  const patches=[];
   trades.forEach((t,i)=>{
     if(!isPending(t)) return;
     const price=livePrices[t.symbol]; if(price==null) return;
     const fill=(t.status==='PENDING_LONG'&&price<=t.entryPrice)||(t.status==='PENDING_SHORT'&&price>=t.entryPrice);
-    if(fill){ trades[i]={...t,status:'OPEN',fillTime:new Date().toISOString()}; changed=true; }
+    if(fill){
+      const patch={status:'OPEN',fillTime:new Date().toISOString()};
+      trades[i]={...t,...patch}; changed=true;
+      patches.push({id:t.id, patch});
+    }
   });
-  if(changed){ saveTrades(trades); updateStats(); }
+  if(changed){
+    saveTrades(trades);
+    patches.forEach(({id,patch})=>updateTrade(id,patch));
+    updateStats();
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -651,6 +771,7 @@ function checkPendingFills() {
    ═══════════════════════════════════════════════════════════════ */
 function checkTpSl() {
   const trades=getTrades(); let changed=false;
+  const _changedPatches=[];
   trades.forEach((t,i)=>{
     if(!isOpen(t)&&!isTP1Hit(t)) return;
     const price=livePrices[t.symbol]; if(price==null) return;
@@ -691,23 +812,21 @@ function checkTpSl() {
         const totalPnl  = tp1Banked + remaining50Pnl;
         const totalRoe  = (totalPnl/t.amount)*100;
 
+        let _pClose;
         if(hit==='TP2'){
-          trades[i]={...t,status:'TP2',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
+          _pClose={status:'TP2',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
         } else if(hit==='BE_CLOSE_OR_TRAIL'){
-          // Price at or above entry when SL hit → WIN
           const isBE = Math.abs(updatedSL - t.entryPrice) < t.entryPrice*0.0005;
           const finalStatus = isBE ? 'BE_CLOSE' : 'TRAIL_WIN';
-          trades[i]={...t,status:finalStatus,closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
+          _pClose={status:finalStatus,closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
         } else {
-          // SL hit below entry after TP1 (shouldn't happen with proper trailing, but safety)
-          trades[i]={...t,status:'SL',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
+          _pClose={status:'SL',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
         }
-        changed=true;
+        trades[i]={...t,..._pClose}; _changedPatches.push({id:t.id,patch:_pClose}); changed=true;
       } else {
-        // Update trailing SL if moved
         if(updatedSL!==t.currentSl){
-          trades[i]={...t,currentSl:updatedSL,trailOffset};
-          changed=true;
+          const _pt={currentSl:updatedSL,trailOffset};
+          trades[i]={...t,..._pt}; _changedPatches.push({id:t.id,patch:_pt}); changed=true;
         }
       }
       return;
@@ -729,29 +848,29 @@ function checkTpSl() {
       /* ── TP1 hit → partial close 50%, move SL to entry ───── */
       const tp1Pnl=(dir==='LONG'?(price-t.entryPrice)*t.size*0.5:(t.entryPrice-price)*t.size*0.5);
       const trailOffset=Math.abs(t.tp1-t.entryPrice)*0.5;
-      trades[i]={...t,
-        status:'TP1_HIT',
-        tp1HitPrice:price,
-        tp1HitTime:new Date().toISOString(),
-        tp1Pnl,
-        currentSl:t.entryPrice,  // SL → entry (break-even)
-        trailOffset,
-      };
+      const _p4={status:'TP1_HIT',tp1HitPrice:price,tp1HitTime:new Date().toISOString(),tp1Pnl,currentSl:t.entryPrice,trailOffset};
+      trades[i]={...t,..._p4};
+      _changedPatches.push({id:t.id,patch:_p4});
       changed=true;
     } else if(hit==='TP2'){
       // Went straight to TP2 without hitting TP1 first (unusual but possible)
       const pnl=dir==='LONG'?(price-t.entryPrice)*t.size:(t.entryPrice-price)*t.size;
       const roe=(pnl/t.amount)*100;
-      trades[i]={...t,status:'TP2',closePrice:price,closeTime:new Date().toISOString(),totalPnl:pnl,totalRoe:roe,pnl,roe};
-      changed=true;
+      const _p5={status:'TP2',closePrice:price,closeTime:new Date().toISOString(),totalPnl:pnl,totalRoe:roe,pnl,roe};
+      trades[i]={...t,..._p5}; _changedPatches.push({id:t.id,patch:_p5}); changed=true;
     } else if(hit==='SL'){
       const pnl=dir==='LONG'?(price-t.entryPrice)*t.size:(t.entryPrice-price)*t.size;
       const roe=(pnl/t.amount)*100;
-      trades[i]={...t,status:'SL',closePrice:price,closeTime:new Date().toISOString(),totalPnl:pnl,totalRoe:roe,pnl,roe};
-      changed=true;
+      const _p5sl={status:'SL',closePrice:price,closeTime:new Date().toISOString(),totalPnl:pnl,totalRoe:roe,pnl,roe};
+      trades[i]={...t,..._p5sl}; _changedPatches.push({id:t.id,patch:_p5sl}); changed=true;
     }
   });
-  if(changed){ saveTrades(trades); renderAll(); }
+  if(changed){
+    saveTrades(trades);
+    // Persist each changed trade to server
+    _changedPatches.forEach(({id,patch})=>updateTrade(id,patch));
+    renderAll();
+  }
 }
 
 /* ── Manual close ───────────────────────────────────────────── */
@@ -783,7 +902,7 @@ function promptCancel(id) {
 function closeConfirmModal(){ document.getElementById('closeOverlay').classList.remove('open'); pendingActionId=null; pendingAction=null; }
 function doConfirmAction(){ if(!pendingActionId) return; if(pendingAction==='close') doCloseTrade(); if(pendingAction==='cancel') doCancelOrder(); }
 
-function doCloseTrade() {
+async function doCloseTrade() {
   const trades=getTrades(),idx=trades.findIndex(x=>x.id===pendingActionId);
   if(idx===-1){closeConfirmModal();return;}
   const t=trades[idx],price=livePrices[t.symbol]||t.entryPrice;
@@ -791,14 +910,20 @@ function doCloseTrade() {
   const rem=isTP1Hit(t)?0.5:1.0;
   const livePnl=t.direction==='LONG'?(price-t.entryPrice)*t.size*rem:(t.entryPrice-price)*t.size*rem;
   const totalPnl=tp1Banked+livePnl, totalRoe=(totalPnl/t.amount)*100;
-  trades[idx]={...t,status:'CLOSED',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
-  saveTrades(trades); closeConfirmModal(); renderAll();
+  const patch={status:'CLOSED',closePrice:price,closeTime:new Date().toISOString(),totalPnl,totalRoe,pnl:totalPnl,roe:totalRoe};
+  trades[idx]={...t,...patch};
+  saveTrades(trades);
+  await updateTrade(t.id, patch);
+  closeConfirmModal(); renderAll();
 }
-function doCancelOrder() {
+async function doCancelOrder() {
   const trades=getTrades(),idx=trades.findIndex(x=>x.id===pendingActionId);
   if(idx===-1){closeConfirmModal();return;}
-  trades[idx]={...trades[idx],status:'CANCELLED',closeTime:new Date().toISOString()};
-  saveTrades(trades); closeConfirmModal(); renderAll();
+  const patch={status:'CANCELLED',closeTime:new Date().toISOString()};
+  trades[idx]={...trades[idx],...patch};
+  saveTrades(trades);
+  await updateTrade(trades[idx].id, patch);
+  closeConfirmModal(); renderAll();
 }
 
 function _showMaintenance(msg){

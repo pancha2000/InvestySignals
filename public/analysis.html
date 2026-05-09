@@ -309,7 +309,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
         </div>
         <div class="scan-table-wrap">
           <table class="scan-table">
-            <thead><tr><th>#</th><th>Symbol</th><th>Score</th><th>4H</th><th>Fund</th><th class="hide-sm">Price</th><th class="hide-sm">24h %</th><th class="hide-sm">Volume</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th>Symbol</th><th title="Scanner Score — quick filter rank. Click 🔬 for Deep Analysis.">Score<span style="font-size:.6rem;color:var(--muted);display:block;font-weight:400">filter</span></th><th>4H</th><th>Fund</th><th class="hide-sm">Price</th><th class="hide-sm">24h %</th><th class="hide-sm">Volume</th><th></th></tr></thead>
             <tbody id="scanTableBody">
               <tr class="loading-row"><td colspan="9">
                 <div class="empty-state">
@@ -394,6 +394,8 @@ onAuthStateChanged(auth,async(user)=>{
         if(_fl.gate_analysis_premium && _sj.status.role !== 'premium' && _sj.status.role !== 'admin'){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">👑</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#00d4ff">Premium Required</div><div style="color:#64748b;font-size:.95rem;max-width:400px;margin-top:8px">Deep Analysis is a Premium feature. Upgrade your account to access it.</div></div>';return;}
         window._uid=_uid;
         window._userRole=_sj.status.role||'user';
+        window._idToken = await user.getIdToken();
+        setInterval(async()=>{ try{ window._idToken=await user.getIdToken(true); }catch(_){} }, 50*60*1000);
         // Poll every 15s for maintenance/suspend changes
         setInterval(async()=>{try{const _r=await fetch('/api/user/status?uid='+encodeURIComponent(_uid));const _j=await _r.json();if(_j.success&&(_j.status.maintenance||_j.status.suspended))window.location.reload();}catch(_){}},15000);
         // WS for instant maintenance push
@@ -1662,7 +1664,7 @@ async function runMarketScan() {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td class="rank-cell">${i+1}</td>
         <td class="sym-cell">${coin.symbol.replace('USDT','')}<span style="color:var(--muted);font-size:.7rem">/U</span></td>
-        <td><span class="score-badge ${sg.cls}">${sg.label} ${coin._score}</span></td>
+        <td><span class="score-badge ${sg.cls}" title="Scanner Score (quick filter) — not the same as Deep Analysis confidence">${sg.label} ${coin._score}</span></td>
         <td>${t4hHtml}</td>
         <td>${fmtFunding(fund ?? null)}</td>
         <td class="price-cell hide-sm">${fmtPrice(coin.lastPrice)}</td>
@@ -2367,7 +2369,45 @@ function openPTModal(symbol,direction,entryType,entryPrice,tp1,tp2,sl){ptData={s
 function closePTModal(){document.getElementById('ptOverlay').classList.remove('open');}
 function setLev(btn,val){ptLev=val;document.querySelectorAll('.pt-lbtn').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');updatePTCalc();}
 function updatePTCalc(){const amount=parseFloat(document.getElementById('ptAmount').value)||0,entry=ptData.entryPrice;if(!entry||!amount)return;const notional=amount*ptLev,size=notional/entry,liq=ptData.direction==='LONG'?entry*(1-1/ptLev):entry*(1+1/ptLev);document.getElementById('calcSize').textContent=size>=1?size.toFixed(4):size.toFixed(6);document.getElementById('calcNotional').textContent='$'+notional.toFixed(2);document.getElementById('calcLiq').textContent=fmtPrice(liq);}
-function confirmPaperTrade(){const amount=parseFloat(document.getElementById('ptAmount').value);if(!amount||amount<1){alert('Amount must be at least $1');return;}const{symbol,direction,entryType,entryPrice,tp1,tp2,sl}=ptData,notional=amount*ptLev,size=notional/entryPrice,liq=direction==='LONG'?entryPrice*(1-1/ptLev):entryPrice*(1+1/ptLev);const status=entryType==='MARKET'?'OPEN':direction==='LONG'?'PENDING_LONG':'PENDING_SHORT';const trade={id:Date.now(),symbol,pair:symbol.replace('USDT','/USDT'),direction,entryType,entryPrice,tp1,tp2,sl,amount,leverage:ptLev,size,notional,liqPrice:liq,status,openTime:new Date().toISOString(),fillTime:entryType==='MARKET'?new Date().toISOString():null,closeTime:null,closePrice:null,pnl:null,roe:null};const trades=JSON.parse(localStorage.getItem('pt_trades')||'[]');trades.unshift(trade);localStorage.setItem('pt_trades',JSON.stringify(trades));closePTModal();window.location.href='live-signals.html';}
+async function confirmPaperTrade(){
+  const amount=parseFloat(document.getElementById('ptAmount').value);
+  if(!amount||amount<1){alert('Amount must be at least $1');return;}
+  const{symbol,direction,entryType,entryPrice,tp1,tp2,sl}=ptData;
+  const notional=amount*ptLev,size=notional/entryPrice;
+  const liq=direction==='LONG'?entryPrice*(1-1/ptLev):entryPrice*(1+1/ptLev);
+  const status=entryType==='MARKET'?'OPEN':direction==='LONG'?'PENDING_LONG':'PENDING_SHORT';
+  const trade={
+    id:Date.now(),symbol,pair:symbol.replace('USDT','/USDT'),direction,entryType,
+    entryPrice,tp1,tp2,sl,amount,leverage:ptLev,size,notional,liqPrice:liq,
+    status,openTime:new Date().toISOString(),
+    fillTime:entryType==='MARKET'?new Date().toISOString():null,
+    closeTime:null,closePrice:null,pnl:null,roe:null
+  };
+  // Save to server if logged in, otherwise localStorage fallback
+  const btn=document.getElementById('btnPTOk');
+  btn.disabled=true; btn.textContent='Opening...';
+  try {
+    const idToken = window._idToken || null;
+    if(idToken){
+      await fetch('/api/paper/trades',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+idToken,'Content-Type':'application/json'},
+        body:JSON.stringify(trade)
+      });
+    } else {
+      const trades=JSON.parse(localStorage.getItem('pt_trades')||'[]');
+      trades.unshift(trade);
+      localStorage.setItem('pt_trades',JSON.stringify(trades));
+    }
+  } catch(_){
+    // Fallback to localStorage on network error
+    const trades=JSON.parse(localStorage.getItem('pt_trades')||'[]');
+    trades.unshift(trade);
+    localStorage.setItem('pt_trades',JSON.stringify(trades));
+  }
+  closePTModal();
+  window.location.href='live-signals.html';
+}
 </script>
 
 <script>
