@@ -874,23 +874,9 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   const fundingGate = IS('ind_funding_gate', 0.25) / 100; // warning threshold only
   const adxGate     = IS('ind_adx_choppy_gate', 20);
 
-  // ADX hard block — choppy market, no signal
-  if (adx && adx.adx < adxGate) {
-    return {
-      direction: null, entryType: 'BLOCKED', confidence: 0,
-      hardBlock: true,
-      hardBlockReason: `ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. No clear trend direction. High probability of fake breakout and immediate SL hit.`,
-      riskFlags: [`ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. High probability of fake breakout and immediate SL hit.`],
-      isRisky: true,
-      entryPrice: null, slPrice: null, tp1Price: null, tp2Price: null,
-      dcaPoint: null, rrr1: null, rrr2: null,
-      indicators: { adx, fundingRate: fr, trend4h: t4, supertrend: st, emaStack: es,
-                    macd, bb, stochRsi: stoch, obv, atr, vwap, bos, oiChange: oi,
-                    divergence: div, mtfRSI: mRSI, session: ex.session, btcContext: btc,
-                    srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d,
-                    rsi15m, rsi1d, bos15m, bos4h, candlePatterns, pivotPoints, takerRatio, lsRatio }
-    };
-  }
+  // ADX hard block — choppy market
+  // hardBlock=true but we continue full calculation so renderDeep shows real levels with a top warning
+  const _adxBlocked = (adx && adx.adx < adxGate);
 
   // Funding rate warning (not a block — signal still shown with top warning banner)
   const fundingRiskFlags = [];
@@ -1238,7 +1224,7 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
 
   // Any single major structural flag = Risk Entry
   const majorFlags = riskFlags.filter(f => f.includes('counter-trend') || f.includes('Daily EMA') || f.includes('OB —') || f.includes('HIGH FUNDING'));
-  const isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 60) || majorFlags.length >= 1;
+  let isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 60) || majorFlags.length >= 1;
 
   // === SL / TP / Entry Calculation ===
   const aV = atr ? atr.atr : price * 0.015, aP = atr ? atr.pct : 1.5;
@@ -1571,7 +1557,15 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
 
   const confluenceLabel = getConfluenceLabel(ep, dir);
 
-  return { direction:dir, entryType, confidence:conf, hardBlock:false, hardBlockReason:'', riskFlags, isRisky,
+  if (_adxBlocked) {
+    riskFlags.unshift(`ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. High probability of fake breakout. DO NOT TRADE this setup.`);
+    isRisky = true;
+  }
+
+  return { direction:dir, entryType:_adxBlocked?'BLOCKED':entryType, confidence:_adxBlocked?0:conf,
+           hardBlock:_adxBlocked,
+           hardBlockReason: _adxBlocked ? `ADX ${adx.adx.toFixed(1)} < ${adxGate} — Choppy market` : '',
+           riskFlags, isRisky,
            entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2,
            indicators:ind, momentumConf, invalidation, limitExpiry, confluenceLabel, candleCloseTimer };
 }
@@ -1805,16 +1799,9 @@ async function runDeepScan(symbol) {
 
     const entry = decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
 
-    // HARD BLOCK — market conditions unsafe, show explanation panel instead of signal
-    if (entry.hardBlock) {
-      renderBlocked(container, symbol, entry, curP, adx, fr);
-      document.querySelectorAll('.btn-row-deep,#btnManualDeep').forEach(b => b.disabled = false);
-      return;
-    }
-
-    // Low confidence — show signal with risk warning instead of blocking
+    // Low confidence — show signal with risk warning
     const minConf = IS('ind_min_confidence', 68);
-    if (entry.confidence < minConf) {
+    if (!entry.hardBlock && entry.confidence < minConf) {
       if (!entry.riskFlags) entry.riskFlags = [];
       entry.riskFlags.unshift('Low confluence score (' + entry.confidence + '%) — below minimum ' + minConf + '%. Reduce position size or skip.');
       entry.isRisky = true;
@@ -1844,6 +1831,10 @@ function renderBlocked(container, symbol, entry, curP, adx, fr) {
   const reasons = entry.riskFlags || [];
   const fundingGate = IS('ind_funding_gate', 0.25);
   const adxGate     = IS('ind_adx_choppy_gate', 20);
+  const ep = entry.entryPrice, sl = entry.slPrice, tp1 = entry.tp1Price, tp2 = entry.tp2Price;
+  const dir = entry.direction;
+  const dirColor = dir === 'LONG' ? 'var(--green)' : 'var(--red)';
+  const dirLabel = dir === 'LONG' ? '▲ LONG' : '▼ SHORT';
 
   // Build indicator status rows
   const adxStatus = adx ? `
@@ -1911,6 +1902,38 @@ function renderBlocked(container, symbol, entry, curP, adx, fr) {
         <div style="margin-top:14px;padding:10px 14px;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.15);border-radius:8px;font-family:var(--font-n);font-size:.76rem;color:rgba(255,255,255,.6);line-height:1.6">
           💡 <strong style="color:var(--cyan)">What to do:</strong> Monitor this pair. When ADX rises above ${adxGate} and/or funding normalises, re-scan for a valid entry. The confluence engine will then produce a proper signal.
         </div>
+
+        ${ep ? `
+        <!-- Estimated levels — shown for reference, NOT a trade signal -->
+        <div style="margin-top:16px;background:rgba(0,0,0,.25);border:1px solid rgba(255,195,51,.2);border-radius:10px;padding:14px 16px;">
+          <div style="font-family:var(--font-n);font-size:.62rem;color:var(--yellow);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">
+            📐 ATR-Estimated Levels <span style="color:var(--muted);font-weight:400;font-size:.6rem;text-transform:none">(for reference only — NOT a signal)</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:10px 12px;border:1px solid rgba(255,255,255,.06)">
+              <div style="font-size:.6rem;color:var(--muted);margin-bottom:4px">Direction (bias)</div>
+              <div style="font-family:var(--font-n);font-size:.88rem;font-weight:700;color:${dirColor}">${dirLabel}</div>
+            </div>
+            <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:10px 12px;border:1px solid rgba(0,212,255,.15)">
+              <div style="font-size:.6rem;color:var(--muted);margin-bottom:4px">Est. Entry</div>
+              <div style="font-family:var(--font-n);font-size:.88rem;font-weight:700;color:var(--cyan)">${fmtPrice(ep)}</div>
+            </div>
+            <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:10px 12px;border:1px solid rgba(255,61,90,.15)">
+              <div style="font-size:.6rem;color:var(--muted);margin-bottom:4px">Est. Stop Loss</div>
+              <div style="font-family:var(--font-n);font-size:.88rem;font-weight:700;color:var(--red)">${fmtPrice(sl)}</div>
+            </div>
+            <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:10px 12px;border:1px solid rgba(0,255,136,.15)">
+              <div style="font-size:.6rem;color:var(--muted);margin-bottom:4px">Est. TP1 / TP2</div>
+              <div style="font-family:var(--font-n);font-size:.82rem;font-weight:700;color:var(--green)">${fmtPrice(tp1)} / ${fmtPrice(tp2)}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.2);border-radius:8px">
+            <span style="font-size:.9rem">🚫</span>
+            <span style="font-family:var(--font-n);font-size:.72rem;color:rgba(255,255,255,.7);line-height:1.5">
+              Paper trade & real entry are <strong style="color:var(--red)">disabled</strong> for blocked signals. Wait for market conditions to improve before trading.
+            </span>
+          </div>
+        </div>` : ''}
       </div>
     </div>`;
 }
@@ -1922,7 +1945,8 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const { direction:dir, entryType, confidence:conf, entryPrice:ep, slPrice:sl,
           tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, riskFlags=[], isRisky=false, indicators:ind,
           momentumConf=null, invalidation=null, limitExpiry=null,
-          confluenceLabel=null, candleCloseTimer=null } = entry;
+          confluenceLabel=null, candleCloseTimer=null,
+          hardBlock=false, hardBlockReason='' } = entry;
   const { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
           divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
           srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
@@ -2126,42 +2150,63 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     </div>` : '';
 
   const reasons  = buildReasons(rsi, vol, entry);
-  const paperBtn = `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${isRisky?'LIMIT':entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`;
+  const paperBtn = hardBlock
+    ? `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end">
+        <div style="font-family:var(--font-n);font-size:.75rem;color:rgba(255,61,90,.7);background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);border-radius:8px;padding:8px 16px;display:flex;align-items:center;gap:8px">
+          🚫 Paper trade disabled — market blocked
+        </div>
+       </div>`
+    : `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${isRisky?'LIMIT':entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`;
 
   // Risk = entry - SL
   const riskAmt  = Math.abs(ep - sl);
   const dcaDist  = dcaPoint ? Math.abs(ep - dcaPoint) : null;
 
   container.innerHTML = `
-<div class="deep-result"><div class="panel deep-card" style="border-color:${borderCol}">
+<div class="deep-result"><div class="panel deep-card" style="border-color:${hardBlock?'rgba(255,61,90,.5)':borderCol}">
+
+  ${hardBlock ? `
+  <!-- HARD BLOCK WARNING BANNER -->
+  <div style="background:rgba(255,61,90,.12);border-bottom:2px solid rgba(255,61,90,.4);padding:14px 20px;display:flex;align-items:flex-start;gap:12px">
+    <span style="font-size:1.5rem;line-height:1;flex-shrink:0">🚫</span>
+    <div style="flex:1">
+      <div style="font-family:var(--font-h);font-size:.95rem;font-weight:700;color:var(--red);margin-bottom:4px">ENTRY BLOCKED — Do Not Trade This Setup</div>
+      <div style="font-family:var(--font-n);font-size:.76rem;color:rgba(255,255,255,.75);line-height:1.6">${hardBlockReason}</div>
+      <div style="margin-top:8px;font-family:var(--font-n);font-size:.72rem;color:rgba(255,195,51,.9);background:rgba(255,195,51,.07);border:1px solid rgba(255,195,51,.2);border-radius:6px;padding:6px 10px;line-height:1.5">
+        ⚠ Levels below are shown for reference only. Wait for ADX to rise above threshold before entering any position.
+      </div>
+    </div>
+  </div>` : ''}
 
   <!-- Header -->
-  <div class="deep-header" style="background:${headerBg}">
+  <div class="deep-header" style="background:${hardBlock?'linear-gradient(135deg,rgba(255,61,90,.05),rgba(255,61,90,.01))':headerBg};opacity:${hardBlock?'0.75':'1'}">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div class="deep-pair">${pair}</div>
       <div class="deep-dir ${dir==='LONG'?'long':'short'}">${dir==='LONG'?'▲ LONG':'▼ SHORT'}</div>
-      ${isRisky?`<span style="font-family:var(--font-n);font-size:.68rem;padding:3px 10px;border-radius:5px;background:rgba(255,195,51,.15);color:var(--yellow);border:1px solid rgba(255,195,51,.4)">⚠ RISK ENTRY</span>`:''}
+      ${hardBlock?`<span style="font-family:var(--font-n);font-size:.68rem;padding:3px 10px;border-radius:5px;background:rgba(255,61,90,.15);color:var(--red);border:1px solid rgba(255,61,90,.4)">🚫 BLOCKED</span>`:''}
+      ${isRisky&&!hardBlock?`<span style="font-family:var(--font-n);font-size:.68rem;padding:3px 10px;border-radius:5px;background:rgba(255,195,51,.15);color:var(--yellow);border:1px solid rgba(255,195,51,.4)">⚠ RISK ENTRY</span>`:''}
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-family:var(--font-n);font-size:.7rem;padding:3px 10px;border-radius:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.25)">⚡ ${conf}%</span>
-      <span class="entry-badge ${entryType==='MARKET'?'market':'limit'}">${entryType==='RISK ENTRY'?'⚠ RISK':entryType}</span>
+      ${hardBlock?`<span style="font-family:var(--font-n);font-size:.7rem;padding:3px 10px;border-radius:4px;background:rgba(255,61,90,.12);color:var(--red);border:1px solid rgba(255,61,90,.25)">⛔ BLOCKED</span>`:`<span style="font-family:var(--font-n);font-size:.7rem;padding:3px 10px;border-radius:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.25)">⚡ ${conf}%</span>`}
+      <span class="entry-badge ${entryType==='MARKET'?'market':'limit'}">${entryType==='RISK ENTRY'?'⚠ RISK':entryType==='BLOCKED'?'⛔ BLOCKED':entryType}</span>
     </div>
   </div>
 
   <!-- Score Bar -->
-  <div class="score-bar-wrap">
-    <div class="score-bar-title">🏆 Confluence Score — ${conf < IS('ind_min_confidence',68) ? '🔴 LOW CONFIDENCE' : isRisky ? '⚠ Risk Entry' : '✅ Valid Signal'} (v5 · 25-Factor Engine)</div>
+  <div class="score-bar-wrap" style="opacity:${hardBlock?'0.5':'1'}">
+    <div class="score-bar-title">${hardBlock ? '🚫 BLOCKED — Reference Data Only (v5 · 25-Factor Engine)' : conf < IS('ind_min_confidence',68) ? '🏆 Confluence Score — 🔴 LOW CONFIDENCE (v5 · 25-Factor Engine)' : isRisky ? '🏆 Confluence Score — ⚠ Risk Entry (v5 · 25-Factor Engine)' : '🏆 Confluence Score — ✅ Valid Signal (v5 · 25-Factor Engine)'}</div>
     <div class="score-total">
-      <div class="score-num" style="color:${sColor}">${conf}</div>
-      <span class="score-badge ${sg.cls}" style="font-size:.9rem;padding:3px 10px">${sg.label}</span>
-      <div class="score-track"><div class="score-fill" style="width:${conf}%;background:${sColor}"></div></div>
-      <span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">25 factors</span>
+      <div class="score-num" style="color:${hardBlock?'var(--red)':sColor}">${hardBlock?'—':conf}</div>
+      <span class="score-badge ${hardBlock?'score-c':sg.cls}" style="font-size:.9rem;padding:3px 10px">${hardBlock?'⛔':sg.label}</span>
+      <div class="score-track"><div class="score-fill" style="width:${hardBlock?'100':conf}%;background:${hardBlock?'rgba(255,61,90,.35)':sColor}"></div></div>
+      <span style="font-family:var(--font-n);font-size:.63rem;color:var(--muted)">${hardBlock?'entry blocked':'25 factors'}</span>
     </div>
     <div class="score-factors">${chips.map(c=>`<span class="sf ${c.cls}">${c.l}</span>`).join('')}</div>
   </div>
 
   <!-- Entry Levels — 6 boxes including DCA -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);position:relative">
+    ${hardBlock?`<div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(7,11,20,.45);z-index:2;border-radius:0;display:flex;align-items:center;justify-content:center"><span style="font-family:var(--font-n);font-size:.75rem;color:rgba(255,61,90,.8);background:rgba(7,11,20,.85);padding:6px 14px;border-radius:6px;border:1px solid rgba(255,61,90,.3)">🚫 Reference only — not a tradeable signal</span></div>`:''}
     <div style="background:${isRisky?'rgba(255,195,51,.06)':'var(--surface)'};border:1px solid ${isRisky?'rgba(255,195,51,.3)':'var(--border)'};border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Entry</div>
       <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:${isRisky?'var(--yellow)':'var(--cyan)'}">${fmtPrice(ep)}</div>
