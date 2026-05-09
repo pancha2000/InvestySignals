@@ -784,6 +784,176 @@ function calcRVOL(kl) {
   };
 }
 
+
+/* ═══════════════════════════════════════════════════════════
+   PUMP & DUMP DETECTION ENGINE
+   Uses 5m klines + ticker data to detect manipulation
+   Signals: sudden spike, wash trade volume, taker extreme,
+            price reversal pattern, funding spike, wick ratio
+   ═══════════════════════════════════════════════════════════ */
+async function detectPumpDump(symbol, curPrice, takerRatio, fundingRate) {
+  const result = {
+    detected: false,
+    type: null,         // 'PUMP', 'DUMP', 'PUMP_EXHAUSTION', 'DUMP_EXHAUSTION'
+    confidence: 0,      // 0-100
+    signals: [],        // what triggered
+    severity: 'NONE',   // NONE / CAUTION / WARNING / DANGER
+    recommendation: '',
+  };
+
+  try {
+    // Fetch last 30 x 5m candles for micro-structure
+    const kl5m = await fetch(
+      `${BINANCE_FAPI}/fapi/v1/klines?symbol=${symbol}&interval=5m&limit=30`
+    ).then(r => r.json());
+
+    if (!Array.isArray(kl5m) || kl5m.length < 20) return result;
+
+    // Parse candle data
+    const candles = kl5m.map(k => ({
+      o: parseFloat(k[1]), h: parseFloat(k[2]),
+      l: parseFloat(k[3]), c: parseFloat(k[4]),
+      v: parseFloat(k[5]), qv: parseFloat(k[7]),
+      buys: parseFloat(k[9]), buyQv: parseFloat(k[10]),
+    }));
+
+    const last   = candles[candles.length - 2]; // last closed
+    const prev3  = candles.slice(-5, -2);
+    const base20 = candles.slice(0, 20);
+
+    // === SIGNAL 1: Volume spike (5m) ===
+    const avgVol20 = base20.reduce((s, c) => s + c.qv, 0) / 20;
+    const lastQv   = last.qv;
+    const volSpike = avgVol20 > 0 ? lastQv / avgVol20 : 1;
+
+    if (volSpike >= 8) {
+      result.signals.push(`🔥 Extreme volume spike: ${volSpike.toFixed(1)}x average (5m candle)`);
+      result.confidence += 35;
+    } else if (volSpike >= 4) {
+      result.signals.push(`⚡ High volume spike: ${volSpike.toFixed(1)}x average (5m candle)`);
+      result.confidence += 20;
+    } else if (volSpike >= 2.5) {
+      result.signals.push(`📊 Elevated volume: ${volSpike.toFixed(1)}x average`);
+      result.confidence += 10;
+    }
+
+    // === SIGNAL 2: Price spike — candle body % ===
+    const priceSpike5m = Math.abs(last.c - last.o) / last.o * 100;
+    if (priceSpike5m >= 2.5) {
+      const dir = last.c > last.o ? 'up' : 'down';
+      result.signals.push(`🚀 Large 5m candle body: ${priceSpike5m.toFixed(2)}% ${dir}`);
+      result.confidence += 20;
+      result.type = last.c > last.o ? 'PUMP' : 'DUMP';
+    } else if (priceSpike5m >= 1.5) {
+      result.confidence += 10;
+      result.type = last.c > last.o ? 'PUMP' : 'DUMP';
+    }
+
+    // === SIGNAL 3: Wick ratio — pump/dump exhaustion ===
+    // Long upper wick after up move = pump exhaustion
+    // Long lower wick after down move = dump exhaustion
+    const range = last.h - last.l;
+    if (range > 0) {
+      const upperWick = (last.h - Math.max(last.o, last.c)) / range;
+      const lowerWick = (Math.min(last.o, last.c) - last.l) / range;
+      const prev3avg  = prev3.reduce((s, c) => s + (c.c - c.o), 0) / 3;
+
+      if (upperWick >= 0.65 && prev3avg > 0) {
+        result.signals.push(`🕯 Long upper wick (${(upperWick*100).toFixed(0)}%) after up move — pump exhaustion / rejection`);
+        result.confidence += 25;
+        result.type = 'PUMP_EXHAUSTION';
+      }
+      if (lowerWick >= 0.65 && prev3avg < 0) {
+        result.signals.push(`🕯 Long lower wick (${(lowerWick*100).toFixed(0)}%) after down move — dump exhaustion / relief bounce`);
+        result.confidence += 20;
+        result.type = 'DUMP_EXHAUSTION';
+      }
+    }
+
+    // === SIGNAL 4: Taker buy/sell extreme ===
+    if (takerRatio) {
+      const buyPct = takerRatio.buyPct || 0;
+      const sellPct = 100 - buyPct;
+      if (buyPct >= 88) {
+        result.signals.push(`🐋 Extreme taker buying: ${buyPct.toFixed(1)}% buy — possible coordinated pump`);
+        result.confidence += 25;
+        if (!result.type) result.type = 'PUMP';
+      } else if (sellPct >= 88) {
+        result.signals.push(`🐋 Extreme taker selling: ${sellPct.toFixed(1)}% sell — possible coordinated dump`);
+        result.confidence += 25;
+        if (!result.type) result.type = 'DUMP';
+      } else if (buyPct >= 78 || sellPct >= 78) {
+        result.confidence += 12;
+      }
+    }
+
+    // === SIGNAL 5: Funding rate spike ===
+    if (fundingRate != null) {
+      const fr = Math.abs(fundingRate);
+      if (fr >= 0.3) {
+        result.signals.push(`💸 Extreme funding rate: ${(fundingRate*100).toFixed(3)}% — over-leveraged ${fundingRate > 0 ? 'longs' : 'shorts'}, snap risk`);
+        result.confidence += 20;
+      } else if (fr >= 0.15) {
+        result.signals.push(`💸 High funding rate: ${(fundingRate*100).toFixed(3)}% — ${fundingRate > 0 ? 'longs paying' : 'shorts paying'}`);
+        result.confidence += 10;
+      }
+    }
+
+    // === SIGNAL 6: Price reversal after spike (pump then immediate sell-off) ===
+    if (prev3.length >= 2) {
+      const prevUp = prev3.filter(c => c.c > c.o).length;
+      const prevDn = prev3.filter(c => c.c < c.o).length;
+      // Last candle reverses previous 3-candle trend
+      if (prevUp >= 2 && last.c < last.o && priceSpike5m >= 1) {
+        result.signals.push(`🔄 Price reversal after up move — classic post-pump distribution`);
+        result.confidence += 20;
+        result.type = 'PUMP_EXHAUSTION';
+      }
+      if (prevDn >= 2 && last.c > last.o && priceSpike5m >= 1) {
+        result.signals.push(`🔄 Price reversal after down move — possible dead cat bounce`);
+        result.confidence += 15;
+        result.type = 'DUMP_EXHAUSTION';
+      }
+    }
+
+    // === SIGNAL 7: Low-cap isolated move (price up but OI normal) ===
+    const price3back = prev3[0]?.c || curPrice;
+    const movePct = Math.abs(curPrice - price3back) / price3back * 100;
+    if (movePct >= 5 && volSpike >= 3) {
+      result.signals.push(`📈 ${movePct.toFixed(1)}% move in last 15 min with ${volSpike.toFixed(1)}x volume — suspicious`);
+      result.confidence += 15;
+    }
+
+    // === Severity classification ===
+    result.confidence = Math.min(result.confidence, 100);
+    result.detected   = result.confidence >= 30;
+
+    if      (result.confidence >= 75) result.severity = 'DANGER';
+    else if (result.confidence >= 50) result.severity = 'WARNING';
+    else if (result.confidence >= 30) result.severity = 'CAUTION';
+    else                              result.severity = 'NONE';
+
+    // === Recommendation ===
+    const t = result.type;
+    if (!result.detected) {
+      result.recommendation = 'No manipulation signals detected. Normal market conditions.';
+    } else if (t === 'PUMP') {
+      result.recommendation = 'Active pump detected. AVOID LONG entries — price likely to retrace sharply. Wait for volume to normalise and wick to form.';
+    } else if (t === 'DUMP') {
+      result.recommendation = 'Active dump detected. AVOID SHORT entries at current price — may bounce. Wait for stabilisation.';
+    } else if (t === 'PUMP_EXHAUSTION') {
+      result.recommendation = 'Pump exhaustion — buyers running out. Consider waiting for retracement to complete before entering LONG, or look for SHORT opportunity.';
+    } else if (t === 'DUMP_EXHAUSTION') {
+      result.recommendation = 'Dump exhaustion — sellers slowing. Bounce possible but no guarantee. Wait for confirmation candle before any entry.';
+    }
+
+  } catch(e) {
+    console.warn('[P&D]', e.message);
+  }
+
+  return result;
+}
+
 /* ═══════════════════════════════════════
    SCANNER — Optimised for Setup Finding
    Goal: Find coins likely to give a clean
@@ -1808,10 +1978,32 @@ async function runDeepScan(symbol) {
       entry.entryType = 'RISK ENTRY';
     }
 
+    // P&D Detection — run in parallel, non-blocking
+    const pdResult = await detectPumpDump(
+      symbol, curP,
+      takerRatio,
+      entry.indicators?.fundingRate ?? null
+    );
+
+    // If DANGER/WARNING P&D + entry is LONG on PUMP or SHORT on DUMP → add hard warning
+    if (pdResult.detected && !entry.hardBlock) {
+      const pdType = pdResult.type;
+      const dir    = entry.direction;
+      if ((pdType === 'PUMP' && dir === 'LONG') || (pdType === 'DUMP' && dir === 'SHORT')) {
+        entry.riskFlags = entry.riskFlags || [];
+        entry.riskFlags.unshift(
+          `🐋 ${pdResult.severity} — Trading ${dir} INTO active ${pdType}. ${pdResult.recommendation}`
+        );
+        entry.isRisky = true;
+        if (pdResult.severity === 'DANGER') entry.entryType = 'RISK ENTRY';
+      }
+    }
+
     renderDeep(container, symbol, rsi, vol, entry, curP, {
       kl15m, kl1h, kl4h, kl1d, ema15m, ema4h, ema1d, rsi15m, rsi4h, rsi1d,
       trendLine, trendLine4h, bos15m, bos4h, mtfOBs, mtfFVGs, srZones, fibonacci,
-      candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio
+      candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio,
+      pdResult
     });
 
     btSaveSignal(symbol, entry, curP, getSession(), rsi);
@@ -1951,7 +2143,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
           divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
           srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
           candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol } = ind;
-  const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h } = extra || {};
+  const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h, pdResult=null } = extra || {};
   const pair = symbol.replace('USDT', '/USDT');
 
   const rColor = rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
@@ -2009,6 +2201,26 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   }).join('');
 
   const riskHtml = isRisky && riskFlags.length ? `<div style="background:${riskBg};border:1px solid ${riskBdr};border-radius:10px;padding:11px 14px;margin-bottom:14px;font-family:var(--font-n)"><strong style="color:${riskClr};font-size:.76rem">${riskLabel}</strong><span style="font-size:.72rem;color:rgba(255,255,255,.5)"> — Reduce position size significantly.</span><div style="margin-top:8px">${riskFlagsHtml}</div></div>` : '';
+
+  // P&D HTML panel
+  const pdColor = pdResult?.severity==='DANGER' ? 'rgba(255,61,90,.5)' : pdResult?.severity==='WARNING' ? 'rgba(255,195,51,.45)' : 'rgba(0,212,255,.3)';
+  const pdBg    = pdResult?.severity==='DANGER' ? 'rgba(255,61,90,.12)' : pdResult?.severity==='WARNING' ? 'rgba(255,195,51,.1)' : 'rgba(0,212,255,.07)';
+  const pdClr   = pdResult?.severity==='DANGER' ? 'var(--red)' : pdResult?.severity==='WARNING' ? 'var(--yellow)' : 'var(--cyan)';
+  const pdIcon  = pdResult?.severity==='DANGER' ? '🚨' : pdResult?.severity==='WARNING' ? '⚠️' : '👀';
+  const pdHtml  = pdResult?.detected ? `
+    <div style="margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid ${pdColor}">
+      <div style="padding:10px 14px;display:flex;align-items:flex-start;gap:10px;background:${pdBg}">
+        <span style="font-size:1.2rem;flex-shrink:0;margin-top:1px">${pdIcon}</span>
+        <div style="flex:1">
+          <div style="font-family:var(--font-h);font-size:.85rem;font-weight:700;color:${pdClr};margin-bottom:3px">
+            ${pdResult.severity} — ${(pdResult.type||'MANIPULATION').replace('_',' ')} Detected
+            <span style="font-family:var(--font-n);font-size:.63rem;font-weight:400;opacity:.8;margin-left:6px">${pdResult.confidence}% confidence</span>
+          </div>
+          <div style="font-family:var(--font-n);font-size:.74rem;color:rgba(255,255,255,.8);line-height:1.55">${pdResult.recommendation}</div>
+          ${pdResult.signals.length ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:3px">${pdResult.signals.map(s=>`<div style="font-family:var(--font-n);font-size:.69rem;color:rgba(255,255,255,.6);line-height:1.4">${s}</div>`).join('')}</div>` : ''}
+        </div>
+      </div>
+    </div>` : '';
 
   // Score chips
   const chips = [];
@@ -2239,7 +2451,8 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     </div>
   </div>
 
-  ${riskHtml ? `<div style="padding:12px 16px 0">${riskHtml}</div>` : ''}
+  ${pdHtml ? `<div style="padding:12px 16px 0">${pdHtml}</div>` : ''}
+  ${riskHtml ? `<div style="padding:${pdHtml?'0':'12px'} 16px 0">${riskHtml}</div>` : ''}
 
   <!-- MTF Analysis -->
   <div style="padding:14px 16px">
@@ -2417,39 +2630,48 @@ function updatePTCalc(){const amount=parseFloat(document.getElementById('ptAmoun
 async function confirmPaperTrade(){
   const amount=parseFloat(document.getElementById('ptAmount').value);
   if(!amount||amount<1){alert('Amount must be at least $1');return;}
+  if(!ptData||!ptData.symbol){alert('Trade data missing. Please re-open the analysis.');return;}
   const{symbol,direction,entryType,entryPrice,tp1,tp2,sl}=ptData;
+  if(!entryPrice||!sl||!tp1){alert('Invalid trade levels. Please re-run deep analysis.');return;}
   const notional=amount*ptLev,size=notional/entryPrice;
   const liq=direction==='LONG'?entryPrice*(1-1/ptLev):entryPrice*(1+1/ptLev);
   const status=entryType==='MARKET'?'OPEN':direction==='LONG'?'PENDING_LONG':'PENDING_SHORT';
   const trade={
     id:Date.now(),symbol,pair:symbol.replace('USDT','/USDT'),direction,entryType,
-    entryPrice,tp1,tp2,sl,amount,leverage:ptLev,size,notional,liqPrice:liq,
+    entryPrice,tp1,tp2:tp2||null,sl,amount,leverage:ptLev,size,notional,liqPrice:liq,
     status,openTime:new Date().toISOString(),
     fillTime:entryType==='MARKET'?new Date().toISOString():null,
     closeTime:null,closePrice:null,pnl:null,roe:null
   };
-  // Save to server if logged in, otherwise localStorage fallback
   const btn=document.getElementById('btnPTOk');
   btn.disabled=true; btn.textContent='Opening...';
+  let saved=false;
   try {
-    const idToken = window._idToken || null;
-    if(idToken){
-      await fetch('/api/paper/trades',{
+    const tok=window._idToken;
+    if(tok){
+      const resp=await fetch('/api/paper/trades',{
         method:'POST',
-        headers:{'Authorization':'Bearer '+idToken,'Content-Type':'application/json'},
+        headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},
         body:JSON.stringify(trade)
       });
-    } else {
-      const trades=JSON.parse(localStorage.getItem('pt_trades')||'[]');
-      trades.unshift(trade);
-      localStorage.setItem('pt_trades',JSON.stringify(trades));
+      const json=await resp.json().catch(()=>({}));
+      if(resp.ok && json.success!==false){ saved=true; }
+      else {
+        console.warn('[PT] Server save failed:',json.error||resp.status,'. Falling back to localStorage.');
+      }
     }
-  } catch(_){
-    // Fallback to localStorage on network error
-    const trades=JSON.parse(localStorage.getItem('pt_trades')||'[]');
-    trades.unshift(trade);
-    localStorage.setItem('pt_trades',JSON.stringify(trades));
+  } catch(e){ console.warn('[PT] Network error:',e.message); }
+  if(!saved){
+    // localStorage fallback
+    try{
+      const arr=JSON.parse(localStorage.getItem('pt_trades')||'[]');
+      arr.unshift(trade);
+      localStorage.setItem('pt_trades',JSON.stringify(arr));
+      saved=true;
+    }catch(e2){ console.error('[PT] localStorage fallback failed:',e2); }
   }
+  btn.disabled=false; btn.textContent='✅ Open Trade';
+  if(!saved){ alert('Failed to save trade. Please try again.'); return; }
   closePTModal();
   window.location.href='live-signals.html';
 }
