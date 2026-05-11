@@ -140,6 +140,28 @@ const paperBalanceSchema = new mongoose.Schema({
 const PaperTrade   = mongoose.model('PaperTrade',   paperTradeSchema);
 const PaperBalance = mongoose.model('PaperBalance', paperBalanceSchema);
 
+/* ── Signal Outcome Schema (win rate tracking) ── */
+const signalOutcomeSchema = new mongoose.Schema({
+  symbol:     { type:String, required:true, index:true },
+  direction:  { type:String, enum:['LONG','SHORT'], required:true },
+  confidence: Number,
+  entryPrice: Number,
+  tp1Price:   Number,
+  tp2Price:   Number,
+  slPrice:    Number,
+  rrr1:       Number,
+  rrr2:       Number,
+  session:    String,
+  outcome:    { type:String, enum:['TP1','TP2','SL','BE','OPEN','CANCELLED'], default:'OPEN' },
+  pnlR:       Number,  // P&L in R multiples
+  closePrice: Number,
+  openTime:   { type:Date, default:Date.now },
+  closeTime:  Date,
+  uid:        String,
+}, { timestamps:true });
+
+const SignalOutcome = mongoose.model('SignalOutcome', signalOutcomeSchema);
+
 /* ── Indicator defaults ── */
 const indicatorDefaults = [
   { key:'ind_rsi_period',value:14,label:'RSI Period',group:'indicators' },
@@ -692,6 +714,59 @@ app.put('/api/paper/balance', userAuth, async (req, res) => {
     );
     res.json({ success:true, balance: rec.balance });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   WIN RATE TRACKING API
+   ═══════════════════════════════════════════════════════════════ */
+
+/* POST /api/signals/track — save a new signal for outcome tracking */
+app.post('/api/signals/track', userAuth, async (req, res) => {
+  try {
+    const sig = new SignalOutcome({ ...req.body, uid: req.uid });
+    await sig.save();
+    res.json({ success:true, id: sig._id });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* PATCH /api/signals/track/:id — update outcome (TP1/TP2/SL hit) */
+app.patch('/api/signals/track/:id', userAuth, async (req, res) => {
+  try {
+    const sig = await SignalOutcome.findOneAndUpdate(
+      { _id: req.params.id, uid: req.uid },
+      { $set: { ...req.body, closeTime: new Date() } },
+      { new:true }
+    );
+    if (!sig) return res.status(404).json({ success:false, error:'Signal not found' });
+    res.json({ success:true, signal: sig });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+/* GET /api/signals/winrate — user's win rate stats */
+app.get('/api/signals/winrate', userAuth, async (req, res) => {
+  try {
+    const closed = await SignalOutcome.find({
+      uid: req.uid, outcome: { $in: ['TP1','TP2','SL','BE'] }
+    }).sort({ closeTime:-1 }).limit(200).lean();
+
+    const total  = closed.length;
+    const wins   = closed.filter(s => s.outcome === 'TP1' || s.outcome === 'TP2').length;
+    const losses = closed.filter(s => s.outcome === 'SL').length;
+    const be     = closed.filter(s => s.outcome === 'BE').length;
+    const winRate = total > 0 ? (wins / total * 100).toFixed(1) : null;
+    const avgPnlR = total > 0 ? (closed.reduce((s, x) => s + (x.pnlR || 0), 0) / total).toFixed(2) : null;
+
+    // By direction
+    const longs  = closed.filter(s => s.direction === 'LONG');
+    const shorts = closed.filter(s => s.direction === 'SHORT');
+    const longWR = longs.length  ? (longs.filter(s=>s.outcome==='TP1'||s.outcome==='TP2').length/longs.length*100).toFixed(1) : null;
+    const shortWR= shorts.length ? (shorts.filter(s=>s.outcome==='TP1'||s.outcome==='TP2').length/shorts.length*100).toFixed(1) : null;
+
+    // Last 20 signals (equity curve)
+    const recent = closed.slice(0, 20).map(s => ({ outcome:s.outcome, pnlR:s.pnlR, symbol:s.symbol, direction:s.direction, closeTime:s.closeTime }));
+
+    res.json({ success:true, stats:{ total, wins, losses, be, winRate, avgPnlR, longWR, shortWR }, recent });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
 app.get('/api/settings/public', async (req, res) => {

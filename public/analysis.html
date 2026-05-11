@@ -610,33 +610,16 @@ function detectOrderBlocks(O,H,L,C,tf){
 }
 
 /* ── Fibonacci ── */
-const FIB_LEVELS=[
-  {r:0,label:'0%',type:'retrace',key:false},{r:0.236,label:'23.6%',type:'retrace',key:false},
-  {r:0.382,label:'38.2%',type:'retrace',key:true},{r:0.5,label:'50%',type:'retrace',key:true},
-  {r:0.618,label:'61.8%',type:'retrace',key:true},{r:0.786,label:'78.6%',type:'retrace',key:false},
-  {r:1,label:'100%',type:'retrace',key:false},{r:1.272,label:'127.2%',type:'extend',key:false},
-  {r:1.414,label:'141.4%',type:'extend',key:false},{r:1.618,label:'161.8%',type:'extend',key:true},
-  {r:2.0,label:'200%',type:'extend',key:false},{r:2.618,label:'261.8%',type:'extend',key:false}
-];
-function calcFibonacci(H,L,C,atr){
-  const lb=Math.min(H.length,50);
-  const recentH=H.slice(-lb),recentL=L.slice(-lb);
-  const maxH=Math.max(...recentH),minL=Math.min(...recentL);
-  const range=maxH-minL;
-  if(!atr||range<atr*0.5)return null;
-  const hiIdx=recentH.lastIndexOf(maxH),loIdx=recentL.lastIndexOf(minL);
-  const highIsRecent=hiIdx>loIdx;
-  const price=C[C.length-1],trend=highIsRecent?'downtrend':'uptrend';
-  const[base,top]=highIsRecent?[maxH,minL]:[minL,maxH];
-  const levels=FIB_LEVELS.map(fl=>{
-    let p=highIsRecent?base-(fl.r*(base-top)):base+(fl.r*(top-base));
-    return{...fl,price:p};
-  });
-  const nearest=levels.slice().sort((a,b)=>Math.abs(price-a.price)-Math.abs(price-b.price))[0];
-  const nearThreshold=atr?(atr/price*100*0.5):0.3;
-  const atFib=Math.abs((nearest.price-price)/price*100)<nearThreshold*2;
-  const atKeyFib=atFib&&nearest.key;
-  return{levels,trend,swingHigh:maxH,swingLow:minL,nearest,atFib,atKeyFib,nearKey:atKeyFib?nearest:null,atrThreshold:nearThreshold};
+// Fibonacci engine moved to analysis/indicator.js (calcFibonacciMTF)
+// calcFibonacci is kept as a thin wrapper for backward compatibility
+function calcFibonacci(H, L, C, atr) {
+  // Use new MTF engine with 1H data only (backward compat)
+  if (!H || H.length < 10) return null;
+  const price = C[C.length - 1];
+  const aV = atr || price * 0.015;
+  // Build minimal klines array for single-TF calc
+  const kl = H.map((h, i) => [0, C[i], h, L[i], C[i], 0, 0, 0, 0, 0, 0, 0]);
+  return calcFibonacciMTF(null, kl, null, null, price, { atr: aV, pct: aV/price*100 });
 }
 
 /* ── S/R Zones ── */
@@ -1034,7 +1017,9 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     mtfOBs=null, mtfFVGs=null, ema15m=null, ema1d=null,
     rsi15m=null, rsi1d=null, bos15m=null, bos4h=null,
     candlePatterns=null, pivotPoints=null, takerRatio=null, lsRatio=null,
-    orderBook=null, rvol=null, candleCloseTimer=null
+    orderBook=null, rvol=null, candleCloseTimer=null,
+    liqSweeps=null, liqSweeps15=null, breakers=null, breakers4h=null,
+    oteZone=null, killzone=null, amdModel=null, vsa=null
   } = ex;
 
   // ══════════════════════════════════════════════════════
@@ -1727,6 +1712,71 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
 
   const confluenceLabel = getConfluenceLabel(ep, dir);
 
+  // ══════════════════════════════════════════
+  // NEW: Liquidity Sweep scoring
+  // ══════════════════════════════════════════
+  if (liqSweeps) {
+    if (liqSweeps.bullSweep && liqSweeps.bullSweep.age <= 8) {
+      const str = liqSweeps.bullSweep.strength;
+      ls += str === 'strong' ? 18 : 12;
+    }
+    if (liqSweeps.bearSweep && liqSweeps.bearSweep.age <= 8) {
+      const str = liqSweeps.bearSweep.strength;
+      ss += str === 'strong' ? 18 : 12;
+    }
+  }
+  if (liqSweeps15) {
+    if (liqSweeps15.bullSweep && liqSweeps15.bullSweep.age <= 6) ls += 8;
+    if (liqSweeps15.bearSweep && liqSweeps15.bearSweep.age <= 6) ss += 8;
+  }
+
+  // Breaker Blocks scoring
+  if (breakers) {
+    const price = C[C.length-1];
+    if (breakers.nearestBull && Math.abs(price - breakers.nearestBull.mid) / price < 0.015) ls += 14;
+    if (breakers.nearestBear && Math.abs(price - breakers.nearestBear.mid) / price < 0.015) ss += 14;
+  }
+  if (breakers4h) {
+    const price = C[C.length-1];
+    if (breakers4h.nearestBull && Math.abs(price - breakers4h.nearestBull.mid) / price < 0.02) ls += 10;
+    if (breakers4h.nearestBear && Math.abs(price - breakers4h.nearestBear.mid) / price < 0.02) ss += 10;
+  }
+
+  // OTE Zone scoring
+  if (oteZone) {
+    if (oteZone.priceInOTE || oteZone.nearOTE) {
+      if (oteZone.direction === 'bullish') ls += 16;
+      else                                 ss += 16;
+    }
+  }
+
+  // Killzone scoring
+  if (killzone) {
+    if (killzone.quality === 'highest') { ls += 10; ss += 10; } // boosts both — timing is good
+    else if (killzone.quality === 'high') { ls += 6; ss += 6; }
+    else if (killzone.isDeadZone) {
+      riskFlags.push(`🕐 DEAD ZONE (${killzone.utcTime}) — Low volume, choppy. Avoid new entries until ${killzone.nextKillzone || 'London open'}.`);
+      isRisky = true;
+    }
+    if (killzone.isSilverBullet) { ls += 8; ss += 8; } // Silver Bullet bonus
+  }
+
+  // AMD Model scoring
+  if (amdModel && amdModel.detected) {
+    if (amdModel.tradeBias === 'bullish') ls += Math.round(amdModel.confidence * 0.18);
+    if (amdModel.tradeBias === 'bearish') ss += Math.round(amdModel.confidence * 0.18);
+  }
+
+  // VSA scoring
+  if (vsa) {
+    ls += Math.min(vsa.bullScore * 3, 18);
+    ss += Math.min(vsa.bearScore * 3, 18);
+    if (vsa.dominant && vsa.dominant.age <= 2) {
+      if (vsa.dominant.type === 'no_demand')        riskFlags.push(`📉 VSA No Demand — rally lacks institutional interest. ${vsa.dominant.label}`);
+      if (vsa.dominant.type === 'climactic_supply')  riskFlags.push(`🏔 VSA Climactic Supply — distribution likely. ${vsa.dominant.label}`);
+    }
+  }
+
   if (_adxBlocked) {
     riskFlags.unshift(`ADX ${adx.adx.toFixed(1)} < ${adxGate} — Market is choppy/ranging. High probability of fake breakout. DO NOT TRADE this setup.`);
     isRisky = true;
@@ -1958,12 +2008,24 @@ async function runDeepScan(symbol) {
     // FVG, S/R, Fibonacci
     const mtfFVGs  = detectFVGMultiTF(kl15m, kl1h, kl4h, kl1d);
     const srZones  = buildSRZones(kl15m, kl1h, kl4h, kl1d, curP, atr?.atr || curP * 0.01);
-    const fibonacci = calcFibonacci(H, L, C, atr?.atr);
+    const fibonacci = calcFibonacciMTF(kl15m, kl1h, kl4h, kl1d, curP, atr);
+    const regime    = detectMarketRegime(C, H, L, V, adx, bb, atr);
+
+    // === NEW: SMC/ICT/VSA features ===
+    const liqSweeps   = detectLiquiditySweeps(H, L, C, O, atr);
+    const liqSweeps15 = detectLiquiditySweeps(H15, L15, C15, O15, atr);
+    const breakers    = detectBreakerBlocks(O, H, L, C, atr);
+    const breakers4h  = detectBreakerBlocks(O4, H4, L4, C4, atr);
+    const oteZone     = calcOTEZone(H, L, C, O, atr, bos);
+    const killzone    = getICTKillzone();
+    const amdModel    = detectAMDModel(O, H, L, C, V, atr);
+    const vsa         = detectVSA(O, H, L, C, V, atr);
 
     const ex = {
       trend4h: t4, fundingRate: fr, oiChange: oi, divergence: div, emaStack: es, vwap,
       supertrend: spt, bos, mtfRSI: mRSI, session: getSession(), btcContext: btc,
       srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
+      liqSweeps, liqSweeps15, breakers, breakers4h, oteZone, killzone, amdModel, vsa,
       candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol, candleCloseTimer
     };
 
@@ -1999,11 +2061,15 @@ async function runDeepScan(symbol) {
       }
     }
 
+    // Build DCA ladder (3-entry)
+    const dcaLadder = calcDCALadder(entry.entryPrice, entry.slPrice, entry.direction, fibonacci, srZones, entry.indicators?.mtfOBs, atr);
+
     renderDeep(container, symbol, rsi, vol, entry, curP, {
       kl15m, kl1h, kl4h, kl1d, ema15m, ema4h, ema1d, rsi15m, rsi4h, rsi1d,
       trendLine, trendLine4h, bos15m, bos4h, mtfOBs, mtfFVGs, srZones, fibonacci,
       candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio,
-      pdResult
+      pdResult, regime, dcaLadder,
+      liqSweeps, breakers, oteZone, killzone, amdModel, vsa
     });
 
     btSaveSignal(symbol, entry, curP, getSession(), rsi);
@@ -2143,7 +2209,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
           divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
           srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
           candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol } = ind;
-  const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h, pdResult=null } = extra || {};
+  const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h, pdResult=null, regime=null, dcaLadder=null, liqSweeps=null, breakers=null, oteZone=null, killzone=null, amdModel=null, vsa=null } = extra || {};
   const pair = symbol.replace('USDT', '/USDT');
 
   const rColor = rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
@@ -2291,15 +2357,50 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   };
 
   // Fibonacci
-  const fibHtml = fibonacci ? `
-    <div style="margin-bottom:6px;font-size:.72rem;color:var(--muted)">Swing: ${fmtPrice(fibonacci.swingLow)} → ${fmtPrice(fibonacci.swingHigh)} · ${fibonacci.trend}</div>
-    ${fibonacci.levels.filter(l=>l.r<=1.618).map(l=>{
-      const distPct = Math.abs((l.price-curP)/curP*100);
-      const isNear  = distPct < (fibonacci.atrThreshold||0.5)*2;
-      const col     = l.key ? 'var(--cyan)' : l.type==='extend' ? '#a78bfa' : 'var(--text)';
-      const bg      = isNear ? (dir==='LONG'&&l.r<1?'rgba(0,255,136,.06)':dir==='SHORT'&&l.r<1?'rgba(255,61,90,.06)':'rgba(0,212,255,.06)') : 'transparent';
-      return`<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;background:${bg};border-left:2px solid ${isNear?col:'transparent'}"><span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);width:42px">${l.label}</span><span style="font-family:var(--font-n);font-size:.72rem;font-weight:600;color:${col};flex:1">${fmtPrice(l.price)}</span><span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted)">${((l.price-curP)/curP*100>0?'+':'')+(((l.price-curP)/curP*100)).toFixed(2)}%</span>${isNear?`<span style="font-family:var(--font-n);font-size:.58rem;padding:1px 5px;border-radius:3px;background:${col}22;color:${col}">← here</span>`:''}</div>`;
-    }).join('')}` : `<div style="font-size:.74rem;color:var(--muted)">Range too small for Fibonacci</div>`;
+  // === FIBONACCI MTF DISPLAY v6 ===
+  const fibHtml = (() => {
+    if (!fibonacci) return '<div style="font-size:.74rem;color:var(--muted)">Range too small for Fibonacci</div>';
+
+    // Confluence zones (multi-TF overlap) — show first
+    const czHtml = fibonacci.confluenceZones && fibonacci.confluenceZones.length ? `
+      <div style="margin-bottom:8px">
+        <div style="font-size:.6rem;color:var(--yellow);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">🏛 MTF Confluence Zones (Institutional)</div>
+        ${fibonacci.confluenceZones.slice(0,4).map(z => {
+          const distPct = ((z.price - curP) / curP * 100);
+          const col = z.price > curP ? 'var(--red)' : 'var(--green)';
+          const isNear = Math.abs(distPct) < 1.5;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;margin-bottom:2px;background:${isNear ? 'rgba(255,195,51,.08)' : 'rgba(0,0,0,.15)'};border:1px solid ${isNear ? 'rgba(255,195,51,.3)' : 'transparent'}">
+            <span style="font-family:var(--font-n);font-size:.6rem;color:var(--yellow);width:36px;font-weight:700">${z.labels[0]||z.label}</span>
+            <span style="font-family:var(--font-n);font-size:.72rem;font-weight:700;color:${col};flex:1">${fmtPrice(z.price)}</span>
+            <span style="font-family:var(--font-n);font-size:.58rem;color:var(--muted)">${z.tfs.join('+')} · str:${z.strength}</span>
+            <span style="font-family:var(--font-n);font-size:.58rem;color:${distPct>0?'var(--red)':'var(--green)'}">${distPct>0?'+':''}${distPct.toFixed(2)}%</span>
+            ${isNear ? '<span style="font-size:.55rem;padding:1px 5px;border-radius:3px;background:rgba(255,195,51,.15);color:var(--yellow)">★ near</span>' : ''}
+          </div>`;
+        }).join('')}
+      </div>` : '';
+
+    // Primary (1H) levels
+    const primaryLevels = fibonacci.levels ? fibonacci.levels.filter(l => l.r <= 1.618) : [];
+    const levelsHtml = primaryLevels.length ? `
+      <div style="margin-bottom:4px;font-size:.58rem;color:var(--muted)">1H Primary · Swing: ${fmtPrice(fibonacci.swingLow)} → ${fmtPrice(fibonacci.swingHigh)} · ${fibonacci.trend}</div>
+      ${primaryLevels.map(l => {
+        const distPct = (l.price - curP) / curP * 100;
+        const isNear  = Math.abs(distPct) < (fibonacci.atrThreshold || 0.5) * 2;
+        const isEntry = ep && Math.abs(l.price - ep) / (ep||1) < 0.002;
+        const isSL    = sl && Math.abs(l.price - sl) / (sl||1) < 0.002;
+        const col     = l.key ? 'var(--cyan)' : l.type === 'extend' ? '#a78bfa' : 'var(--text)';
+        const bg      = isEntry ? 'rgba(0,212,255,.08)' : isSL ? 'rgba(255,61,90,.08)' : isNear ? (dir==='LONG'&&l.price<curP ? 'rgba(0,255,136,.05)' : dir==='SHORT'&&l.price>curP ? 'rgba(255,61,90,.05)' : 'rgba(0,212,255,.04)') : 'transparent';
+        const tag     = isEntry ? '<span style="font-size:.55rem;padding:1px 5px;border-radius:3px;background:rgba(0,212,255,.2);color:var(--cyan)">EP</span>' : isSL ? '<span style="font-size:.55rem;padding:1px 5px;border-radius:3px;background:rgba(255,61,90,.2);color:var(--red)">SL</span>' : isNear ? '<span style="font-size:.55rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,.08);color:var(--muted)">near</span>' : '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:5px;background:${bg};border-left:2px solid ${isNear||isEntry||isSL?col:'transparent'}">
+          <span style="font-family:var(--font-n);font-size:.59rem;color:var(--muted);width:40px">${l.label}</span>
+          <span style="font-family:var(--font-n);font-size:.7rem;font-weight:${l.key?700:500};color:${col};flex:1">${fmtPrice(l.price)}</span>
+          <span style="font-family:var(--font-n);font-size:.58rem;color:${distPct>0?'rgba(255,61,90,.7)':'rgba(0,255,136,.7)'}">${distPct>0?'+':''}${distPct.toFixed(2)}%</span>
+          ${tag}
+        </div>`;
+      }).join('')}` : '';
+
+    return czHtml + levelsHtml;
+  })();
 
   // Pivot Points
   const pivHtml = pivotPoints ? `
@@ -2359,6 +2460,98 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
       <span style="font-family:var(--font-n);font-size:.7rem;color:${rvol.climax?'var(--yellow)':rvol.spike?'var(--green)':rvol.dry?'var(--red)':'var(--text)'}"><strong>${rvol.label}</strong></span>
       ${rvol.climax ? '<span style="font-size:.6rem;padding:1px 6px;border-radius:3px;background:rgba(255,195,51,.1);color:var(--yellow)">⚠ Volume Climax</span>' : ''}
       ${rvol.dry ? '<span style="font-size:.6rem;padding:1px 6px;border-radius:3px;background:rgba(255,61,90,.1);color:var(--red)">Low Conviction</span>' : ''}
+    </div>` : '';
+
+  // === MARKET REGIME HTML ===
+  // === ICT KILLZONE HTML ===
+  const killzoneHtml = killzone ? `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;margin-bottom:8px;background:${killzone.isDeadZone?'rgba(255,61,90,.08)':killzone.quality==='highest'?'rgba(0,255,136,.08)':killzone.quality==='high'?'rgba(0,212,255,.06)':'rgba(0,0,0,.2)'};border:1px solid ${killzone.isDeadZone?'rgba(255,61,90,.25)':killzone.quality==='highest'?'rgba(0,255,136,.25)':killzone.quality==='high'?'rgba(0,212,255,.2)':'rgba(255,255,255,.06)'}">
+      <span style="font-family:var(--font-n);font-size:.68rem;font-weight:700;color:${killzone.color}">${killzone.name}</span>
+      <span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted)">${killzone.utcTime}</span>
+      ${killzone.isSilverBullet?'<span style="font-family:var(--font-n);font-size:.58rem;padding:1px 6px;border-radius:4px;background:rgba(167,139,250,.2);color:#a78bfa">✨ Silver Bullet</span>':''}
+      <span style="font-family:var(--font-n);font-size:.62rem;color:rgba(255,255,255,.55);flex:1;text-align:right">${killzone.desc}</span>
+    </div>` : '';
+
+  // === SMC/ICT PANEL HTML ===
+  const smcPanelHtml = (() => {
+    const rows = [];
+
+    // Liquidity Sweeps
+    const lsItems = [];
+    if (liqSweeps?.bullSweep) lsItems.push({ label: liqSweeps.bullSweep.label, col: 'var(--green)', strength: liqSweeps.bullSweep.strength });
+    if (liqSweeps?.bearSweep) lsItems.push({ label: liqSweeps.bearSweep.label, col: 'var(--red)',   strength: liqSweeps.bearSweep.strength });
+    if (lsItems.length) rows.push({
+      title: '💧 Liquidity Sweeps',
+      items: lsItems.map(s => `<div style="font-family:var(--font-n);font-size:.7rem;color:${s.col};line-height:1.5">${s.label} <span style="opacity:.6">(${s.strength})</span></div>`).join(''),
+    });
+
+    // Breaker Blocks
+    const bbItems = [];
+    if (breakers?.nearestBull) bbItems.push({ label: breakers.nearestBull.label, col: 'var(--green)' });
+    if (breakers?.nearestBear) bbItems.push({ label: breakers.nearestBear.label, col: 'var(--red)' });
+    if (bbItems.length) rows.push({
+      title: '🧱 Breaker Blocks',
+      items: bbItems.map(b => `<div style="font-family:var(--font-n);font-size:.7rem;color:${b.col};line-height:1.5">${b.label}</div>`).join(''),
+    });
+
+    // OTE Zone
+    if (oteZone) rows.push({
+      title: '🎯 ICT OTE Zone',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${oteZone.priceInOTE?'var(--green)':oteZone.nearOTE?'var(--yellow)':'var(--muted)'};line-height:1.5">
+        ${oteZone.label}
+        ${oteZone.priceInOTE?'<span style="margin-left:6px;padding:1px 6px;border-radius:4px;background:rgba(0,255,136,.15);color:var(--green);font-size:.6rem">★ PRICE IN OTE</span>':oteZone.nearOTE?'<span style="margin-left:6px;font-size:.6rem;color:var(--yellow)">near</span>':''}
+        <div style="font-size:.62rem;color:var(--muted);margin-top:2px">Range: ${fmtPrice(oteZone.ote786)}–${fmtPrice(oteZone.ote618)} · ${oteZone.distPct.toFixed(2)}% away</div>
+      </div>`,
+    });
+
+    // AMD Model
+    if (amdModel?.detected) rows.push({
+      title: '🏛 AMD Model',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${amdModel.tradeBias==='bullish'?'var(--green)':'var(--red)'};line-height:1.5">
+        ${amdModel.label}
+        <div style="font-size:.62rem;color:var(--muted);margin-top:2px">Phase: ${amdModel.phase} · Confidence: ${amdModel.confidence}%</div>
+      </div>`,
+    });
+
+    // VSA
+    if (vsa?.signals?.length) rows.push({
+      title: '📊 VSA Signals',
+      items: vsa.signals.slice(0,3).map(s => `<div style="font-family:var(--font-n);font-size:.69rem;color:${s.bias==='bullish'?'var(--green)':s.bias==='bearish'?'var(--red)':'var(--muted)'};line-height:1.5;margin-bottom:2px">${s.label}</div>`).join(''),
+    });
+
+    if (!rows.length) return '';
+    return `<div style="margin-bottom:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden">
+      <div style="padding:8px 12px;background:rgba(167,139,250,.08);border-bottom:1px solid rgba(255,255,255,.06)">
+        <span style="font-family:var(--font-n);font-size:.62rem;color:#a78bfa;letter-spacing:.08em;text-transform:uppercase;font-weight:700">⚡ SMC / ICT Analysis</span>
+      </div>
+      <div style="padding:10px 12px;display:flex;flex-direction:column;gap:10px">
+        ${rows.map(r => `<div><div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">${r.title}</div>${r.items}</div>`).join('')}
+      </div>
+    </div>`;
+  })();
+
+  const regimeHtml = regime ? `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.06);margin-bottom:10px">
+      <span style="font-family:var(--font-n);font-size:.62rem;color:var(--muted)">Market Regime:</span>
+      <span style="font-family:var(--font-n);font-size:.72rem;font-weight:700;color:${regime.color}">${regime.label}</span>
+      <span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);flex:1;margin-left:4px">${regime.strategyHint}</span>
+    </div>` : '';
+
+  // === DCA LADDER HTML ===
+  const dcaHtml = dcaLadder && !hardBlock ? `
+    <div style="margin-top:14px">
+      <div style="font-family:var(--font-n);font-size:.6rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📊 3-Entry DCA Ladder</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+        ${[[dcaLadder.e1,'Aggressive',dcaLadder.e1pct,'var(--red)'],[dcaLadder.e2,'Optimal',dcaLadder.e2pct,'var(--cyan)'],[dcaLadder.e3,'Conservative',dcaLadder.e3pct,'var(--green)']].map(([price,label,pct,col])=>`
+          <div style="background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:9px 10px;text-align:center">
+            <div style="font-family:var(--font-n);font-size:.58rem;color:${col};font-weight:700;margin-bottom:4px">${label}</div>
+            <div style="font-family:var(--font-n);font-size:.75rem;font-weight:700;color:var(--text)">${fmtPrice(price)}</div>
+            <div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-top:3px">${pct}% position</div>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:6px;font-family:var(--font-n);font-size:.65rem;color:var(--muted);padding:5px 8px;background:rgba(0,0,0,.15);border-radius:6px">
+        Avg entry: <strong style="color:var(--cyan)">${fmtPrice(dcaLadder.avgEntry)}</strong> · 40% at E1, 40% at E2, 20% at E3 near SL zone
+      </div>
     </div>` : '';
 
   const reasons  = buildReasons(rsi, vol, entry);
@@ -2451,8 +2644,11 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     </div>
   </div>
 
-  ${pdHtml ? `<div style="padding:12px 16px 0">${pdHtml}</div>` : ''}
-  ${riskHtml ? `<div style="padding:${pdHtml?'0':'12px'} 16px 0">${riskHtml}</div>` : ''}
+  ${killzoneHtml ? `<div style="padding:8px 16px 0">${killzoneHtml}</div>` : ''}
+  ${regimeHtml ? `<div style="padding:4px 16px 0">${regimeHtml}</div>` : ''}
+  ${smcPanelHtml ? `<div style="padding:8px 16px 0">${smcPanelHtml}</div>` : ''}
+  ${pdHtml ? `<div style="padding:0 16px 0">${pdHtml}</div>` : ''}
+  ${riskHtml ? `<div style="padding:${pdHtml||regimeHtml?'0':'12px'} 16px 0">${riskHtml}</div>` : ''}
 
   <!-- MTF Analysis -->
   <div style="padding:14px 16px">
@@ -2514,6 +2710,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     <!-- Fibonacci -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🌀 FIBONACCI LEVELS</div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">${fibHtml}</div>
+    ${dcaHtml ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px">${dcaHtml}</div>` : ''}
 
     <!-- S/R Zones -->
     <div style="font-family:var(--font-n);font-size:.6rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px">🏔️ SUPPORT &amp; RESISTANCE ZONES — MULTI-TF</div>
