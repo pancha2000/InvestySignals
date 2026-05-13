@@ -1176,3 +1176,1274 @@ function detectVSA(O, H, L, C, V, atr) {
   };
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   WYCKOFF METHOD — Accumulation & Distribution Schematic Detection
+   Volume-based institutional footprint — highly reliable in crypto
+   ═══════════════════════════════════════════════════════════════════ */
+function detectWyckoff(O, H, L, C, V, atr) {
+  const result = {
+    detected:false, phase:null, stage:null, confidence:0,
+    bias:null, events:[], rangeHigh:null, rangeLow:null,
+    springDetected:false, utadDetected:false, label:null, note:'',
+  };
+  if (!O||O.length<40||!V||V.length<40) return result;
+
+  const aV=atr?atr.atr:(H[H.length-1]-L[H.length-1]);
+  const price=C[C.length-1];
+  const lb=Math.min(O.length-2,80);
+  const avgVol=V.slice(-lb).reduce((a,b)=>a+b,0)/lb;
+  if(avgVol<=0) return result;
+
+  const events=[];
+  let confScore=0;
+
+  const bv=i=>{
+    const o=O[i],h=H[i],l=L[i],c=C[i],v=V[i];
+    const range=h-l,body=Math.abs(c-o);
+    return{o,h,l,c,v,range,body,
+      upWick:h-Math.max(o,c), dnWick:Math.min(o,c)-l,
+      isBull:c>o, isBear:c<o,
+      volR:avgVol>0?v/avgVol:1,
+      spread:range>0?range/aV:0};
+  };
+
+  // Trading Range
+  const rBars=Math.min(lb,60);
+  const rangeHigh=Math.max(...H.slice(-rBars));
+  const rangeLow=Math.min(...L.slice(-rBars));
+  const rangeSize=rangeHigh-rangeLow;
+  if(rangeSize<aV*2) return result;
+
+  result.rangeHigh=rangeHigh; result.rangeLow=rangeLow;
+
+  // === ACCUMULATION EVENTS ===
+  let hasPS=false,hasSC=false,hasAR=false,hasST=false;
+  let hasSpring=false,hasSOS=false,hasLPS=false;
+
+  for(let i=5;i<rBars-2;i++){
+    const idx=O.length-1-i; if(idx<3) continue;
+    const b=bv(idx);
+
+    // PS — Preliminary Support (high vol down bar closes off lows)
+    if(!hasPS&&b.volR>=1.8&&b.isBear&&b.spread>=1.2&&
+       b.dnWick>=b.range*0.25&&b.l<=rangeLow+rangeSize*0.25){
+      hasPS=true; confScore+=10;
+      events.push({name:'PS',label:'Preliminary Support',age:i,bias:'bullish',pts:10});
+    }
+    // SC — Selling Climax (extreme vol, wide spread, closes off lows)
+    if(!hasSC&&b.volR>=3.0&&b.isBear&&b.spread>=1.8&&
+       b.dnWick>=b.range*0.35&&b.l<=rangeLow+rangeSize*0.15){
+      hasSC=true; confScore+=25;
+      events.push({name:'SC',label:'Selling Climax',age:i,bias:'bullish',pts:25});
+    }
+    // AR — Automatic Rally after SC
+    if(hasSC&&!hasAR&&b.isBull&&b.volR>=1.3&&b.spread>=0.8&&
+       b.h>=rangeLow+rangeSize*0.3){
+      hasAR=true; confScore+=12;
+      events.push({name:'AR',label:'Automatic Rally',age:i,bias:'bullish',pts:12});
+    }
+    // ST — Secondary Test on LOW volume
+    if(hasSC&&hasAR&&!hasST&&b.volR<=0.8&&b.spread<=0.7&&
+       b.l<=rangeLow+rangeSize*0.2&&b.c>b.l+(b.h-b.l)*0.4){
+      hasST=true; confScore+=15;
+      events.push({name:'ST',label:'Secondary Test',age:i,bias:'bullish',pts:15});
+    }
+    // Spring — shakeout below range, closes back inside
+    if(hasST&&!hasSpring&&b.l<rangeLow-aV*0.1&&
+       b.c>rangeLow&&b.dnWick>=b.range*0.45&&b.volR>=1.0){
+      hasSpring=true; confScore+=20;
+      events.push({name:'Spring',label:'\uD83C\uDF31 Spring (Shakeout)',age:i,bias:'bullish',pts:20});
+    }
+    // SOS — Sign of Strength (strong up bar breaks range on high vol)
+    if((hasST||hasSpring)&&!hasSOS&&b.isBull&&b.volR>=2.0&&
+       b.spread>=1.3&&b.h>=rangeHigh-rangeSize*0.1){
+      hasSOS=true; confScore+=18;
+      events.push({name:'SOS',label:'Sign of Strength',age:i,bias:'bullish',pts:18});
+    }
+    // LPS — Last Point of Support (low vol pullback after SOS = final entry)
+    if(hasSOS&&!hasLPS&&b.isBear&&b.volR<=0.7&&b.spread<=0.6&&
+       b.l>=rangeLow+rangeSize*0.35){
+      hasLPS=true; confScore+=15;
+      events.push({name:'LPS',label:'Last Point of Support',age:i,bias:'bullish',pts:15});
+    }
+  }
+
+  // === DISTRIBUTION EVENTS ===
+  let hasPSY=false,hasBC=false,hasARd=false,hasSTd=false;
+  let hasUTAD=false,hasSOW=false;
+  let distConf=0;
+
+  for(let i=5;i<rBars-2;i++){
+    const idx=O.length-1-i; if(idx<3) continue;
+    const b=bv(idx);
+
+    // PSY — Preliminary Supply
+    if(!hasPSY&&b.volR>=1.8&&b.isBull&&b.spread>=1.2&&
+       b.upWick>=b.range*0.25&&b.h>=rangeHigh-rangeSize*0.25){
+      hasPSY=true; distConf+=10;
+      events.push({name:'PSY',label:'Preliminary Supply',age:i,bias:'bearish',pts:10});
+    }
+    // BC — Buying Climax (euphoria, extreme vol, closes off highs)
+    if(!hasBC&&b.volR>=3.0&&b.isBull&&b.spread>=1.8&&
+       b.upWick>=b.range*0.35&&b.h>=rangeHigh-rangeSize*0.15){
+      hasBC=true; distConf+=25;
+      events.push({name:'BC',label:'Buying Climax',age:i,bias:'bearish',pts:25});
+    }
+    // AR — Automatic Reaction after BC
+    if(hasBC&&!hasARd&&b.isBear&&b.volR>=1.3&&b.spread>=0.8&&
+       b.l<=rangeHigh-rangeSize*0.3){
+      hasARd=true; distConf+=12;
+      events.push({name:'AR',label:'Automatic Reaction',age:i,bias:'bearish',pts:12});
+    }
+    // ST — Secondary Test on low vol
+    if(hasBC&&hasARd&&!hasSTd&&b.volR<=0.8&&b.spread<=0.7&&
+       b.h>=rangeHigh-rangeSize*0.2&&b.c<b.l+(b.h-b.l)*0.6){
+      hasSTd=true; distConf+=15;
+      events.push({name:'ST',label:'Secondary Test (dist)',age:i,bias:'bearish',pts:15});
+    }
+    // UTAD — False breakout above range (bull trap)
+    if(hasSTd&&!hasUTAD&&b.h>rangeHigh+aV*0.1&&
+       b.c<rangeHigh&&b.upWick>=b.range*0.4&&b.volR>=1.5){
+      hasUTAD=true; distConf+=20;
+      events.push({name:'UTAD',label:'\u26A0 UTAD (False Breakout)',age:i,bias:'bearish',pts:20});
+    }
+    // SOW — Sign of Weakness (strong down bar breaks range)
+    if((hasSTd||hasUTAD)&&!hasSOW&&b.isBear&&b.volR>=2.0&&
+       b.spread>=1.3&&b.l<=rangeLow+rangeSize*0.1){
+      hasSOW=true; distConf+=18;
+      events.push({name:'SOW',label:'Sign of Weakness',age:i,bias:'bearish',pts:18});
+    }
+  }
+
+  const accumEvents=events.filter(e=>e.bias==='bullish');
+  const distEvents=events.filter(e=>e.bias==='bearish');
+  const accumScore=accumEvents.reduce((s,e)=>s+(e.pts||0),0);
+  const dScore=distEvents.reduce((s,e)=>s+(e.pts||0),0);
+
+  if(accumScore<25&&dScore<25) return result;
+
+  const isAccum=accumScore>=dScore;
+  const rawConf=isAccum?accumScore:dScore;
+  const confidence=Math.min(95,Math.round(rawConf/115*100));
+  if(confidence<22) return result;
+
+  const domEvents=(isAccum?accumEvents:distEvents).sort((a,b)=>a.age-b.age);
+  const latestEvent=domEvents[0]||null;
+  const phase=isAccum?'accumulation':'distribution';
+  const bias=isAccum?'bullish':'bearish';
+
+  let note='';
+  const cs=latestEvent?latestEvent.name:null;
+  if(isAccum){
+    if(hasLPS)         note='LPS formed — highest probability LONG entry. Markup imminent.';
+    else if(hasSOS)    note='SOS confirmed. Wait for LPS pullback to enter LONG.';
+    else if(hasSpring) note='Spring detected — shakeout complete. Strong reversal setup.';
+    else if(hasST)     note='ST on low volume confirmed. Range being accumulated. Await SOS.';
+    else if(hasAR)     note='AR after SC. Range forming. Wait for ST confirmation.';
+    else if(hasSC)     note='Selling Climax detected — potential bottom forming.';
+    else               note='PS detected — decline slowing. Range formation beginning.';
+  } else {
+    if(hasSOW)         note='SOW confirmed — markdown beginning. Highest probability SHORT.';
+    else if(hasUTAD)   note='UTAD (bull trap) complete. Distribution done. Enter SHORT.';
+    else if(hasSTd)    note='ST on low vol confirmed. Await UTAD or SOW for entry.';
+    else if(hasARd)    note='AR after BC. Distribution range forming. Await ST.';
+    else if(hasBC)     note='Buying Climax — potential top. Watch for AR then ST.';
+    else               note='PSY detected — advance weakening. Distribution may be starting.';
+  }
+
+  return{
+    detected:true, phase, stage:cs, confidence, bias,
+    events:domEvents.slice(0,5), allEvents:events,
+    rangeHigh, rangeLow, rangeSize,
+    springDetected:hasSpring, utadDetected:hasUTAD,
+    inRange:price>=rangeLow-aV*0.5&&price<=rangeHigh+aV*0.5,
+    nearLow:price<=rangeLow+rangeSize*0.3,
+    nearHigh:price>=rangeHigh-rangeSize*0.3,
+    accumScore, distScore:dScore,
+    label:`${bias==='bullish'?'\uD83C\uDFE6':'\uD83C\uDFDA'} Wyckoff ${phase.charAt(0).toUpperCase()+phase.slice(1)} — ${cs||'forming'} · ${confidence}% confidence`,
+    note,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PREMIUM / DISCOUNT ZONES (ICT Concept)
+   50% of the current impulse swing = "Fair Value" or equilibrium
+   Above 50% = Premium (expensive — look for shorts)
+   Below 50% = Discount (cheap — look for longs)
+   OTE zone (61.8–78.6%) = optimal retracement for entries
+   ═══════════════════════════════════════════════════════════════════ */
+function calcPremiumDiscount(H, L, C, atr) {
+  if (!H || H.length < 20) return null;
+  const lb    = Math.min(H.length - 1, 60);
+  const aV    = atr ? atr.atr : (H[H.length-1] - L[H.length-1]);
+  const price = C[C.length - 1];
+
+  const recentH = H.slice(-lb), recentL = L.slice(-lb);
+  const swingHigh = Math.max(...recentH);
+  const swingLow  = Math.min(...recentL);
+  const range     = swingHigh - swingLow;
+
+  if (range < aV * 2) return null; // range too small
+
+  const equilibrium = swingLow + range * 0.5;           // 50%
+  const discountMax = swingLow + range * 0.382;          // 38.2% — deep discount
+  const premiumMin  = swingLow + range * 0.618;          // 61.8% — premium zone
+  const oteDiscount = swingLow + range * 0.236;          // 23.6% below = extreme discount
+  const otePremium  = swingLow + range * 0.764;          // 76.4% above = extreme premium
+
+  const pctInRange  = range > 0 ? (price - swingLow) / range : 0.5;
+
+  let zone, zoneColor, zoneLabel;
+  if (pctInRange >= 0.764) {
+    zone = 'extreme_premium'; zoneColor = '#ff3d5a';
+    zoneLabel = '🔴 Extreme Premium (76.4%+) — highly overvalued, short bias';
+  } else if (pctInRange >= 0.618) {
+    zone = 'premium'; zoneColor = '#fbbf24';
+    zoneLabel = '🟡 Premium Zone (61.8%+) — avoid longs, look for shorts';
+  } else if (pctInRange >= 0.5) {
+    zone = 'fair_value_high'; zoneColor = '#94a3b8';
+    zoneLabel = '⚪ Slightly Above Fair Value — neutral to mild short bias';
+  } else if (pctInRange >= 0.382) {
+    zone = 'fair_value_low'; zoneColor = '#94a3b8';
+    zoneLabel = '⚪ Slightly Below Fair Value — neutral to mild long bias';
+  } else if (pctInRange >= 0.236) {
+    zone = 'discount'; zoneColor = '#fbbf24';
+    zoneLabel = '🟡 Discount Zone (23.6–38.2%) — avoid shorts, look for longs';
+  } else {
+    zone = 'extreme_discount'; zoneColor = '#00ff88';
+    zoneLabel = '🟢 Extreme Discount (<23.6%) — highly undervalued, long bias';
+  }
+
+  const inDiscount = pctInRange < 0.5;
+  const inPremium  = pctInRange >= 0.5;
+
+  return {
+    swingHigh, swingLow, range, equilibrium,
+    discountMax, premiumMin, oteDiscount, otePremium,
+    pctInRange: +(pctInRange * 100).toFixed(1),
+    zone, zoneColor, zoneLabel,
+    inDiscount, inPremium,
+    fairValue: equilibrium,
+    distFromFair: ((price - equilibrium) / equilibrium * 100).toFixed(2),
+    bias: pctInRange < 0.382 ? 'strong_long' : pctInRange < 0.5 ? 'mild_long' : pctInRange > 0.764 ? 'strong_short' : 'mild_short',
+  };
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   HARMONIC PATTERNS — Gartley, Bat, Crab, Butterfly, Cypher, Shark
+   Uses XABCD swing legs with precise Fibonacci ratio validation
+   PRZ (Potential Reversal Zone) = highest precision entry area
+   ═══════════════════════════════════════════════════════════════════ */
+const HARMONIC_PATTERNS = {
+  Gartley: {
+    XAB: [0.618, 0.618],       // B = 61.8% of XA
+    ABC: [0.382, 0.886],       // C = 38.2–88.6% of AB
+    BCD: [1.272, 1.618],       // D = 127.2–161.8% of BC
+    XAD: [0.786, 0.786],       // D = 78.6% of XA (PRZ)
+    tol: 0.06,
+    label: 'Gartley', color: '#a78bfa', strength: 4,
+  },
+  Bat: {
+    XAB: [0.382, 0.50],
+    ABC: [0.382, 0.886],
+    BCD: [1.618, 2.618],
+    XAD: [0.886, 0.886],
+    tol: 0.06,
+    label: 'Bat', color: '#00d4ff', strength: 4,
+  },
+  Crab: {
+    XAB: [0.382, 0.618],
+    ABC: [0.382, 0.886],
+    BCD: [2.24, 3.618],
+    XAD: [1.618, 1.618],
+    tol: 0.07,
+    label: 'Crab', color: '#ff3d5a', strength: 5,
+  },
+  Butterfly: {
+    XAB: [0.786, 0.786],
+    ABC: [0.382, 0.886],
+    BCD: [1.618, 2.618],
+    XAD: [1.27, 1.618],
+    tol: 0.07,
+    label: 'Butterfly', color: '#fbbf24', strength: 4,
+  },
+  Cypher: {
+    XAB: [0.382, 0.618],
+    ABC: [1.13, 1.414],
+    BCD: [0.786, 0.786],       // D = 78.6% retrace of XC
+    XAD: [0.786, 0.786],
+    tol: 0.07,
+    label: 'Cypher', color: '#00ff88', strength: 4,
+  },
+  Shark: {
+    XAB: [0.446, 0.618],
+    ABC: [1.13, 1.618],
+    BCD: [0.886, 1.13],
+    XAD: [0.886, 1.13],
+    tol: 0.08,
+    label: 'Shark', color: '#fb923c', strength: 3,
+  },
+};
+
+function inRange(val, lo, hi, tol) {
+  return val >= lo - tol && val <= hi + tol;
+}
+
+function detectHarmonicPatterns(H, L, C, atr) {
+  const result = { detected: false, patterns: [], bestPattern: null, przZone: null };
+  if (!H || H.length < 20) return result;
+
+  const aV    = atr ? atr.atr : (H[H.length-1] - L[H.length-1]);
+  const price = C[C.length - 1];
+  const lb    = Math.min(H.length - 2, 100);
+
+  // Get confirmed swing points
+  const swings = [];
+  for (let i = 2; i < lb - 2; i++) {
+    const idx = H.length - 1 - i;
+    if (idx < 2) continue;
+    if (H[idx] > H[idx-1] && H[idx] > H[idx-2] && H[idx] >= H[idx+1] && H[idx] >= H[idx+2])
+      swings.push({ type: 'H', price: H[idx], idx, age: i });
+    if (L[idx] < L[idx-1] && L[idx] < L[idx-2] && L[idx] <= L[idx+1] && L[idx] <= L[idx+2])
+      swings.push({ type: 'L', price: L[idx], idx, age: i });
+  }
+  swings.sort((a, b) => a.idx - b.idx);
+
+  // Deduplicate consecutive same-type
+  const pts = [];
+  for (const s of swings) {
+    const last = pts[pts.length - 1];
+    if (!last || last.type !== s.type) pts.push(s);
+    else if (s.type === 'H' && s.price > last.price) pts[pts.length-1] = s;
+    else if (s.type === 'L' && s.price < last.price) pts[pts.length-1] = s;
+  }
+
+  if (pts.length < 5) return result;
+  const found = [];
+
+  // Try each set of 5 consecutive alternating swings as XABCD
+  for (let i = 0; i <= pts.length - 5; i++) {
+    const [X, A, B, C2, D] = pts.slice(i, i + 5);
+    // Must be alternating H/L
+    const types = [X,A,B,C2,D].map(p => p.type).join('');
+    if (types !== 'LHLHL' && types !== 'HLHLH') continue;
+
+    const isBull = types === 'LHLHL'; // LONG setup (bullish reversal at D)
+
+    const xaLen  = Math.abs(A.price - X.price);
+    const abLen  = Math.abs(B.price - A.price);
+    const bcLen  = Math.abs(C2.price - B.price);
+    const cdLen  = Math.abs(D.price - C2.price);
+    const xdLen  = Math.abs(D.price - X.price);
+    if (!xaLen || !abLen || !bcLen || !cdLen) continue;
+
+    const xabR = abLen / xaLen;
+    const abcR = bcLen / abLen;
+    const bcdR = cdLen / bcLen;
+    const xadR = xdLen / xaLen;
+
+    for (const [name, pat] of Object.entries(HARMONIC_PATTERNS)) {
+      const t = pat.tol;
+      if (!inRange(xabR, pat.XAB[0], pat.XAB[1], t)) continue;
+      if (!inRange(abcR, pat.ABC[0], pat.ABC[1], t)) continue;
+      if (!inRange(bcdR, pat.BCD[0], pat.BCD[1], t)) continue;
+      if (!inRange(xadR, pat.XAD[0], pat.XAD[1], t)) continue;
+
+      // Score precision: closer to ideal = higher score
+      const xabIdeal = (pat.XAB[0] + pat.XAB[1]) / 2;
+      const xadIdeal = (pat.XAD[0] + pat.XAD[1]) / 2;
+      const precision = 100 - (Math.abs(xabR - xabIdeal) + Math.abs(xadR - xadIdeal)) * 100;
+
+      // PRZ: D point ± ATR buffer
+      const przLow  = D.price - aV * 0.5;
+      const przHigh = D.price + aV * 0.5;
+      const priceInPRZ = price >= przLow && price <= przHigh;
+      const nearPRZ    = Math.abs(price - D.price) / price < 0.015;
+
+      found.push({
+        name, pattern: pat,
+        X: X.price, A: A.price, B: B.price, C: C2.price, D: D.price,
+        isBull,
+        precision: Math.max(0, Math.round(precision)),
+        przLow, przHigh, priceInPRZ, nearPRZ,
+        age: pts.length - 1 - (i + 4),
+        label: `${isBull ? '🟢' : '🔴'} ${name} ${isBull ? 'Bull' : 'Bear'} — D: ${D.price.toFixed(4)} · PRZ precision: ${Math.max(0,Math.round(precision))}%`,
+        bias: isBull ? 'bullish' : 'bearish',
+        strength: pat.strength,
+        color: pat.color,
+        // SL: beyond X for bull, below X for bear
+        sl: isBull ? X.price - aV * 0.3 : X.price + aV * 0.3,
+        // TP targets from D
+        tp1: isBull ? D.price + Math.abs(D.price - C2.price) * 0.382
+                    : D.price - Math.abs(D.price - C2.price) * 0.382,
+        tp2: isBull ? D.price + Math.abs(D.price - A.price) * 0.618
+                    : D.price - Math.abs(D.price - A.price) * 0.618,
+      });
+    }
+  }
+
+  if (!found.length) return result;
+  found.sort((a, b) => b.precision - a.precision || a.age - b.age);
+  const best = found[0];
+
+  return {
+    detected: true,
+    patterns: found.slice(0, 3),
+    bestPattern: best,
+    przZone: { low: best.przLow, high: best.przHigh, mid: best.D },
+    priceInPRZ: best.priceInPRZ,
+    nearPRZ: best.nearPRZ,
+    bias: best.bias,
+    label: best.label,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CVD — Cumulative Volume Delta + Delta Divergence
+   Buy volume - Sell volume, cumulative
+   Positive + price rising = real institutional buying
+   Negative + price rising = distribution (smart money selling)
+   Uses Taker buy/sell ratio × total volume per bar
+   ═══════════════════════════════════════════════════════════════════ */
+function calcCVD(O, H, L, C, V, takerRatio) {
+  if (!V || V.length < 20) return null;
+  const n = V.length;
+
+  // Approximate delta per bar using taker ratio if available
+  // Fallback: use candle direction as proxy
+  const deltas = [];
+  for (let i = 0; i < n; i++) {
+    let buyVol, sellVol;
+    // Best estimate: if taker series available use it, else use candle body proportion
+    const isBull = C[i] > O[i];
+    const range  = H[i] - L[i];
+    const body   = Math.abs(C[i] - O[i]);
+    const bodyRatio = range > 0 ? body / range : 0.5;
+    // Bull bar: more buy vol; bear bar: more sell vol
+    // Approximation: (0.5 + bodyRatio/2) of volume is market direction
+    buyVol  = isBull ? V[i] * (0.5 + bodyRatio * 0.4) : V[i] * (0.5 - bodyRatio * 0.4);
+    sellVol = V[i] - buyVol;
+    deltas.push(buyVol - sellVol);
+  }
+
+  // CVD = cumulative sum of deltas
+  const cvd = [];
+  let cum = 0;
+  for (const d of deltas) { cum += d; cvd.push(cum); }
+
+  const last20cvd = cvd.slice(-20);
+  const cvdNow    = cvd[cvd.length - 1];
+  const cvd5ago   = cvd[Math.max(0, cvd.length - 6)];
+  const cvd20ago  = cvd[Math.max(0, cvd.length - 21)];
+  const price     = C[C.length - 1];
+  const price5ago = C[Math.max(0, C.length - 6)];
+  const price20ago= C[Math.max(0, C.length - 21)];
+
+  // CVD trend: rising = net buying pressure
+  const cvdRising = cvdNow > cvd5ago;
+  const cvdFalling = cvdNow < cvd5ago;
+
+  // Delta Divergence detection
+  let divergence = null;
+  // Bullish divergence: price lower, CVD higher → hidden buying
+  if (price < price20ago && cvdNow > cvd20ago && (cvdNow - cvd20ago) > Math.abs(cvd20ago) * 0.05) {
+    divergence = {
+      type: 'bullish', strength: 'strong',
+      label: '🟢 CVD Bullish Divergence — price down, buy volume up (institutional accumulation)',
+    };
+  }
+  // Bearish divergence: price higher, CVD lower → hidden selling
+  else if (price > price20ago && cvdNow < cvd20ago && (cvd20ago - cvdNow) > Math.abs(cvd20ago) * 0.05) {
+    divergence = {
+      type: 'bearish', strength: 'strong',
+      label: '🔴 CVD Bearish Divergence — price up, sell volume up (institutional distribution)',
+    };
+  }
+  // Moderate divergences (5-bar)
+  else if (price < price5ago && cvdNow > cvd5ago) {
+    divergence = {
+      type: 'bullish', strength: 'moderate',
+      label: '🟡 CVD Mild Bull Div — short-term buying pressure building',
+    };
+  }
+  else if (price > price5ago && cvdNow < cvd5ago) {
+    divergence = {
+      type: 'bearish', strength: 'moderate',
+      label: '🟡 CVD Mild Bear Div — short-term selling pressure building',
+    };
+  }
+
+  // Absorption detection: large volume but small price move (CVD flat)
+  const recentVol   = V.slice(-3).reduce((a,b)=>a+b,0)/3;
+  const avgVol      = V.slice(-20).reduce((a,b)=>a+b,0)/20;
+  const cvdChange   = Math.abs(cvdNow - cvd5ago);
+  const absorption  = recentVol > avgVol * 2 && cvdChange < avgVol * 0.3;
+
+  return {
+    cvd: cvd.slice(-50),
+    cvdNow, cvdRising, cvdFalling,
+    divergence,
+    absorption,
+    absorptionBias: absorption ? (cvdNow > 0 ? 'bullish' : 'bearish') : null,
+    bullScore: cvdRising ? (divergence?.type==='bullish' ? 18 : 8) : 0,
+    bearScore: cvdFalling ? (divergence?.type==='bearish' ? 18 : 8) : 0,
+    label: divergence ? divergence.label : cvdRising ? '📈 CVD Rising (net buying)' : cvdFalling ? '📉 CVD Falling (net selling)' : '〰 CVD Neutral',
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CME GAP DETECTION (Bitcoin CME Futures)
+   CME trades Mon–Fri (closes Fri 4PM CT, opens Sun 5PM CT)
+   Weekend price moves leave gaps → powerful price magnets
+   ~80% of CME gaps get filled eventually
+   ═══════════════════════════════════════════════════════════════════ */
+async function detectCMEGaps(symbol, price) {
+  // Only applies to BTC (and ETH on CME)
+  if (!symbol.includes('BTC') && !symbol.includes('ETH')) return null;
+  try {
+    // Fetch daily candles to look for weekend gaps
+    const kl = await fetch(
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=30`
+    ).then(r => r.json());
+    if (!Array.isArray(kl) || kl.length < 7) return null;
+
+    const gaps = [];
+    // CME opens Sunday 5PM CT (23:00 UTC)
+    // Detect gap: Monday open vs Friday close
+    for (let i = 6; i < kl.length - 1; i++) {
+      const bar       = { o: parseFloat(kl[i][1]), h: parseFloat(kl[i][2]), l: parseFloat(kl[i][3]), c: parseFloat(kl[i][4]) };
+      const prev      = { o: parseFloat(kl[i-1][1]), c: parseFloat(kl[i-1][4]) };
+      const openTime  = new Date(kl[i][0]);
+      const dayOfWeek = openTime.getUTCDay(); // 1 = Monday
+
+      // Monday bar: check gap from Friday close
+      if (dayOfWeek === 1) {
+        const gapUp   = bar.o > prev.c * 1.001; // opened above Friday close
+        const gapDown = bar.o < prev.c * 0.999; // opened below Friday close
+        if (gapUp || gapDown) {
+          const gapSize = Math.abs(bar.o - prev.c);
+          const gapPct  = gapSize / prev.c * 100;
+          if (gapPct >= 0.15) { // minimum 0.15% gap to be meaningful
+            const gapHigh = Math.max(bar.o, prev.c);
+            const gapLow  = Math.min(bar.o, prev.c);
+            const filled  = kl.slice(i+1).some(k =>
+              parseFloat(k[2]) >= gapLow && parseFloat(k[3]) <= gapHigh
+            );
+            if (!filled) {
+              const distPct = Math.abs(price - (gapHigh + gapLow) / 2) / price * 100;
+              gaps.push({
+                type:       gapUp ? 'gap_up' : 'gap_down',
+                gapHigh, gapLow,
+                mid:        (gapHigh + gapLow) / 2,
+                gapPct:     +gapPct.toFixed(2),
+                distPct:    +distPct.toFixed(2),
+                date:       openTime.toDateString(),
+                filled:     false,
+                magnet:     distPct < 5,  // within 5% = active magnet
+                label:      `${gapUp ? '⬆' : '⬇'} CME Gap ${gapUp?'Up':'Down'} ${gapPct.toFixed(2)}% — ${openTime.toDateString()} (UNFILLED)`,
+                bias:       gapUp ? 'bearish' : 'bullish', // gap up = bearish pull (price goes down to fill), gap down = bullish pull
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (!gaps.length) return { detected: false, gaps: [] };
+    // Sort by distance
+    gaps.sort((a, b) => a.distPct - b.distPct);
+    const nearest = gaps[0];
+    return {
+      detected:    true,
+      gaps:        gaps.slice(0, 3),
+      nearestGap:  nearest,
+      magnetActive: nearest.magnet,
+      label:       nearest.label,
+      note: `CME gaps act as price magnets — ~80% historically get filled. ${nearest.magnet ? 'This gap is an ACTIVE magnet (within 5%).' : ''}`,
+    };
+  } catch (_) { return null; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UNMITIGATED ORDER BLOCKS & FVGs
+   OBs/FVGs price has NEVER returned to = strongest levels
+   "Fresh" = untested = full institutional order still sitting there
+   ═══════════════════════════════════════════════════════════════════ */
+function filterUnmitigated(mtfOBs, mtfFVGs, H, L, C) {
+  const price = C[C.length - 1];
+  const result = { unmitOBs: [], unmitFVGs: [], nearestUnmitBull: null, nearestUnmitBear: null };
+
+  if (mtfOBs) {
+    const allOBs = [...(mtfOBs.bullOBs || []), ...(mtfOBs.bearOBs || [])];
+    for (const ob of allOBs) {
+      // Check if price has EVER traded through OB zone since creation
+      const startIdx = ob.barIdx !== undefined ? ob.barIdx : 0;
+      const traded = H.slice(startIdx).some((h, i) =>
+        h >= ob.low && L[startIdx + i] <= ob.high
+      );
+      if (!traded) {
+        result.unmitOBs.push({ ...ob, fresh: true, distPct: Math.abs(price - ob.mid) / price * 100 });
+      }
+    }
+    result.unmitOBs.sort((a, b) => a.distPct - b.distPct);
+    result.nearestUnmitBull = result.unmitOBs.filter(o => o.type === 'bull' && o.mid < price)[0] || null;
+    result.nearestUnmitBear = result.unmitOBs.filter(o => o.type === 'bear' && o.mid > price)[0] || null;
+  }
+
+  if (mtfFVGs) {
+    const allFVGs = [...(mtfFVGs.bullFVGs || []), ...(mtfFVGs.bearFVGs || [])];
+    for (const fvg of allFVGs) {
+      const filled = H.some((h, i) => h >= fvg.low && L[i] <= fvg.high);
+      if (!filled) {
+        result.unmitFVGs.push({ ...fvg, fresh: true, distPct: Math.abs(price - (fvg.high + fvg.low) / 2) / price * 100 });
+      }
+    }
+    result.unmitFVGs.sort((a, b) => a.distPct - b.distPct);
+  }
+  return result;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARKET PROFILE LITE — POC, VAH, VAL
+   Approximate Point of Control using price clustering
+   High volume nodes = where most trading happened = magnets
+   ═══════════════════════════════════════════════════════════════════ */
+function calcMarketProfile(H, L, C, V, atr) {
+  if (!H || H.length < 20 || !V) return null;
+  const aV     = atr ? atr.atr : (H[H.length-1] - L[H.length-1]);
+  const price  = C[C.length - 1];
+  const lb     = Math.min(H.length, 48); // ~2 days on 1H
+  const bucket = aV * 0.5; // cluster width
+
+  const recentH = H.slice(-lb), recentL = L.slice(-lb), recentV = V.slice(-lb);
+  const rangeHigh = Math.max(...recentH);
+  const rangeLow  = Math.min(...recentL);
+  const range     = rangeHigh - rangeLow;
+  if (range < aV) return null;
+
+  // Build price-volume profile (weighted by volume)
+  const profile = {}; // bucket → volume
+  for (let i = 0; i < lb; i++) {
+    const barRange = recentH[i] - recentL[i];
+    if (barRange <= 0) continue;
+    const nBuckets = Math.max(1, Math.round(barRange / bucket));
+    const volPerBucket = recentV[i] / nBuckets;
+    for (let j = 0; j <= nBuckets; j++) {
+      const levelPrice = recentL[i] + (barRange / nBuckets) * j;
+      const key = Math.round(levelPrice / bucket) * bucket;
+      profile[key] = (profile[key] || 0) + volPerBucket;
+    }
+  }
+
+  // Find POC (highest volume bucket)
+  let pocPrice = null, pocVol = 0;
+  for (const [k, v] of Object.entries(profile)) {
+    if (v > pocVol) { pocVol = v; pocPrice = parseFloat(k); }
+  }
+  if (!pocPrice) return null;
+
+  // Value Area: 70% of total volume around POC
+  const totalVol  = Object.values(profile).reduce((a, b) => a + b, 0);
+  const vaTarget  = totalVol * 0.70;
+  const sorted    = Object.entries(profile).sort(([a],[b]) => parseFloat(b) - parseFloat(a));
+  let   vaVol     = pocVol, vah = pocPrice, val = pocPrice;
+
+  for (const [k, v] of sorted) {
+    const p = parseFloat(k);
+    vaVol += v;
+    if (p > vah) vah = p;
+    if (p < val) val = p;
+    if (vaVol >= vaTarget) break;
+  }
+
+  const abovePOC = price > pocPrice;
+  const inVA     = price >= val && price <= vah;
+  const distPOC  = ((price - pocPrice) / pocPrice * 100).toFixed(2);
+
+  return {
+    poc:         pocPrice,
+    vah,
+    val,
+    rangeHigh,
+    rangeLow,
+    abovePOC,
+    inValueArea: inVA,
+    distPOC:     +distPOC,
+    pocMagnet:   Math.abs(+distPOC) < 1.5,
+    label:       `POC: ${pocPrice.toFixed(4)} · VAH: ${vah.toFixed(4)} · VAL: ${val.toFixed(4)}`,
+    bias:        abovePOC ? 'bearish_pull' : 'bullish_pull', // price tends to revert to POC
+    note:        `Price is ${Math.abs(+distPOC).toFixed(2)}% ${abovePOC ? 'above' : 'below'} POC. ${Math.abs(+distPOC) < 1.5 ? 'At POC — expect balance.' : 'POC acts as magnet.'}`,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MTF DIVERGENCE STACKING
+   Same divergence across multiple timeframes = exponentially stronger
+   1H div alone: moderate. 1H + 4H div: strong. 1H + 4H + 1D: very strong
+   ═══════════════════════════════════════════════════════════════════ */
+function calcMTFDivergence(C1h, rsi1h, C4h, rsi4h, C1d, rsi1d, obv1h) {
+  const lb = 40;
+  const divs = [];
+
+  const detectDiv = (prices, indicator, label) => {
+    if (!prices || !indicator || prices.length < lb) return null;
+    const n  = prices.length;
+    const p  = prices.slice(-lb);
+    const ind = indicator.slice(-lb);
+    // Find recent swing (last 5–20 bars)
+    const pNow = p[p.length-1], pPrev = Math.min(...p.slice(-20, -5));
+    const iNow = ind[ind.length-1], iPrev = ind[ind.indexOf(Math.min(...p.slice(-20,-5).map((_,i)=>p.slice(-20,-5)[i])))] || iNow;
+
+    const regularBull = pNow < pPrev && iNow > iPrev;
+    const regularBear = pNow > pPrev && iNow < iPrev;
+    if (regularBull) return { type:'bullish', kind:'regular', label:`Bull Div (${label})` };
+    if (regularBear) return { type:'bearish', kind:'regular', label:`Bear Div (${label})` };
+    return null;
+  };
+
+  const d1h = detectDiv(C1h, rsi1h, 'RSI 1H');
+  const d4h = detectDiv(C4h, rsi4h, 'RSI 4H');
+  const d1d = detectDiv(C1d, rsi1d, 'RSI 1D');
+  const dObv = obv1h ? detectDiv(C1h, obv1h, 'OBV 1H') : null;
+
+  if (d1h) divs.push({ ...d1h, tf: '1H', weight: 1 });
+  if (d4h) divs.push({ ...d4h, tf: '4H', weight: 2 });
+  if (d1d) divs.push({ ...d1d, tf: '1D', weight: 4 });
+  if (dObv) divs.push({ ...dObv, tf: 'OBV', weight: 1 });
+
+  const bullDivs = divs.filter(d => d.type === 'bullish');
+  const bearDivs = divs.filter(d => d.type === 'bearish');
+  const bullWeight = bullDivs.reduce((s, d) => s + d.weight, 0);
+  const bearWeight = bearDivs.reduce((s, d) => s + d.weight, 0);
+  const stackCount = divs.length;
+
+  let stackLabel = null, stackBias = null;
+  if (bullWeight >= 3) {
+    stackBias = 'bullish';
+    stackLabel = `🟢 MTF Divergence Stack (${bullDivs.map(d=>d.tf).join('+')} bull div) — ${bullWeight >= 6 ? 'VERY STRONG' : bullWeight >= 3 ? 'STRONG' : 'MODERATE'}`;
+  } else if (bearWeight >= 3) {
+    stackBias = 'bearish';
+    stackLabel = `🔴 MTF Divergence Stack (${bearDivs.map(d=>d.tf).join('+')} bear div) — ${bearWeight >= 6 ? 'VERY STRONG' : bearWeight >= 3 ? 'STRONG' : 'MODERATE'}`;
+  }
+
+  return {
+    divs,
+    bullDivs, bearDivs,
+    bullWeight, bearWeight,
+    stackBias, stackLabel,
+    detected: bullWeight >= 2 || bearWeight >= 2,
+    // Scoring: each weight unit = 5pts, max 30pts
+    bullScore: Math.min(bullWeight * 5, 30),
+    bearScore: Math.min(bearWeight * 5, 30),
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SETUP TYPE CLASSIFIER
+   Determines optimal strategy type and adjusts TP/SL ratios
+   Mean Reversion: fade the extreme move
+   Trend Follow: ride the momentum
+   Breakout: momentum entry after consolidation
+   ═══════════════════════════════════════════════════════════════════ */
+function classifySetupType(adx, bb, atr, rsi, premDisc, regime, wyckoff, liqSweeps, bos, candlePatterns, vol) {
+  const scores = { meanReversion: 0, trendFollow: 0, breakout: 0 };
+
+  // ADX: high = trend, low = mean reversion
+  if (adx) {
+    if (adx.adx >= 35) scores.trendFollow += 25;
+    else if (adx.adx >= 25) scores.trendFollow += 15;
+    else if (adx.adx < 20) scores.meanReversion += 20;
+    else scores.meanReversion += 8;
+  }
+
+  // BB: extreme position = mean reversion, middle = breakout potential
+  if (bb) {
+    if (bb.position <= 0.10 || bb.position >= 0.90) scores.meanReversion += 20;
+    else if (bb.width < 0.03) scores.breakout += 25; // tight squeeze → breakout
+    else if (bb.position >= 0.40 && bb.position <= 0.60) scores.trendFollow += 10;
+  }
+
+  // RSI extremes = mean reversion
+  if (rsi !== undefined) {
+    if (rsi <= 25 || rsi >= 75) scores.meanReversion += 18;
+    else if (rsi <= 35 || rsi >= 65) scores.meanReversion += 8;
+    else scores.trendFollow += 6;
+  }
+
+  // Premium/Discount: extreme = mean reversion
+  if (premDisc) {
+    if (premDisc.zone === 'extreme_premium' || premDisc.zone === 'extreme_discount') scores.meanReversion += 15;
+    else if (premDisc.zone === 'fair_value_high' || premDisc.zone === 'fair_value_low') scores.trendFollow += 10;
+  }
+
+  // Regime
+  if (regime) {
+    if (regime.isTrending) scores.trendFollow += 20;
+    if (regime.isRanging)  scores.meanReversion += 20;
+    if (regime.isVolatile) scores.breakout += 15;
+  }
+
+  // Wyckoff SOS/LPS = trend follow; SC/BC = mean reversion
+  if (wyckoff?.detected) {
+    if (['SOS','LPS','SOW'].includes(wyckoff.stage)) scores.trendFollow += 15;
+    if (['SC','BC'].includes(wyckoff.stage))          scores.meanReversion += 15;
+    if (['Spring','UTAD'].includes(wyckoff.stage))    scores.breakout += 20;
+  }
+
+  // Liquidity sweep = mean reversion (fade the sweep)
+  if (liqSweeps?.bullSweep || liqSweeps?.bearSweep) scores.meanReversion += 12;
+
+  // BOS = trend follow
+  if (bos?.type) scores.trendFollow += 10;
+
+  // Candle pattern strength
+  if (candlePatterns) {
+    const maxStr = Math.max(candlePatterns.bullScore, candlePatterns.bearScore);
+    if (maxStr >= 4) { scores.trendFollow += 8; scores.breakout += 5; }
+  }
+
+  // Volume context
+  if (vol) {
+    const volRatio = vol.ratio || 1;
+    if (volRatio >= 2.5) scores.breakout += 15;
+    else if (volRatio <= 0.5) scores.meanReversion += 10;
+  }
+
+  // Find winner
+  const types = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const [bestType, bestScore] = types[0];
+  const [secondType, secondScore] = types[1];
+  const clarity = bestScore - secondScore; // how decisive the classification is
+
+  // TP/SL multipliers per type
+  const typeConfig = {
+    meanReversion: {
+      label: '↩ Mean Reversion',
+      icon:  '↩',
+      color: '#a78bfa',
+      tp1R:  0.8,  tp2R: 1.5,  slR: 1.0,
+      note:  'Fade the extreme. Tighter targets. Quick scalp to equilibrium.',
+    },
+    trendFollow: {
+      label: '📈 Trend Following',
+      icon:  '📈',
+      color: '#00ff88',
+      tp1R:  1.5,  tp2R: 3.0,  slR: 1.0,
+      note:  'Ride the momentum. Wide TP2. Trail SL after TP1.',
+    },
+    breakout: {
+      label: '⚡ Breakout',
+      icon:  '⚡',
+      color: '#fbbf24',
+      tp1R:  2.0,  tp2R: 5.0,  slR: 1.0,
+      note:  'Momentum entry. Very wide targets. Move SL to BE after TP1 quickly.',
+    },
+  };
+
+  return {
+    type:    bestType,
+    config:  typeConfig[bestType],
+    scores,
+    clarity,
+    confident: clarity >= 15,
+    label:   `${typeConfig[bestType].icon} ${typeConfig[bestType].label} Setup`,
+    note:    typeConfig[bestType].note,
+    // Round number levels (used in entry precision)
+    allTypes: types,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ROUND NUMBER LEVELS
+   Psychological price magnets: $0.001, $0.01, $0.1, $1, $10, $100...
+   Also: 0.5 sub-levels (strong) and 0.25 (minor)
+   ═══════════════════════════════════════════════════════════════════ */
+function calcRoundLevels(price, atr) {
+  const aV     = atr ? atr.atr : price * 0.01;
+  const levels = [];
+
+  // Find magnitude: 10^n nearest to price
+  const mag = Math.pow(10, Math.floor(Math.log10(price)));
+
+  // Major levels (1× mag)
+  for (let m = -2; m <= 3; m++) {
+    const base = mag * Math.pow(10, m);
+    for (const mult of [0.25, 0.5, 1, 2, 2.5, 5]) {
+      const lvl = Math.round(price / (base * mult)) * (base * mult);
+      const dist = Math.abs(lvl - price);
+      const strength = mult === 1 ? 'major' : (mult === 0.5 || mult === 2) ? 'semi' : 'minor';
+      if (dist < aV * 8 && dist > 0) {
+        levels.push({
+          price:     lvl,
+          dist,
+          distPct:   +((lvl - price) / price * 100).toFixed(2),
+          strength,
+          label:     `${strength === 'major' ? '🔵' : strength === 'semi' ? '⚪' : '·'} Round Level ${lvl}`,
+        });
+      }
+    }
+  }
+
+  levels.sort((a, b) => a.dist - b.dist);
+  const nearest = levels[0] || null;
+  const inRange = nearest && nearest.dist < aV * 1.5;
+
+  return { levels: levels.slice(0, 6), nearest, inRange };
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   ICT-CRT — CANDLE RANGE THEORY (2-Candle Setup)
+   The reference candle (RC) defines the range.
+   Next candle raids one extreme then reverses through mid → entry
+   CRT = manipulation of one side + delivery to other side
+   ═══════════════════════════════════════════════════════════════════ */
+function detectCRT(O, H, L, C, atr) {
+  const result = { detected: false, bias: null, confidence: 0, label: null, entry: null, sl: null };
+  if (!O || O.length < 5) return result;
+  const aV = atr ? atr.atr : (H[H.length-1] - L[H.length-1]);
+  const price = C[C.length - 1];
+
+  // Check last 3 bars: RC=reference, Raid=manipulation, Current=delivery
+  for (let offset = 1; offset <= 4; offset++) {
+    const rcIdx   = O.length - 2 - offset;
+    const raidIdx = O.length - 1 - offset + 1;
+    const curIdx  = O.length - 1;
+    if (rcIdx < 0 || raidIdx < 0) continue;
+
+    const rc   = { h: H[rcIdx],   l: L[rcIdx],   c: C[rcIdx],   o: O[rcIdx]   };
+    const raid = { h: H[raidIdx], l: L[raidIdx], c: C[raidIdx], o: O[raidIdx] };
+    const cur  = { h: H[curIdx],  l: L[curIdx],  c: C[curIdx],  o: O[curIdx]  };
+
+    const rcRange = rc.h - rc.l;
+    if (rcRange < aV * 0.5) continue; // RC must be meaningful size
+
+    const rcMid = (rc.h + rc.l) / 2;
+
+    // BULLISH CRT: Raid raids below RC low (stop hunt), then close above RC mid
+    const raidedLow  = raid.l < rc.l - aV * 0.05 && raid.c > rc.l; // raided low then closed back above
+    const deliverUp  = cur.c > rcMid; // current delivering up through midpoint
+    if (raidedLow && deliverUp) {
+      const conf = 55 + (raid.c > rc.l ? 15 : 0) + (cur.c > rc.h * 0.995 ? 15 : 0);
+      return {
+        detected: true, bias: 'bullish', confidence: Math.min(conf, 90),
+        rcHigh: rc.h, rcLow: rc.l, rcMid,
+        entry: rcMid,
+        sl: rc.l - aV * 0.2,
+        tp1: rc.h, tp2: rc.h + (rc.h - rc.l) * 0.618,
+        label: `🟢 CRT Bull — Low raided (${rc.l.toFixed(4)}), delivering above mid (${rcMid.toFixed(4)})`,
+        note: 'Classic 2-candle CRT. RC low swept → buy above mid for delivery to RC high.',
+      };
+    }
+
+    // BEARISH CRT: Raid raids above RC high, then close below RC mid
+    const raidedHigh = raid.h > rc.h + aV * 0.05 && raid.c < rc.h;
+    const deliverDn  = cur.c < rcMid;
+    if (raidedHigh && deliverDn) {
+      const conf = 55 + (raid.c < rc.h ? 15 : 0) + (cur.c < rc.l * 1.005 ? 15 : 0);
+      return {
+        detected: true, bias: 'bearish', confidence: Math.min(conf, 90),
+        rcHigh: rc.h, rcLow: rc.l, rcMid,
+        entry: rcMid,
+        sl: rc.h + aV * 0.2,
+        tp1: rc.l, tp2: rc.l - (rc.h - rc.l) * 0.618,
+        label: `🔴 CRT Bear — High raided (${rc.h.toFixed(4)}), delivering below mid (${rcMid.toFixed(4)})`,
+        note: 'Classic 2-candle CRT. RC high swept → sell below mid for delivery to RC low.',
+      };
+    }
+  }
+  return result;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SK SYSTEM — AB BC, No AB, Rf Box, DVR, SK High Probability
+   SK System concepts from image: AB BC pattern, Rf box,
+   DVR (divergence reversal), SK top-down, high probability zones
+   ═══════════════════════════════════════════════════════════════════ */
+function detectSKSystem(O, H, L, C, V, atr, bos, mtfOBs) {
+  const result = { detected: false, bias: null, confidence: 0, highProbability: false, label: null, patterns: [] };
+  if (!O || O.length < 20) return result;
+  const aV = atr ? atr.atr : (H[H.length-1] - L[H.length-1]);
+  const price = C[C.length - 1];
+  let conf = 0, bias = null;
+
+  // === AB BC Pattern (2-leg pullback structure) ===
+  // A: impulse start, B: end of impulse / start of retrace
+  // BC: retrace (38.2–61.8%) → entry at C for continuation
+  const lb = Math.min(O.length - 2, 30);
+  let abbc = null;
+  for (let i = 5; i < lb; i++) {
+    const aIdx = O.length - 1 - i;
+    const bIdx = O.length - 1 - Math.floor(i/2);
+    const cIdx = O.length - 2;
+    if (aIdx < 0 || bIdx < 0) continue;
+    const abLen = Math.abs(C[bIdx] - C[aIdx]);
+    const bcLen = Math.abs(C[cIdx] - C[bIdx]);
+    if (!abLen) continue;
+    const bcRetrace = bcLen / abLen;
+    // BC = 38.2–61.8% of AB (SK optimal zone)
+    if (bcRetrace >= 0.382 && bcRetrace <= 0.618) {
+      const isBull = C[bIdx] > C[aIdx];
+      abbc = { bias: isBull ? 'bullish' : 'bearish', bcRetrace: +bcRetrace.toFixed(3), pts: 20 };
+      conf += 20;
+      if (!bias) bias = abbc.bias;
+      result.patterns.push({ name: 'AB BC', ...abbc, label: `AB BC ${isBull?'Bull':'Bear'} — BC retrace: ${(bcRetrace*100).toFixed(1)}%` });
+      break;
+    }
+  }
+
+  // === Rf Box (Reference Box — consolidation zone before move) ===
+  // Tight range (< 0.5 ATR) for 3+ bars then breakout
+  let rfBox = null;
+  for (let i = 3; i < Math.min(10, lb); i++) {
+    const slice = { h: H.slice(-i-3,-i), l: L.slice(-i-3,-i), c: C.slice(-i-3,-i) };
+    const boxH = Math.max(...slice.h);
+    const boxL = Math.min(...slice.l);
+    const boxRange = boxH - boxL;
+    if (boxRange < aV * 0.5) {
+      // Is current price breaking out of box?
+      const breakUp   = price > boxH + aV * 0.05;
+      const breakDown = price < boxL - aV * 0.05;
+      if (breakUp || breakDown) {
+        rfBox = { boxH, boxL, dir: breakUp ? 'bullish' : 'bearish', pts: 14 };
+        conf += 14;
+        if (!bias) bias = rfBox.dir;
+        result.patterns.push({ name: 'Rf Box', ...rfBox, label: `Rf Box ${breakUp?'Bull':'Bear'} breakout — Box: ${boxL.toFixed(4)}–${boxH.toFixed(4)}` });
+        break;
+      }
+    }
+  }
+
+  // === DVR — Divergence Reversal (SK version) ===
+  // Volume decreasing while price makes new extreme = DVR signal
+  let dvr = null;
+  if (V && V.length >= 10) {
+    const recentV = V.slice(-6);
+    const avgV    = recentV.reduce((a,b)=>a+b,0) / recentV.length;
+    const lastV   = V[V.length-2];
+    const prevV   = V[V.length-3];
+    const volDecline = lastV < prevV * 0.75 && lastV < avgV * 0.7;
+    const priceExtreme = price > Math.max(...H.slice(-20,-1)) * 0.998 || price < Math.min(...L.slice(-20,-1)) * 1.002;
+    if (volDecline && priceExtreme) {
+      dvr = { pts: 16, bias: price > C[C.length-10] ? 'bearish' : 'bullish' }; // DVR = reversal
+      conf += 16;
+      if (!bias) bias = dvr.bias;
+      result.patterns.push({ name: 'DVR', ...dvr, label: `DVR — Volume declining at price extreme → reversal signal` });
+    }
+  }
+
+  // === SK High Probability: multiple SK patterns align ===
+  const highProb = result.patterns.length >= 2 && conf >= 35;
+  if (highProb) conf += 15;
+
+  // === SK Top-Down: BOS + OB + SK pattern alignment ===
+  if (bos?.type === 'bullish' && bias === 'bullish') { conf += 12; }
+  if (bos?.type === 'bearish' && bias === 'bearish') { conf += 12; }
+  if (mtfOBs?.nearestBullOB && bias === 'bullish') conf += 8;
+  if (mtfOBs?.nearestBearOB && bias === 'bearish') conf += 8;
+
+  if (conf < 14 || !bias) return result;
+
+  return {
+    detected: true,
+    bias,
+    confidence: Math.min(conf, 92),
+    highProbability: highProb,
+    patterns: result.patterns,
+    label: `${bias==='bullish'?'🟢':'🔴'} SK System — ${result.patterns.map(p=>p.name).join(' + ')} ${highProb?'(HIGH PROBABILITY)':''}`,
+    note: highProb ? 'Multiple SK patterns aligned — highest probability setup.' : 'SK pattern detected — confirm with top-down analysis.',
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   IPDA — INTERBANK PRICE DELIVERY ALGORITHM
+   ICT concept: price delivers to quarterly, weekly, daily levels
+   Key levels: Previous Quarter High/Low, Previous Week High/Low
+   Weekly Open, Daily Open — institutional reference points
+   ═══════════════════════════════════════════════════════════════════ */
+function calcIPDALevels(H, L, C, kl1d, kl4h) {
+  if (!kl1d || kl1d.length < 20) return null;
+  const price = C[C.length - 1];
+
+  // Daily levels
+  const prevDay = kl1d[kl1d.length - 2];
+  const prevDayH = parseFloat(prevDay[2]);
+  const prevDayL = parseFloat(prevDay[3]);
+  const prevDayC = parseFloat(prevDay[4]);
+  const todayO   = parseFloat(kl1d[kl1d.length-1][1]);
+
+  // Weekly levels (5 trading days)
+  const weekBars = kl1d.slice(-7, -2);
+  const prevWeekH = weekBars.length ? Math.max(...weekBars.map(k => parseFloat(k[2]))) : null;
+  const prevWeekL = weekBars.length ? Math.min(...weekBars.map(k => parseFloat(k[3]))) : null;
+  const weekOpenBar = weekBars[0];
+  const weeklyOpen = weekOpenBar ? parseFloat(weekOpenBar[1]) : null;
+
+  // Quarterly levels (approx 60 trading days = 3 months)
+  const qBars = kl1d.slice(-65, -5);
+  const prevQH = qBars.length ? Math.max(...qBars.map(k => parseFloat(k[2]))) : null;
+  const prevQL = qBars.length ? Math.min(...qBars.map(k => parseFloat(k[3]))) : null;
+
+  // Check proximity
+  const near = (lvl, pct = 0.005) => lvl && Math.abs(price - lvl) / price < pct;
+  const atr5 = kl4h ? Math.abs(parseFloat(kl4h[kl4h.length-1][2]) - parseFloat(kl4h[kl4h.length-1][3])) * 2 : price * 0.01;
+
+  const levels = [];
+  if (prevDayH) levels.push({ price: prevDayH, label: 'PDH (Prev Day High)', strength: 3, bias: 'bearish' });
+  if (prevDayL) levels.push({ price: prevDayL, label: 'PDL (Prev Day Low)', strength: 3, bias: 'bullish' });
+  if (prevWeekH) levels.push({ price: prevWeekH, label: 'PWH (Prev Week High)', strength: 4, bias: 'bearish' });
+  if (prevWeekL) levels.push({ price: prevWeekL, label: 'PWL (Prev Week Low)', strength: 4, bias: 'bullish' });
+  if (prevQH) levels.push({ price: prevQH, label: 'PQH (Prev Quarter High)', strength: 5, bias: 'bearish' });
+  if (prevQL) levels.push({ price: prevQL, label: 'PQL (Prev Quarter Low)', strength: 5, bias: 'bullish' });
+  if (weeklyOpen) levels.push({ price: weeklyOpen, label: 'Weekly Open', strength: 3, bias: 'neutral' });
+  if (todayO) levels.push({ price: todayO, label: 'Daily Open (Today)', strength: 2, bias: 'neutral' });
+
+  // Add dist to each level
+  levels.forEach(l => { l.distPct = +((l.price - price) / price * 100).toFixed(2); });
+  levels.sort((a, b) => Math.abs(a.distPct) - Math.abs(b.distPct));
+
+  const nearestLevel = levels[0] || null;
+
+  return {
+    levels,
+    nearestLevel,
+    prevDayH, prevDayL, prevWeekH, prevWeekL,
+    prevQH, prevQL, weeklyOpen, dailyOpen: todayO,
+    atQuarterlyHigh: near(prevQH, 0.008),
+    atQuarterlyLow:  near(prevQL, 0.008),
+    atWeeklyHigh:    near(prevWeekH, 0.006),
+    atWeeklyLow:     near(prevWeekL, 0.006),
+    nearWeeklyOpen:  near(weeklyOpen, 0.004),
+    nearDailyOpen:   near(todayO, 0.003),
+    label: nearestLevel ? `IPDA: Nearest — ${nearestLevel.label} (${nearestLevel.distPct > 0 ? '+' : ''}${nearestLevel.distPct}%)` : null,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROPULSION BLOCK (ICT-CRT Concept)
+   A consolidation/correction block before a strong impulse move.
+   When price returns to Propulsion Block = high probability entry
+   Similar to OB but specifically after a consolidation + breakout
+   ═══════════════════════════════════════════════════════════════════ */
+function detectPropulsionBlock(O, H, L, C, atr) {
+  const result = { detected: false, bias: null, strength: 0, label: null, high: null, low: null, mid: null };
+  if (!O || O.length < 15) return result;
+  const aV = atr ? atr.atr : (H[H.length-1] - L[H.length-1]);
+  const price = C[C.length - 1];
+  const lb = Math.min(O.length - 2, 50);
+
+  for (let i = 5; i < lb - 3; i++) {
+    const idx = O.length - 1 - i;
+    if (idx < 3) continue;
+
+    // Find tight consolidation (3–5 bars with range < ATR)
+    const consH = H.slice(idx-2, idx+1);
+    const consL = L.slice(idx-2, idx+1);
+    const consRange = Math.max(...consH) - Math.min(...consL);
+    if (consRange > aV * 0.8) continue; // not tight enough
+
+    const pbH = Math.max(...consH);
+    const pbL = Math.min(...consL);
+
+    // Strong impulse after consolidation
+    const impulseIdx = idx + 2;
+    if (impulseIdx >= O.length) continue;
+    const impMove = Math.abs(C[impulseIdx] - C[idx]);
+    if (impMove < aV * 1.5) continue; // impulse not strong enough
+
+    const isBull = C[impulseIdx] > C[idx];
+
+    // Price returning to propulsion block zone
+    const inPB = price >= pbL - aV * 0.2 && price <= pbH + aV * 0.2;
+    const nearPB = Math.abs(price - (pbH + pbL) / 2) / price < 0.02;
+
+    if ((inPB || nearPB) && i <= 20) { // recent enough
+      return {
+        detected: true,
+        bias: isBull ? 'bullish' : 'bearish',
+        strength: impMove / aV >= 3 ? 3 : impMove / aV >= 2 ? 2 : 1,
+        high: pbH, low: pbL, mid: (pbH + pbL) / 2,
+        inPB, nearPB,
+        label: `${isBull?'🟢':'🔴'} Propulsion Block ${isBull?'Bull':'Bear'} — ${pbL.toFixed(4)}–${pbH.toFixed(4)} (${inPB?'PRICE IN PB':'near PB'})`,
+        note: 'Price returning to propulsion consolidation zone — high probability continuation entry.',
+      };
+    }
+  }
+  return result;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FOOTPRINT LITE — Aggressive/Passive Delta
+   From image: Aggressive/passive, Delta change, Max delta, Absorption
+   Approximated from OHLCV data (no tick data available)
+   ═══════════════════════════════════════════════════════════════════ */
+function calcFootprintLite(O, H, L, C, V, atr) {
+  if (!O || O.length < 10 || !V) return null;
+  const aV = atr ? atr.atr : (H[H.length-1] - L[H.length-1]);
+  const lb = Math.min(O.length - 1, 10);
+
+  // Calculate delta for each recent bar
+  const bars = [];
+  for (let i = 1; i <= lb; i++) {
+    const idx = O.length - 1 - i;
+    if (idx < 0) continue;
+    const o = O[idx], h = H[idx], l = L[idx], c = C[idx], v = V[idx];
+    const range = h - l || 1;
+    const body  = Math.abs(c - o);
+    const isBull = c > o;
+    // Approximate aggressive delta: bull bar = aggressive buyers, bear = aggressive sellers
+    // Aggressive: closing above open (buyers aggressive) / below open (sellers aggressive)
+    const bodyRatio = body / range;
+    const aggressiveBuy  = isBull ? v * (0.5 + bodyRatio * 0.45) : v * (0.5 - bodyRatio * 0.45);
+    const aggressiveSell = v - aggressiveBuy;
+    const delta = aggressiveBuy - aggressiveSell;
+    bars.push({ delta, aggressiveBuy, aggressiveSell, v, isBull, bodyRatio });
+  }
+
+  if (!bars.length) return null;
+
+  // Cumulative delta trend (last 5 bars)
+  const recent5 = bars.slice(0, 5);
+  const cumDelta = recent5.reduce((s, b) => s + b.delta, 0);
+  const maxDelta  = Math.max(...bars.map(b => Math.abs(b.delta)));
+  const avgVol    = bars.reduce((s, b) => s + b.v, 0) / bars.length;
+
+  // Aggressive buying: bull bars with high volume + high body ratio
+  const aggressiveBuying = recent5.filter(b => b.isBull && b.bodyRatio >= 0.65 && b.v >= avgVol * 1.3).length >= 2;
+  // Aggressive selling: bear bars with high volume + high body ratio
+  const aggressiveSelling = recent5.filter(b => !b.isBull && b.bodyRatio >= 0.65 && b.v >= avgVol * 1.3).length >= 2;
+
+  // Passive absorption: high volume but small range = passive players absorbing
+  const absorption = bars.slice(0, 3).filter(b => b.v >= avgVol * 1.8 && b.bodyRatio < 0.35);
+  const passiveAbsorption = absorption.length >= 1
+    ? (bars[0].isBull ? 'bear' : 'bull') // passive is opposite of direction = absorbing aggressive orders
+    : null;
+
+  // IMB (Imbalance): large single-sided bar leaving gap = aggressive move
+  const lastBar = bars[0];
+  const imbalance = lastBar && lastBar.bodyRatio >= 0.80 && lastBar.v >= avgVol * 2.0;
+
+  return {
+    cumDelta,
+    maxDelta,
+    aggressiveBuying,
+    aggressiveSelling,
+    passiveAbsorption,
+    imbalance,
+    imbalanceBias: imbalance ? (lastBar.isBull ? 'bullish' : 'bearish') : null,
+    deltaRising: cumDelta > 0,
+    deltaFalling: cumDelta < 0,
+    bars: bars.slice(0, 5),
+    label: aggressiveBuying
+      ? `📈 Aggressive Buyers — high vol bull bars (${recent5.filter(b=>b.isBull&&b.bodyRatio>=0.65).length}/5 bars)`
+      : aggressiveSelling
+      ? `📉 Aggressive Sellers — high vol bear bars (${recent5.filter(b=>!b.isBull&&b.bodyRatio>=0.65).length}/5 bars)`
+      : passiveAbsorption
+      ? `⚖ Passive Absorption (${passiveAbsorption === 'bull' ? 'bulls' : 'bears'} absorbing) — high vol, small spread`
+      : `〰 Delta Neutral — mixed aggressive/passive flow`,
+    note: imbalance ? `IMB detected — ${lastBar.isBull?'bull':'bear'} imbalance bar signals ${lastBar.isBull?'strong buying':'strong selling'} pressure.` : '',
+  };
+}
+

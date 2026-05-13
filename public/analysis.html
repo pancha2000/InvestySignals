@@ -1019,7 +1019,10 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     candlePatterns=null, pivotPoints=null, takerRatio=null, lsRatio=null,
     orderBook=null, rvol=null, candleCloseTimer=null,
     liqSweeps=null, liqSweeps15=null, breakers=null, breakers4h=null,
-    oteZone=null, killzone=null, amdModel=null, vsa=null
+    oteZone=null, killzone=null, amdModel=null, vsa=null,
+    wyckoff=null, premDisc=null, harmonics=null, cvdData=null, unmitLevels=null,
+    marketProf=null, mtfDiv=null, roundLevels=null, cmeGaps=null, setupType=null,
+    crtSignal=null, skAnalysis=null, ipdaLevels=null, propulsion=null, footprint=null
   } = ex;
 
   // ══════════════════════════════════════════════════════
@@ -1362,6 +1365,21 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   if (sess && sess.isAsian) riskFlags.push('⚠ Asian session — low liquidity, score penalised');
   if (lsRatio && lsRatio.extremeLong  && dir==='LONG')  riskFlags.push('⚠ ' + lsRatio.longPct.toFixed(0) + '% traders long — crowded');
   if (lsRatio && lsRatio.extremeShort && dir==='SHORT') riskFlags.push('⚠ ' + lsRatio.shortPct.toFixed(0) + '% traders short — crowded');
+  // Wyckoff conflict check
+  if (wyckoff && wyckoff.detected && wyckoff.confidence >= 55) {
+    if (dir === 'LONG'  && wyckoff.bias === 'bearish') riskFlags.push(`🏚 Wyckoff ${wyckoff.stage||wyckoff.phase} suggests distribution — counter-trend LONG (${wyckoff.confidence}% conf)`);
+    if (dir === 'SHORT' && wyckoff.bias === 'bullish') riskFlags.push(`🏦 Wyckoff ${wyckoff.stage||wyckoff.phase} suggests accumulation — counter-trend SHORT (${wyckoff.confidence}% conf)`);
+    // High-conviction stage specific warnings
+    if (wyckoff.stage === 'BC' && dir === 'LONG')    riskFlags.push('🚨 Wyckoff Buying Climax detected — DO NOT LONG into euphoria top');
+    if (wyckoff.stage === 'SC' && dir === 'SHORT')   riskFlags.push('🚨 Wyckoff Selling Climax detected — DO NOT SHORT into panic bottom');
+    if (wyckoff.utadDetected && dir === 'LONG')      riskFlags.push('⚠ Wyckoff UTAD (bull trap) detected — avoid LONG above range');
+    if (wyckoff.springDetected && dir === 'SHORT')   riskFlags.push('⚠ Wyckoff Spring (bear trap) detected — avoid SHORT below range');
+  }
+  // Premium/Discount conflict check
+  if (premDisc) {
+    if (dir === 'LONG'  && (premDisc.zone === 'extreme_premium' || premDisc.zone === 'premium')) riskFlags.push(`⚠ Buying in ${premDisc.zoneLabel} — price in premium zone, high mean-reversion risk`);
+    if (dir === 'SHORT' && (premDisc.zone === 'extreme_discount' || premDisc.zone === 'discount')) riskFlags.push(`⚠ Selling in ${premDisc.zoneLabel} — price in discount zone, high mean-reversion risk`);
+  }
   // SMC Order Block conflict checks
   if (dir === 'SHORT' && mtfOBs?.nearestBullOB) {
     const ob = mtfOBs.nearestBullOB;
@@ -1713,6 +1731,152 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   const confluenceLabel = getConfluenceLabel(ep, dir);
 
   // ══════════════════════════════════════════
+  // Harmonic Patterns scoring
+  // ══════════════════════════════════════════
+  if (harmonics && harmonics.detected && harmonics.bestPattern) {
+    const hp = harmonics.bestPattern;
+    const hPts = hp.strength * 4; // max 20pts (Crab=5×4)
+    if (hp.bias === 'bullish') ls += hp.priceInPRZ ? hPts + 8 : hp.nearPRZ ? hPts : Math.round(hPts * 0.5);
+    else                       ss += hp.priceInPRZ ? hPts + 8 : hp.nearPRZ ? hPts : Math.round(hPts * 0.5);
+  }
+
+  // ══════════════════════════════════════════
+  // CVD + Delta Divergence scoring
+  // ══════════════════════════════════════════
+  if (cvdData) {
+    ls += Math.min(cvdData.bullScore, 18);
+    ss += Math.min(cvdData.bearScore, 18);
+    if (cvdData.divergence?.strength === 'strong') {
+      if (cvdData.divergence.type === 'bullish') { ls += 12; }
+      else                                        { ss += 12; }
+    }
+    if (cvdData.absorption) {
+      if (cvdData.absorptionBias === 'bullish') ls += 8;
+      else                                       ss += 8;
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // Unmitigated OB/FVG scoring
+  // ══════════════════════════════════════════
+  if (unmitLevels) {
+    if (unmitLevels.nearestUnmitBull && unmitLevels.nearestUnmitBull.distPct < 1.0) ls += 14;
+    else if (unmitLevels.nearestUnmitBull && unmitLevels.nearestUnmitBull.distPct < 2.0) ls += 8;
+    if (unmitLevels.nearestUnmitBear && unmitLevels.nearestUnmitBear.distPct < 1.0) ss += 14;
+    else if (unmitLevels.nearestUnmitBear && unmitLevels.nearestUnmitBear.distPct < 2.0) ss += 8;
+  }
+
+  // ══════════════════════════════════════════
+  // Market Profile (POC) scoring
+  // ══════════════════════════════════════════
+  if (marketProf) {
+    if (marketProf.pocMagnet) {
+      // At POC = balance point, slight bias toward reversion
+      if (marketProf.abovePOC) ss += 6; else ls += 6;
+    }
+    // Price in Value Area = normal, outside = extended
+    if (!marketProf.inValueArea) {
+      if (C[C.length-1] > marketProf.vah) ss += 10; // above VAH = premium, short bias
+      else                                 ls += 10; // below VAL = discount, long bias
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // MTF Divergence Stack scoring
+  // ══════════════════════════════════════════
+  if (mtfDiv && mtfDiv.detected) {
+    ls += Math.min(mtfDiv.bullScore, 30);
+    ss += Math.min(mtfDiv.bearScore, 30);
+  }
+
+  // ══════════════════════════════════════════
+  // CME Gap scoring (magnet effect)
+  // ══════════════════════════════════════════
+  if (cmeGaps && cmeGaps.detected && cmeGaps.nearestGap?.magnet) {
+    const gap = cmeGaps.nearestGap;
+    if (gap.bias === 'bullish') ls += 12; // gap below = price pulled down to fill, then bounces up
+    else                        ss += 12;
+  }
+
+  // ══════════════════════════════════════════
+  // Round Number Level scoring
+  // ══════════════════════════════════════════
+  if (roundLevels && roundLevels.inRange && roundLevels.nearest) {
+    const rPts = roundLevels.nearest.strength === 'major' ? 10 : roundLevels.nearest.strength === 'semi' ? 6 : 3;
+    ls += rPts; ss += rPts; // round levels affect both directions
+  }
+
+  // ══════════════════════════════════════════
+  // CRT (Candle Range Theory) scoring
+  // ══════════════════════════════════════════
+  if (crtSignal && crtSignal.detected) {
+    if (crtSignal.bias === 'bullish') ls += crtSignal.confidence >= 70 ? 16 : 10;
+    else                               ss += crtSignal.confidence >= 70 ? 16 : 10;
+  }
+
+  // ══════════════════════════════════════════
+  // SK System scoring
+  // ══════════════════════════════════════════
+  if (skAnalysis && skAnalysis.detected) {
+    if (skAnalysis.bias === 'bullish') ls += Math.round(skAnalysis.confidence * 0.18);
+    else                               ss += Math.round(skAnalysis.confidence * 0.18);
+    // SK high probability bonus
+    if (skAnalysis.highProbability) {
+      if (skAnalysis.bias === 'bullish') ls += 10;
+      else                               ss += 10;
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // IPDA Levels scoring
+  // ══════════════════════════════════════════
+  if (ipdaLevels) {
+    if (ipdaLevels.atQuarterlyHigh) ss += 14; // at IPDA high = distribution
+    if (ipdaLevels.atQuarterlyLow)  ls += 14; // at IPDA low = accumulation
+    if (ipdaLevels.nearWeeklyOpen)  { ls += 5; ss += 5; } // weekly open = key level
+  }
+
+  // ══════════════════════════════════════════
+  // Propulsion Block scoring
+  // ══════════════════════════════════════════
+  if (propulsion && propulsion.detected) {
+    if (propulsion.bias === 'bullish') ls += propulsion.strength >= 3 ? 14 : 8;
+    else                               ss += propulsion.strength >= 3 ? 14 : 8;
+  }
+
+  // ══════════════════════════════════════════
+  // Footprint (Aggressive/Passive Delta) scoring
+  // ══════════════════════════════════════════
+  if (footprint) {
+    if (footprint.aggressiveBuying)  ls += 12;
+    if (footprint.aggressiveSelling) ss += 12;
+    if (footprint.passiveAbsorption === 'bull') ls += 8;
+    if (footprint.passiveAbsorption === 'bear') ss += 8;
+  }
+
+  // ══════════════════════════════════════════
+  // Wyckoff scoring
+  // ══════════════════════════════════════════
+  if (wyckoff && wyckoff.detected) {
+    const wPts = Math.round(wyckoff.confidence * 0.22); // max ~21pts at 95%
+    if (wyckoff.bias === 'bullish') ls += wPts;
+    else if (wyckoff.bias === 'bearish') ss += wPts;
+    // Extra bonus for high-conviction stages
+    if (wyckoff.stage === 'LPS' || wyckoff.stage === 'Spring') ls += 8;
+    if (wyckoff.stage === 'SOW' || wyckoff.stage === 'UTAD')   ss += 8;
+  }
+
+  // ══════════════════════════════════════════
+  // Premium / Discount Zone scoring
+  // ══════════════════════════════════════════
+  if (premDisc) {
+    if      (premDisc.bias === 'strong_long')  { ls += 16; ss = Math.max(ss - 8, 0); }
+    else if (premDisc.bias === 'mild_long')      ls += 8;
+    else if (premDisc.bias === 'strong_short') { ss += 16; ls = Math.max(ls - 8, 0); }
+    else if (premDisc.bias === 'mild_short')     ss += 8;
+  }
+
+  // ══════════════════════════════════════════
   // NEW: Liquidity Sweep scoring
   // ══════════════════════════════════════════
   if (liqSweeps) {
@@ -2011,7 +2175,7 @@ async function runDeepScan(symbol) {
     const fibonacci = calcFibonacciMTF(kl15m, kl1h, kl4h, kl1d, curP, atr);
     const regime    = detectMarketRegime(C, H, L, V, adx, bb, atr);
 
-    // === NEW: SMC/ICT/VSA features ===
+    // === SMC/ICT/VSA features ===
     const liqSweeps   = detectLiquiditySweeps(H, L, C, O, atr);
     const liqSweeps15 = detectLiquiditySweeps(H15, L15, C15, O15, atr);
     const breakers    = detectBreakerBlocks(O, H, L, C, atr);
@@ -2021,11 +2185,37 @@ async function runDeepScan(symbol) {
     const amdModel    = detectAMDModel(O, H, L, C, V, atr);
     const vsa         = detectVSA(O, H, L, C, V, atr);
 
+    // === Wyckoff + Premium/Discount + New Features ===
+    const wyckoff      = detectWyckoff(O, H, L, C, V, atr);
+    const premDisc     = calcPremiumDiscount(H, L, C, atr);
+    const harmonics    = detectHarmonicPatterns(H, L, C, atr);
+    const cvdData      = calcCVD(O, H, L, C, V, takerRatio);
+    const unmitLevels  = filterUnmitigated(mtfOBs, mtfFVGs, H, L, C);
+    const marketProf   = calcMarketProfile(H, L, C, V, atr);
+    const mtfDiv       = calcMTFDivergence(C, rsi1dArr, C4, rsi4hArr, C1d, rsi1dArr, null);
+    const roundLevels  = calcRoundLevels(curP, atr);
+    const cmeGaps      = await detectCMEGaps(symbol, curP);
+    const setupType    = classifySetupType(adx, bb, atr, rsi, premDisc, regime, wyckoff, liqSweeps, bos, candlePatterns, { ratio: vol });
+
+    // ICT-CRT: Candle Range Theory — 2-candle setup detection
+    const crtSignal    = detectCRT(O, H, L, C, atr);
+    // SK System concepts
+    const skAnalysis   = detectSKSystem(O, H, L, C, V, atr, bos, mtfOBs);
+    // IPDA — Interbank Price Delivery Algorithm levels
+    const ipdaLevels   = calcIPDALevels(H, L, C, kl1d, kl4h);
+    // Propulsion Block (ICT-CRT)
+    const propulsion   = detectPropulsionBlock(O, H, L, C, atr);
+    // Footprint lite — aggressive/passive delta
+    const footprint    = calcFootprintLite(O, H, L, C, V, atr);
+
     const ex = {
       trend4h: t4, fundingRate: fr, oiChange: oi, divergence: div, emaStack: es, vwap,
       supertrend: spt, bos, mtfRSI: mRSI, session: getSession(), btcContext: btc,
       srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
       liqSweeps, liqSweeps15, breakers, breakers4h, oteZone, killzone, amdModel, vsa,
+      wyckoff, premDisc, harmonics, cvdData, unmitLevels, marketProf, mtfDiv,
+      roundLevels, cmeGaps, setupType, crtSignal, skAnalysis, ipdaLevels,
+      propulsion, footprint,
       candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol, candleCloseTimer
     };
 
@@ -2069,7 +2259,9 @@ async function runDeepScan(symbol) {
       trendLine, trendLine4h, bos15m, bos4h, mtfOBs, mtfFVGs, srZones, fibonacci,
       candlePatterns, candlePatterns4h, pivotPoints, takerRatio, lsRatio,
       pdResult, regime, dcaLadder,
-      liqSweeps, breakers, oteZone, killzone, amdModel, vsa
+      liqSweeps, breakers, oteZone, killzone, amdModel, vsa,
+      wyckoff, premDisc, harmonics, cvdData, unmitLevels, marketProf, mtfDiv,
+      roundLevels, cmeGaps, setupType, crtSignal, skAnalysis, ipdaLevels, propulsion, footprint
     });
 
     btSaveSignal(symbol, entry, curP, getSession(), rsi);
@@ -2209,7 +2401,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
           divergence:div, vwap, supertrend:spt, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
           srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, bos15m, bos4h,
           candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol } = ind;
-  const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h, pdResult=null, regime=null, dcaLadder=null, liqSweeps=null, breakers=null, oteZone=null, killzone=null, amdModel=null, vsa=null } = extra || {};
+  const { ema4h, trendLine4h, rsi15m, rsi4h, rsi1d, candlePatterns4h, pdResult=null, regime=null, dcaLadder=null, liqSweeps=null, breakers=null, oteZone=null, killzone=null, amdModel=null, vsa=null, wyckoff=null, premDisc=null, harmonics=null, cvdData=null, unmitLevels=null, marketProf=null, mtfDiv=null, roundLevels=null, cmeGaps=null, setupType=null, crtSignal=null, skAnalysis=null, ipdaLevels=null, propulsion=null, footprint=null } = extra || {};
   const pair = symbol.replace('USDT', '/USDT');
 
   const rColor = rsi<=30?'var(--green)':rsi>=70?'var(--red)':rsi<=45?'rgba(0,255,136,.75)':rsi>=55?'rgba(255,61,90,.75)':'var(--yellow)';
@@ -2517,6 +2709,175 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
     if (vsa?.signals?.length) rows.push({
       title: '📊 VSA Signals',
       items: vsa.signals.slice(0,3).map(s => `<div style="font-family:var(--font-n);font-size:.69rem;color:${s.bias==='bullish'?'var(--green)':s.bias==='bearish'?'var(--red)':'var(--muted)'};line-height:1.5;margin-bottom:2px">${s.label}</div>`).join(''),
+    });
+
+    // Wyckoff
+    if (wyckoff?.detected) rows.push({
+      title: `${wyckoff.phase==='accumulation'?'🏦':'🏚'} Wyckoff ${wyckoff.phase==='accumulation'?'Accumulation':'Distribution'}`,
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${wyckoff.bias==='bullish'?'var(--green)':'var(--red)'};line-height:1.5">
+        ${wyckoff.label}
+        <div style="font-size:.62rem;color:rgba(255,255,255,.75);margin-top:4px;line-height:1.55">${wyckoff.note}</div>
+        ${wyckoff.events.length ? `
+        <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">
+          ${wyckoff.events.map(e=>`
+            <span style="font-family:var(--font-n);font-size:.58rem;padding:2px 7px;border-radius:4px;background:${e.bias==='bullish'?'rgba(0,255,136,.12)':'rgba(255,61,90,.12)'};color:${e.bias==='bullish'?'var(--green)':'var(--red)'};border:1px solid ${e.bias==='bullish'?'rgba(0,255,136,.25)':'rgba(255,61,90,.25)'}">${e.name}</span>
+          `).join('')}
+        </div>` : ''}
+        <div style="margin-top:5px;display:flex;gap:10px;flex-wrap:wrap">
+          <span style="font-family:var(--font-n);font-size:.62rem;color:var(--muted)">Range: <strong style="color:var(--text)">${fmtPrice(wyckoff.rangeLow)} – ${fmtPrice(wyckoff.rangeHigh)}</strong></span>
+          ${wyckoff.springDetected?'<span style="font-size:.6rem;color:var(--green);background:rgba(0,255,136,.1);padding:1px 6px;border-radius:4px">🌱 Spring</span>':''}
+          ${wyckoff.utadDetected?'<span style="font-size:.6rem;color:var(--red);background:rgba(255,61,90,.1);padding:1px 6px;border-radius:4px">⚠ UTAD</span>':''}
+        </div>
+      </div>`,
+    });
+
+    // === Setup Type Classifier ===
+    if (setupType) rows.push({
+      title: `${setupType.config.icon} Setup Type`,
+      items: `<div style="font-family:var(--font-n);font-size:.72rem;font-weight:700;color:${setupType.config.color};margin-bottom:4px">${setupType.config.label}</div>
+        <div style="font-size:.66rem;color:rgba(255,255,255,.75);line-height:1.5">${setupType.note}</div>
+        ${setupType.confident ? `<div style="margin-top:4px;font-size:.6rem;color:var(--muted)">Clarity: ${setupType.clarity}pts — ${setupType.confident?'High confidence':'Moderate'}</div>` : ''}`,
+    });
+
+    // === Harmonic Patterns ===
+    if (harmonics?.detected) rows.push({
+      title: '🔷 Harmonic Pattern',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${harmonics.bestPattern.color};line-height:1.5">
+        ${harmonics.bestPattern.label}
+        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+          <span style="font-size:.6rem;color:var(--muted)">D (PRZ): <strong style="color:${harmonics.bestPattern.color}">${fmtPrice(harmonics.bestPattern.D)}</strong></span>
+          <span style="font-size:.6rem;color:var(--muted)">SL: <strong>${fmtPrice(harmonics.bestPattern.sl)}</strong></span>
+          <span style="font-size:.6rem;color:var(--muted)">TP1: <strong>${fmtPrice(harmonics.bestPattern.tp1)}</strong></span>
+          ${harmonics.bestPattern.priceInPRZ ? '<span style="font-size:.6rem;padding:1px 6px;border-radius:4px;background:rgba(167,139,250,.2);color:#a78bfa">★ IN PRZ</span>' : ''}
+        </div>
+      </div>`,
+    });
+
+    // === CVD ===
+    if (cvdData) rows.push({
+      title: '📊 CVD & Delta',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${cvdData.deltaRising?'var(--green)':'var(--red)'};line-height:1.5">
+        ${cvdData.label}
+        ${cvdData.divergence ? `<div style="margin-top:4px;font-size:.68rem;color:${cvdData.divergence.type==='bullish'?'var(--green)':'var(--red)'};font-weight:700">${cvdData.divergence.label}</div>` : ''}
+        ${cvdData.absorption ? `<div style="font-size:.65rem;color:var(--yellow);margin-top:3px">⚖ Absorption detected — ${cvdData.absorptionBias==='bull'?'bulls':'bears'} absorbing</div>` : ''}
+      </div>`,
+    });
+
+    // === MTF Divergence Stack ===
+    if (mtfDiv?.detected) rows.push({
+      title: '〰 MTF Divergence Stack',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${mtfDiv.stackBias==='bullish'?'var(--green)':'var(--red)'};line-height:1.5">
+        ${mtfDiv.stackLabel || 'Divergence detected'}
+        <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">
+          ${mtfDiv.divs.map(d=>`<span style="font-size:.6rem;padding:2px 7px;border-radius:4px;background:${d.type==='bullish'?'rgba(0,255,136,.12)':'rgba(255,61,90,.12)'};color:${d.type==='bullish'?'var(--green)':'var(--red)'}">${d.tf} ${d.kind}</span>`).join('')}
+        </div>
+      </div>`,
+    });
+
+    // === CRT Signal ===
+    if (crtSignal?.detected) rows.push({
+      title: '🕯 CRT (Candle Range Theory)',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${crtSignal.bias==='bullish'?'var(--green)':'var(--red)'};line-height:1.5">
+        ${crtSignal.label}
+        <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${crtSignal.note}</div>
+        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+          <span style="font-size:.6rem;color:var(--muted)">Entry: <strong style="color:var(--cyan)">${fmtPrice(crtSignal.entry)}</strong></span>
+          <span style="font-size:.6rem;color:var(--muted)">SL: <strong style="color:var(--red)">${fmtPrice(crtSignal.sl)}</strong></span>
+          <span style="font-size:.6rem;color:var(--muted)">TP1: <strong style="color:var(--green)">${fmtPrice(crtSignal.tp1)}</strong></span>
+        </div>
+      </div>`,
+    });
+
+    // === SK System ===
+    if (skAnalysis?.detected) rows.push({
+      title: '🔶 SK System',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${skAnalysis.bias==='bullish'?'var(--green)':'var(--red)'};line-height:1.5">
+        ${skAnalysis.label}
+        <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">
+          ${skAnalysis.patterns.map(p=>`<span style="font-size:.6rem;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.8)">${p.name}</span>`).join('')}
+        </div>
+        <div style="font-size:.62rem;color:var(--muted);margin-top:4px">${skAnalysis.note}</div>
+        ${skAnalysis.highProbability ? '<div style="margin-top:4px;font-size:.65rem;color:var(--yellow);font-weight:700">⭐ SK HIGH PROBABILITY SETUP</div>' : ''}
+      </div>`,
+    });
+
+    // === IPDA Levels ===
+    if (ipdaLevels?.levels?.length) rows.push({
+      title: '🏛 IPDA Levels',
+      items: `<div style="display:flex;flex-direction:column;gap:3px">
+        ${ipdaLevels.levels.slice(0,4).map(l=>`
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-family:var(--font-n);font-size:.62rem;color:var(--muted);min-width:130px">${l.label}</span>
+            <span style="font-family:var(--font-n);font-size:.68rem;font-weight:700;color:${l.distPct>0?'var(--red)':l.distPct<0?'var(--green)':'var(--cyan)'}">${fmtPrice(l.price)}</span>
+            <span style="font-family:var(--font-n);font-size:.6rem;color:var(--muted)">${l.distPct>0?'+':''}${l.distPct}%</span>
+          </div>`).join('')}
+      </div>`,
+    });
+
+    // === Propulsion Block ===
+    if (propulsion?.detected) rows.push({
+      title: '⚡ Propulsion Block',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${propulsion.bias==='bullish'?'var(--green)':'var(--red)'};line-height:1.5">
+        ${propulsion.label}
+        <div style="font-size:.62rem;color:var(--muted);margin-top:2px">${propulsion.note}</div>
+      </div>`,
+    });
+
+    // === CME Gaps ===
+    if (cmeGaps?.detected) rows.push({
+      title: '📐 CME Gaps',
+      items: `<div style="display:flex;flex-direction:column;gap:4px">
+        ${cmeGaps.gaps.slice(0,2).map(g=>`
+          <div style="font-family:var(--font-n);font-size:.68rem;color:${g.bias==='bullish'?'var(--green)':'var(--red)'};line-height:1.4">
+            ${g.label}
+            ${g.magnet ? '<span style="margin-left:6px;font-size:.58rem;padding:1px 5px;background:rgba(255,195,51,.15);color:var(--yellow);border-radius:3px">🧲 MAGNET</span>' : ''}
+          </div>`).join('')}
+        <div style="font-size:.6rem;color:var(--muted);margin-top:2px">${cmeGaps.note||''}</div>
+      </div>`,
+    });
+
+    // === Market Profile ===
+    if (marketProf) rows.push({
+      title: '📈 Market Profile (POC/VAH/VAL)',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;line-height:1.5">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:.62rem;color:var(--muted)">POC: <strong style="color:var(--yellow)">${fmtPrice(marketProf.poc)}</strong></span>
+          <span style="font-size:.62rem;color:var(--muted)">VAH: <strong style="color:var(--red)">${fmtPrice(marketProf.vah)}</strong></span>
+          <span style="font-size:.62rem;color:var(--muted)">VAL: <strong style="color:var(--green)">${fmtPrice(marketProf.val)}</strong></span>
+        </div>
+        <div style="font-size:.65rem;color:${marketProf.pocMagnet?'var(--yellow)':'var(--muted)'}">${marketProf.note}</div>
+        ${marketProf.pocMagnet ? '<div style="font-size:.6rem;color:var(--yellow);margin-top:2px">🧲 At POC — strong magnet level</div>' : ''}
+      </div>`,
+    });
+
+    // === Footprint Lite ===
+    if (footprint) rows.push({
+      title: '🦶 Footprint (Aggr/Passive Delta)',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${footprint.aggressiveBuying?'var(--green)':footprint.aggressiveSelling?'var(--red)':'var(--muted)'};line-height:1.5">
+        ${footprint.label}
+        ${footprint.imbalance ? `<div style="font-size:.65rem;color:var(--yellow);margin-top:3px;font-weight:700">⚡ IMB: ${footprint.note}</div>` : ''}
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <span style="font-size:.6rem;color:var(--muted)">Cum Delta: <strong style="color:${footprint.cumDelta>0?'var(--green)':'var(--red)'}">${footprint.cumDelta>0?'+':''}${footprint.cumDelta.toFixed(0)}</strong></span>
+          <span style="font-size:.6rem;color:var(--muted)">Max Delta: <strong>${footprint.maxDelta.toFixed(0)}</strong></span>
+        </div>
+      </div>`,
+    });
+
+    // Premium/Discount Zone
+    if (premDisc) rows.push({
+      title: '💹 Premium / Discount Zone',
+      items: `<div style="font-family:var(--font-n);font-size:.7rem;color:${premDisc.zoneColor};line-height:1.5">
+        ${premDisc.zoneLabel}
+        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+          <span style="font-size:.62rem;color:var(--muted)">Position: <strong style="color:${premDisc.zoneColor}">${premDisc.pctInRange}%</strong> of range</span>
+          <span style="font-size:.62rem;color:var(--muted)">Fair Value: <strong style="color:var(--cyan)">${fmtPrice(premDisc.fairValue)}</strong></span>
+          <span style="font-size:.62rem;color:var(--muted)">Δ FV: <strong>${premDisc.distFromFair}%</strong></span>
+        </div>
+        <div style="margin-top:5px;height:6px;border-radius:3px;background:linear-gradient(90deg,#00ff88,#fbbf24,#ff3d5a);position:relative">
+          <div style="position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;background:white;border:2px solid #000;left:calc(${Math.min(Math.max(premDisc.pctInRange,2),98)}% - 6px)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.55rem;color:var(--muted);margin-top:2px"><span>Discount</span><span>Fair Value</span><span>Premium</span></div>
+      </div>`,
     });
 
     if (!rows.length) return '';
