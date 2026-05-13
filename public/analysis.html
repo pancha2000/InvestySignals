@@ -2120,6 +2120,10 @@ async function runDeepScan(symbol) {
     const ema4h  = calcEMAStack(C4),  bos4h  = detectBOS(H4, L4, C4, 35);
     const ema1d  = calcEMAStack(C1D);
     const rsi15m = calcRSI(C15, RSI_PERIOD), rsi4h = calcRSI(C4, RSI_PERIOD), rsi1d = calcRSI(C1D, RSI_PERIOD);
+    // RSI arrays for MTF divergence detection
+    const rsi1hArr = calcRSIArray(C,   RSI_PERIOD);
+    const rsi4hArr = calcRSIArray(C4,  RSI_PERIOD);
+    const rsi1dArr = calcRSIArray(C1D, RSI_PERIOD);
     const trendLine   = calcTrendLine(C, H, L, 50);
     const trendLine4h = calcTrendLine(C4, H4, L4, 40);
     const btc = btcKl && btcKl.length > 20 ? calc4HTrend(btcKl) : null;
@@ -2192,7 +2196,7 @@ async function runDeepScan(symbol) {
     const cvdData      = calcCVD(O, H, L, C, V, takerRatio);
     const unmitLevels  = filterUnmitigated(mtfOBs, mtfFVGs, H, L, C);
     const marketProf   = calcMarketProfile(H, L, C, V, atr);
-    const mtfDiv       = calcMTFDivergence(C, rsi1dArr, C4, rsi4hArr, C1d, rsi1dArr, null);
+    const mtfDiv       = calcMTFDivergence(C, rsi1hArr, C4, rsi4hArr, C1D, rsi1dArr, null);
     const roundLevels  = calcRoundLevels(curP, atr);
     const cmeGaps      = await detectCMEGaps(symbol, curP);
     const setupType    = classifySetupType(adx, bb, atr, rsi, premDisc, regime, wyckoff, liqSweeps, bos, candlePatterns, { ratio: vol });

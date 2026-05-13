@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Historical Backtest — InvestySignals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070b14;--surface:#0c1220;--card:#101827;--border:#1a2640;--border2:#243350;
+  --cyan:#00d4ff;--green:#00ff88;--red:#ff3d5a;--yellow:#ffc333;--purple:#a78bfa;
+  --text:#e2e8f0;--muted:#64748b;--dim:#334155;
+  --font-h:'Rajdhani',sans-serif;--font-n:'IBM Plex Mono',monospace;--font-b:'Outfit',sans-serif;
+  --sidebar-w:240px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-height:1.6;overflow-x:hidden;min-height:100vh;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.auth-guard{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:14px;}
+.auth-spinner{width:38px;height:38px;border:3px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite;}
+.auth-logo{font-family:var(--font-h);font-size:1.6rem;font-weight:700;}.auth-logo span{color:var(--cyan);}
+@keyframes spin{to{transform:rotate(360deg);}}
+.top-bar{position:fixed;top:0;left:0;right:0;height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;}
+.tb-left{display:flex;align-items:center;gap:10px;}
+.tb-brand{font-family:var(--font-h);font-weight:700;font-size:.88rem;letter-spacing:.04em;}
+.tb-brand span{color:var(--cyan);}
+.mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
+@media(max-width:768px){.mob-menu-btn{display:flex;}}
+.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:48px;left:0;height:calc(100vh - 48px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+.ds-brand{padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.ds-logo{font-family:var(--font-h);font-size:1.1rem;font-weight:700;letter-spacing:.06em;}
+.ds-logo span{color:var(--cyan);}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ds-user{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.ds-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--green));display:flex;align-items:center;justify-content:center;font-family:var(--font-h);font-weight:700;font-size:.85rem;color:#000;flex-shrink:0;}
+.ds-uname{font-size:.82rem;font-weight:600;line-height:1.2;}
+.ds-uemail{font-size:.68rem;color:var(--muted);font-family:var(--font-n);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
+.ds-nav{flex:1;padding:10px 8px;overflow-y:auto;}
+.ds-section{font-size:.62rem;font-weight:600;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;padding:10px 8px 4px;}
+.ds-nav a{display:flex;align-items:center;gap:9px;padding:10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;min-height:44px;}
+.ds-nav a:hover{background:rgba(255,255,255,.04);color:var(--text);}
+.ds-nav a.active{background:rgba(0,212,255,.08);color:var(--cyan);border-left:2px solid var(--cyan);padding-left:8px;}
+.ni{font-size:.95rem;width:18px;text-align:center;}
+.ds-badge{font-family:var(--font-n);font-size:.6rem;padding:2px 6px;border-radius:4px;font-weight:600;margin-left:auto;}
+.ds-badge.green{background:rgba(0,255,136,.12);color:var(--green);}
+.ds-badge.cyan{background:rgba(0,212,255,.12);color:var(--cyan);}
+.ds-footer{padding:12px 16px;border-top:1px solid var(--border);}
+.btn-signout{width:100%;padding:10px;background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);color:var(--red);border-radius:8px;font-size:.8rem;cursor:pointer;transition:all .2s;font-family:var(--font-b);min-height:44px;}
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;}
+.mob-overlay.show{display:block;}
+@media(max-width:768px){.dash-sidebar{transform:translateX(-100%);top:0;height:100vh;}.dash-sidebar.open{transform:translateX(0);}}
+.dash-layout{display:flex;padding-top:48px;overflow-x:hidden;width:100%;}
+.dash-main{margin-left:var(--sidebar-w);flex:1;padding:20px 24px 48px;min-width:0;overflow-x:hidden;}
+@media(max-width:768px){.dash-main{margin-left:0;padding:14px 12px 36px;}}
+
+/* Page styles */
+.page-title{font-family:var(--font-h);font-size:1.5rem;font-weight:700;margin-bottom:4px;}
+.page-sub{color:var(--muted);font-size:.82rem;margin-bottom:20px;}
+
+/* Config card */
+.config-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;}
+.config-card h2{font-family:var(--font-h);font-size:1.05rem;margin-bottom:14px;color:var(--cyan);}
+.config-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+.config-group{display:flex;flex-direction:column;gap:5px;flex:1;min-width:160px;}
+.config-group label{font-size:.72rem;color:var(--muted);font-family:var(--font-n);text-transform:uppercase;letter-spacing:.08em;}
+.config-input{background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:9px 12px;border-radius:8px;font-size:.84rem;font-family:var(--font-b);outline:none;transition:border .2s;width:100%;}
+.config-input:focus{border-color:var(--cyan);}
+.config-select{background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:9px 12px;border-radius:8px;font-size:.84rem;font-family:var(--font-b);outline:none;cursor:pointer;width:100%;}
+.multi-input{display:flex;flex-wrap:wrap;gap:6px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:6px 8px;min-height:42px;cursor:text;}
+.multi-input:focus-within{border-color:var(--cyan);}
+.sym-tag{background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.2);border-radius:4px;padding:2px 8px;font-family:var(--font-n);font-size:.72rem;display:flex;align-items:center;gap:4px;cursor:pointer;}
+.sym-tag:hover{background:rgba(255,61,90,.12);color:var(--red);border-color:rgba(255,61,90,.2);}
+.sym-input-bare{background:none;border:none;color:var(--text);font-family:var(--font-n);font-size:.82rem;outline:none;flex:1;min-width:80px;}
+.btn-run{background:linear-gradient(135deg,var(--cyan),#0091cc);color:#000;border:none;border-radius:8px;padding:10px 22px;font-family:var(--font-h);font-weight:700;font-size:.95rem;cursor:pointer;transition:all .2s;letter-spacing:.04em;min-height:42px;white-space:nowrap;}
+.btn-run:hover{opacity:.88;transform:translateY(-1px);}
+.btn-run:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.btn-sec{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:9px 16px;font-family:var(--font-b);font-size:.84rem;cursor:pointer;transition:all .2s;}
+.btn-sec:hover{border-color:var(--cyan);color:var(--cyan);}
+
+/* Progress */
+.progress-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;display:none;}
+.progress-card.show{display:block;}
+.prog-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.prog-symbol{font-family:var(--font-h);font-size:1rem;font-weight:600;}
+.prog-pct{font-family:var(--font-n);font-size:.88rem;color:var(--cyan);}
+.prog-bar-track{background:var(--border);border-radius:4px;height:6px;overflow:hidden;margin-bottom:8px;}
+.prog-bar-fill{background:linear-gradient(90deg,var(--cyan),var(--green));height:100%;border-radius:4px;transition:width .3s;}
+.prog-msg{font-size:.78rem;color:var(--muted);font-family:var(--font-n);}
+.queue-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.queue-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:8px;border:1px solid var(--border);}
+.qi-sym{font-family:var(--font-n);font-size:.82rem;font-weight:600;min-width:100px;}
+.qi-status{font-size:.72rem;font-family:var(--font-n);padding:2px 8px;border-radius:4px;}
+.qi-status.running{background:rgba(0,212,255,.12);color:var(--cyan);}
+.qi-status.done{background:rgba(0,255,136,.12);color:var(--green);}
+.qi-status.error{background:rgba(255,61,90,.12);color:var(--red);}
+.qi-status.pending{background:rgba(255,195,51,.08);color:var(--yellow);}
+.qi-msg{font-size:.72rem;color:var(--muted);flex:1;}
+.qi-prog{font-family:var(--font-n);font-size:.72rem;color:var(--cyan);min-width:36px;text-align:right;}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.stat-val{font-family:var(--font-h);font-size:1.6rem;font-weight:700;line-height:1;}
+.stat-lbl{font-size:.68rem;color:var(--muted);margin-top:4px;font-family:var(--font-n);text-transform:uppercase;letter-spacing:.06em;}
+.stat-sub{font-size:.68rem;color:var(--dim);margin-top:2px;}
+
+/* Result tabs */
+.tab-nav{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;}
+.tab-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:8px;font-size:.8rem;cursor:pointer;transition:all .2s;font-family:var(--font-b);}
+.tab-btn.active{background:rgba(0,212,255,.08);border-color:var(--cyan);color:var(--cyan);}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+/* Monthly table */
+.table-wrap{overflow-x:auto;}
+table.bt-table{width:100%;border-collapse:collapse;font-size:.8rem;}
+table.bt-table th{background:var(--surface);padding:9px 12px;text-align:left;font-family:var(--font-n);font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);}
+table.bt-table td{padding:9px 12px;border-bottom:1px solid rgba(26,38,64,.5);font-family:var(--font-n);}
+table.bt-table tr:hover td{background:rgba(255,255,255,.02);}
+.tag{font-size:.65rem;padding:2px 7px;border-radius:4px;font-family:var(--font-n);font-weight:600;display:inline-block;}
+.tag.long{background:rgba(0,255,136,.12);color:var(--green);}
+.tag.short{background:rgba(255,61,90,.12);color:var(--red);}
+.tag.tp2{background:rgba(0,255,136,.12);color:var(--green);}
+.tag.tp1{background:rgba(0,212,255,.1);color:var(--cyan);}
+.tag.sl{background:rgba(255,61,90,.1);color:var(--red);}
+.tag.be{background:rgba(255,195,51,.08);color:var(--yellow);}
+.tag.open{background:rgba(100,116,139,.08);color:var(--muted);}
+.pnl-pos{color:var(--green);}
+.pnl-neg{color:var(--red);}
+.pnl-zero{color:var(--muted);}
+
+/* Charts */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+@media(max-width:640px){.chart-row{grid-template-columns:1fr;}}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.chart-card h3{font-family:var(--font-h);font-size:.88rem;color:var(--muted);margin-bottom:12px;letter-spacing:.04em;}
+.bar-group{display:flex;flex-direction:column;gap:6px;}
+.bar-item{display:flex;align-items:center;gap:8px;}
+.bar-label{font-family:var(--font-n);font-size:.7rem;color:var(--muted);min-width:52px;}
+.bar-track{flex:1;background:var(--border);border-radius:3px;height:14px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;transition:width .5s ease;}
+.bar-val{font-family:var(--font-n);font-size:.7rem;min-width:40px;text-align:right;}
+
+/* Donut */
+.donut-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.donut-wrap{position:relative;width:90px;height:90px;flex-shrink:0;}
+.donut-wrap svg{transform:rotate(-90deg);}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.donut-pct{font-family:var(--font-h);font-size:1.2rem;font-weight:700;}
+.donut-lbl{font-size:.6rem;color:var(--muted);font-family:var(--font-n);}
+.legend{display:flex;flex-direction:column;gap:5px;}
+.leg-item{display:flex;align-items:center;gap:7px;font-family:var(--font-n);font-size:.72rem;}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* Monthly chart */
+.monthly-bars{display:flex;gap:4px;align-items:flex-end;height:80px;margin-top:8px;}
+.mo-col{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;}
+.mo-bar-pos{background:var(--green);border-radius:2px 2px 0 0;width:100%;transition:height .4s;}
+.mo-bar-neg{background:var(--red);border-radius:0 0 2px 2px;width:100%;transition:height .4s;}
+.mo-label{font-family:var(--font-n);font-size:.55rem;color:var(--dim);margin-top:2px;}
+
+/* Results section */
+.results-section{display:none;}
+.results-section.show{display:block;}
+.result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.multi-result-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.mrt-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;font-size:.76rem;cursor:pointer;font-family:var(--font-n);}
+.mrt-btn.active{background:rgba(0,212,255,.08);border-color:var(--cyan);color:var(--cyan);}
+
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted);}
+.empty-icon{font-size:2.5rem;margin-bottom:10px;}
+
+/* Toast */
+#toastBox{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:.82rem;animation:toastin .3s ease;max-width:320px;}
+.toast.success{border-color:var(--green);color:var(--green);}
+.toast.error{border-color:var(--red);color:var(--red);}
+@keyframes toastin{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div class="auth-guard" id="authGuard"><div class="auth-spinner"></div><div class="auth-logo">INVESTY<span>SIGNALS</span></div></div>
+
+<div class="mob-overlay" id="mobOverlay" onclick="closeMob()"></div>
+
+<header class="top-bar">
+  <div class="tb-left">
+    <button class="mob-menu-btn" onclick="openMob()">☰</button>
+    <div class="tb-brand">INVESTY<span>SIGNALS</span></div>
+  </div>
+</header>
+
+<div class="dash-layout">
+  <aside class="dash-sidebar" id="dashSidebar">
+    <div class="ds-brand"><div class="ds-logo">INVESTY<span>SIGNALS</span></div><div class="live-dot"></div></div>
+    <div class="ds-user">
+      <div class="ds-avatar" id="userAvatar">?</div>
+      <div style="min-width:0"><div class="ds-uname" id="userName">—</div><div class="ds-uemail" id="userEmail">—</div></div>
+    </div>
+    <nav class="ds-nav">
+      <div class="ds-section">Main</div>
+      <a href="dashboard.html"><span class="ni">📊</span> Dashboard</a>
+      <a href="live-signals.html"><span class="ni">📝</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
+      <a href="analysis.html"><span class="ni">🔬</span> Analysis</a>
+      <a href="backtest.html"><span class="ni">📈</span> Signal Tracker</a>
+      <a href="backtest-pro.html" class="active"><span class="ni">🧪</span> Historical Backtest <span class="ds-badge cyan">NEW</span></a>
+      <div class="ds-section">Market</div>
+      <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
+      <div class="ds-section">Account</div>
+      <a href="profile.html"><span class="ni">👤</span> Profile & Settings</a>
+      <div class="ds-section">Support</div>
+      <a href="index.html"><span class="ni">🏠</span> Home</a>
+      <a href="report.html"><span class="ni">🚩</span> Report Issue</a>
+    </nav>
+    <div class="ds-footer"><button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button></div>
+  </aside>
+
+  <main class="dash-main" id="dashMain" style="display:none">
+    <div class="page-title">🧪 Historical Backtest</div>
+    <p class="page-sub">Engine runs your indicator system on 1 year of real Binance Futures data. Signals generated → TP/SL checked forward in time.</p>
+
+    <!-- Config -->
+    <div class="config-card">
+      <h2>⚙ Backtest Configuration</h2>
+      <div class="config-row">
+        <div class="config-group" style="flex:2;min-width:200px;">
+          <label>Symbols (press Enter or comma to add)</label>
+          <div class="multi-input" id="symBox" onclick="document.getElementById('symTyper').focus()">
+            <input class="sym-input-bare" id="symTyper" placeholder="e.g. BTCUSDT" autocomplete="off" autocapitalize="characters"
+              onkeydown="handleSymKey(event)" oninput="this.value=this.value.toUpperCase()">
+          </div>
+        </div>
+        <div class="config-group">
+          <label>Date Range</label>
+          <select class="config-select" id="rangeSelect" onchange="onRangeChange()">
+            <option value="30d">Last 30 Days</option>
+            <option value="3m">Last 3 Months</option>
+            <option value="6m">Last 6 Months</option>
+            <option value="1y" selected>Last 1 Year</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <button class="btn-run" id="btnRun" onclick="startBacktest()">▶ Run Backtest</button>
+          <button class="btn-sec" onclick="addPreset()">+ Preset</button>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:.73rem;color:var(--muted);font-family:var(--font-n);">
+        ℹ️ Uses 9 core indicators (RSI, EMA, MACD, BB, ADX, OBV, VWAP, Supertrend, BOS + MTF). Live API data (OI, taker, orderbook) not included in backtest. Expect ~60s per symbol per year.
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-card" id="progressCard">
+      <div class="prog-header"><div class="prog-symbol" id="progSymbol">Running…</div><div class="prog-pct" id="progPct">0%</div></div>
+      <div class="prog-bar-track"><div class="prog-bar-fill" id="progBar" style="width:0%"></div></div>
+      <div class="prog-msg" id="progMsg">Initialising…</div>
+      <div class="queue-list" id="queueList"></div>
+    </div>
+
+    <!-- Results -->
+    <div class="results-section" id="resultsSection">
+      <div class="result-header">
+        <div style="font-family:var(--font-h);font-size:1.1rem;font-weight:700">📊 Backtest Results</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sec" onclick="exportCSV()">📥 Export CSV</button>
+          <button class="btn-sec" onclick="clearResults()">🗑 Clear</button>
+        </div>
+      </div>
+
+      <!-- Multi-symbol tabs (shown when >1 symbol) -->
+      <div class="multi-result-tabs" id="symbolTabs"></div>
+
+      <!-- Stats -->
+      <div class="stats-row" id="statsRow"></div>
+
+      <!-- Charts row -->
+      <div class="chart-row" id="chartsRow"></div>
+
+      <!-- Tabs -->
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('monthly',this)">📅 Monthly</button>
+        <button class="tab-btn" onclick="switchTab('signals',this)">📋 All Signals</button>
+        <button class="tab-btn" onclick="switchTab('wins',this)">✅ Wins</button>
+        <button class="tab-btn" onclick="switchTab('losses',this)">❌ Losses</button>
+      </div>
+
+      <div id="tab-monthly" class="tab-pane active">
+        <div class="table-wrap">
+          <table class="bt-table">
+            <thead><tr><th>Month</th><th>Signals</th><th>Wins</th><th>Losses</th><th>BE</th><th>Win Rate</th><th>P&L (R)</th></tr></thead>
+            <tbody id="monthlyTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-signals" class="tab-pane">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="tab-btn active" id="sf-all"   onclick="sigFilter('all',this)">All</button>
+          <button class="tab-btn" id="sf-LONG"  onclick="sigFilter('LONG',this)">LONG</button>
+          <button class="tab-btn" id="sf-SHORT" onclick="sigFilter('SHORT',this)">SHORT</button>
+          <button class="tab-btn" id="sf-TP2"   onclick="sigFilter('TP2',this)">TP2</button>
+          <button class="tab-btn" id="sf-TP1"   onclick="sigFilter('TP1',this)">TP1</button>
+          <button class="tab-btn" id="sf-SL"    onclick="sigFilter('SL',this)">SL</button>
+        </div>
+        <div class="table-wrap">
+          <table class="bt-table">
+            <thead><tr><th>Date</th><th>Symbol</th><th>Dir</th><th>Conf</th><th>Entry</th><th>TP1</th><th>TP2</th><th>SL</th><th>RRR</th><th>RSI</th><th>ADX</th><th>4H</th><th>Outcome</th><th>P&L R</th></tr></thead>
+            <tbody id="sigTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-wins" class="tab-pane"><div class="table-wrap"><table class="bt-table"><thead><tr><th>Date</th><th>Symbol</th><th>Dir</th><th>Conf</th><th>Entry</th><th>Close</th><th>Outcome</th><th>P&L R</th><th>4H</th></tr></thead><tbody id="winsTbody"></tbody></table></div></div>
+      <div id="tab-losses" class="tab-pane"><div class="table-wrap"><table class="bt-table"><thead><tr><th>Date</th><th>Symbol</th><th>Dir</th><th>Conf</th><th>Entry</th><th>Close</th><th>SL</th><th>RSI</th><th>ADX</th><th>4H</th></tr></thead><tbody id="lossesTbody"></tbody></table></div></div>
+    </div>
+
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🧪</div>
+      <div style="font-family:var(--font-h);font-size:1.1rem;margin-bottom:6px;">Add symbols and run the backtest</div>
+      <div style="font-size:.8rem">Enter coin pairs above (e.g. BTCUSDT, ETHUSDT) and click Run Backtest</div>
+    </div>
+  </main>
+</div>
+
+<div id="toastBox"></div>
+
+<!-- Firebase auth -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+const auth = getAuth(initializeApp({apiKey:"AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",authDomain:"crypto-98b33.firebaseapp.com",projectId:"crypto-98b33",storageBucket:"crypto-98b33.firebasestorage.app",messagingSenderId:"619954501803",appId:"1:619954501803:web:559d48b801f072abd71fee"}));
+onAuthStateChanged(auth, async u => {
+  document.getElementById('authGuard').style.display = 'none';
+  if (!u) { window.location.href = 'login.html'; return; }
+  try {
+    const sr = await fetch('/api/user/status?uid=' + encodeURIComponent(u.uid));
+    const sj = await sr.json();
+    if (sj.success) {
+      if (sj.status.maintenance) { document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🔧</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#e2e8f0">Under Maintenance</div></div>'; return; }
+      if (sj.status.suspended) { document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070b14;flex-direction:column;gap:16px;font-family:Outfit,sans-serif;text-align:center;padding:24px"><div style="font-size:3rem">🚫</div><div style="font-family:Rajdhani,sans-serif;font-size:1.8rem;font-weight:700;color:#ff3d5a">Account Suspended</div></div>'; return; }
+    }
+  } catch(_) {}
+  window._auth = auth;
+  document.getElementById('dashMain').style.display = 'block';
+  const name = u.displayName || u.email?.split('@')[0] || 'Trader';
+  document.getElementById('userAvatar').textContent = name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) || 'U';
+  document.getElementById('userName').textContent = name;
+  document.getElementById('userEmail').textContent = u.email || '';
+});
+window.handleSignOut = async () => { await signOut(window._auth); window.location.href = 'index.html'; };
+</script>
+
+<script>
+/* ════════════════════════════════════════
+   STATE
+════════════════════════════════════════ */
+let symbols = [];
+let allResults = {}; // symbol → result
+let activeSymbol = null;
+let currentSigFilter = 'all';
+let pollTimers = {}; // jobId → interval
+
+/* ════════════════════════════════════════
+   SIDEBAR
+════════════════════════════════════════ */
+function openMob() { document.getElementById('dashSidebar').classList.add('open'); document.getElementById('mobOverlay').classList.add('show'); }
+function closeMob() { document.getElementById('dashSidebar').classList.remove('open'); document.getElementById('mobOverlay').classList.remove('show'); }
+
+/* ════════════════════════════════════════
+   SYMBOL INPUT
+════════════════════════════════════════ */
+function handleSymKey(e) {
+  const inp = e.target;
+  if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+    e.preventDefault();
+    const val = inp.value.trim().replace(/,/g,'').toUpperCase();
+    if (val) addSymbol(val);
+    inp.value = '';
+  } else if (e.key === 'Backspace' && inp.value === '' && symbols.length) {
+    removeSymbol(symbols[symbols.length - 1]);
+  }
+}
+
+function addSymbol(sym) {
+  if (!sym.endsWith('USDT')) sym += 'USDT';
+  if (symbols.includes(sym)) return;
+  if (symbols.length >= 10) { toast('Max 10 symbols at once', 'error'); return; }
+  symbols.push(sym);
+  renderSymTags();
+}
+
+function removeSymbol(sym) {
+  symbols = symbols.filter(s => s !== sym);
+  renderSymTags();
+}
+
+function renderSymTags() {
+  const box = document.getElementById('symBox');
+  const inp = document.getElementById('symTyper');
+  // Remove old tags
+  box.querySelectorAll('.sym-tag').forEach(t => t.remove());
+  // Insert before input
+  symbols.forEach(sym => {
+    const tag = document.createElement('div');
+    tag.className = 'sym-tag';
+    tag.textContent = sym;
+    tag.onclick = () => removeSymbol(sym);
+    box.insertBefore(tag, inp);
+  });
+}
+
+function addPreset() {
+  ['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'].forEach(s => addSymbol(s));
+}
+
+function onRangeChange() {}
+
+/* ════════════════════════════════════════
+   RUN BACKTEST
+════════════════════════════════════════ */
+async function startBacktest() {
+  // Flush any typed symbol
+  const typer = document.getElementById('symTyper');
+  if (typer.value.trim()) { addSymbol(typer.value.trim()); typer.value = ''; }
+
+  if (!symbols.length) { toast('Add at least one symbol', 'error'); return; }
+
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('progressCard').classList.add('show');
+  document.getElementById('emptyState').style.display = 'none';
+
+  const range = document.getElementById('rangeSelect').value;
+  const queue = [...symbols];
+
+  // Render queue
+  renderQueue(queue);
+
+  // Run sequentially (avoid hammering VPS)
+  for (const sym of queue) {
+    await runOne(sym, range);
+  }
+
+  document.getElementById('btnRun').disabled = false;
+  if (Object.keys(allResults).length) {
+    showResults();
+  }
+}
+
+function renderQueue(queue) {
+  const el = document.getElementById('queueList');
+  el.innerHTML = queue.map(sym => `
+    <div class="queue-item" id="qi-${sym}">
+      <div class="qi-sym">${sym}</div>
+      <div class="qi-status pending" id="qs-${sym}">Pending</div>
+      <div class="qi-msg" id="qm-${sym}">Waiting…</div>
+      <div class="qi-prog" id="qp-${sym}">—</div>
+    </div>`).join('');
+}
+
+async function runOne(sym, range) {
+  // Update queue UI
+  setQueueStatus(sym, 'running', 'Starting…', '0%');
+  document.getElementById('progSymbol').textContent = sym;
+
+  try {
+    // Start job
+    const startRes = await fetch('/api/backtest/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: sym, range })
+    });
+    const startData = await startRes.json();
+    if (!startData.success) throw new Error(startData.error || 'Failed to start');
+
+    const jobId = startData.jobId;
+
+    // Poll until done
+    await pollJob(jobId, sym);
+
+    // Fetch result
+    const resData = await fetch(`/api/backtest/result/${jobId}`).then(r => r.json());
+    if (!resData.success) throw new Error(resData.error || 'No result');
+
+    allResults[sym] = resData.result;
+    setQueueStatus(sym, 'done', `Done — ${resData.result.stats.total} signals`, '100%');
+    toast(`${sym} complete — ${resData.result.stats.wins}W / ${resData.result.stats.losses}L`, 'success');
+
+  } catch (err) {
+    setQueueStatus(sym, 'error', err.message, '—');
+    toast(`${sym} failed: ${err.message}`, 'error');
+  }
+}
+
+function pollJob(jobId, sym) {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+    const MAX = 300; // 5min max
+    const iv = setInterval(async () => {
+      attempts++;
+      if (attempts > MAX) { clearInterval(iv); reject(new Error('Timeout')); return; }
+      try {
+        const d = await fetch(`/api/backtest/status/${jobId}`).then(r => r.json());
+        const pct = d.progress || 0;
+        const msg = d.message || '';
+        document.getElementById('progBar').style.width = pct + '%';
+        document.getElementById('progPct').textContent = pct + '%';
+        document.getElementById('progMsg').textContent = msg;
+        setQueueStatus(sym, 'running', msg, pct + '%');
+        if (d.status === 'done') { clearInterval(iv); resolve(); }
+        else if (d.status === 'error') { clearInterval(iv); reject(new Error(d.error || 'Engine error')); }
+      } catch (e) { /* retry */ }
+    }, 1000);
+  });
+}
+
+function setQueueStatus(sym, status, msg, pct) {
+  const qs = document.getElementById(`qs-${sym}`);
+  const qm = document.getElementById(`qm-${sym}`);
+  const qp = document.getElementById(`qp-${sym}`);
+  if (qs) { qs.className = `qi-status ${status}`; qs.textContent = status.charAt(0).toUpperCase() + status.slice(1); }
+  if (qm) qm.textContent = msg;
+  if (qp) qp.textContent = pct;
+}
+
+/* ════════════════════════════════════════
+   RESULTS RENDERING
+════════════════════════════════════════ */
+function showResults() {
+  document.getElementById('resultsSection').classList.add('show');
+  const syms = Object.keys(allResults);
+  activeSymbol = syms[0];
+  renderSymbolTabs(syms);
+  renderForSymbol(activeSymbol);
+}
+
+function renderSymbolTabs(syms) {
+  const el = document.getElementById('symbolTabs');
+  if (syms.length <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = syms.map(sym =>
+    `<button class="mrt-btn${sym === activeSymbol ? ' active' : ''}" onclick="switchSymbol('${sym}',this)">${sym}</button>`
+  ).join('');
+}
+
+function switchSymbol(sym, btn) {
+  activeSymbol = sym;
+  document.querySelectorAll('.mrt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderForSymbol(sym);
+}
+
+function renderForSymbol(sym) {
+  const r = allResults[sym];
+  if (!r) return;
+  renderStats(r);
+  renderCharts(r);
+  renderMonthly(r);
+  renderSignalTable(r.signals, currentSigFilter);
+  renderWins(r.signals);
+  renderLosses(r.signals);
+}
+
+function renderStats(r) {
+  const s = r.stats;
+  const closed = s.wins + s.losses + s.be;
+  const wr = closed > 0 ? ((s.wins / closed) * 100).toFixed(1) : '—';
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-val" style="color:var(--cyan)">${s.total}</div><div class="stat-lbl">Signals</div><div class="stat-sub">${r.candlesAnalysed} candles</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--green)">${wr}%</div><div class="stat-lbl">Win Rate</div><div class="stat-sub">${s.wins}W / ${s.losses}L / ${s.be}BE</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:${s.totalPnlR>=0?'var(--green)':'var(--red)'}">${s.totalPnlR>=0?'+':''}${s.totalPnlR}R</div><div class="stat-lbl">Total P&L (R)</div><div class="stat-sub">avg RRR ${s.avgRrr1}</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--green)">${s.tp2s}</div><div class="stat-lbl">TP2 Hits</div><div class="stat-sub">${s.total > 0 ? ((s.tp2s/s.total)*100).toFixed(0) : 0}% of total</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--purple)">${s.avgConf}</div><div class="stat-lbl">Avg Confidence</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--green)">${s.longWinRate}%</div><div class="stat-lbl">LONG Win Rate</div><div class="stat-sub">${s.longSignals} signals</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--red)">${s.shortWinRate}%</div><div class="stat-lbl">SHORT Win Rate</div><div class="stat-sub">${s.shortSignals} signals</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--yellow)">${s.open}</div><div class="stat-lbl">Still Open</div></div>`;
+}
+
+function renderCharts(r) {
+  const s = r.stats;
+  const closed = s.wins + s.losses + s.be || 1;
+
+  // Outcome donut data
+  const outcomes = [
+    { label:'TP2', val:s.tp2s, color:'#00ff88' },
+    { label:'TP1', val:s.wins - s.tp2s, color:'#00d4ff' },
+    { label:'BE',  val:s.be,   color:'#ffc333' },
+    { label:'SL',  val:s.losses, color:'#ff3d5a' },
+  ];
+  const total = outcomes.reduce((a,b) => a + b.val, 0) || 1;
+
+  // SVG donut
+  let offset = 0;
+  const r2 = 30, cx = 45, cy = 45, circ = 2 * Math.PI * r2;
+  const paths = outcomes.map(o => {
+    const dash = (o.val / total) * circ;
+    const gap  = circ - dash;
+    const seg  = `<circle cx="${cx}" cy="${cy}" r="${r2}" fill="none" stroke="${o.color}" stroke-width="9" stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-offset}" stroke-linecap="butt"/>`;
+    offset += dash;
+    return seg;
+  }).join('');
+
+  const winPct = ((s.wins / closed) * 100).toFixed(0);
+
+  // Monthly P&L bars
+  const monthly = r.monthly || [];
+  const maxAbs = Math.max(...monthly.map(m => Math.abs(m.pnlR)), 0.1);
+  const monthBars = monthly.map(m => {
+    const posH = m.pnlR > 0 ? Math.round((m.pnlR / maxAbs) * 50) : 0;
+    const negH = m.pnlR < 0 ? Math.round((Math.abs(m.pnlR) / maxAbs) * 50) : 0;
+    const label = m.month.slice(5); // MM
+    return `<div class="mo-col">
+      <div style="height:50px;display:flex;flex-direction:column;justify-content:flex-end;width:100%">
+        ${posH ? `<div class="mo-bar-pos" style="height:${posH}px"></div>` : ''}
+      </div>
+      <div style="height:50px;display:flex;flex-direction:column;justify-content:flex-start;width:100%">
+        ${negH ? `<div class="mo-bar-neg" style="height:${negH}px"></div>` : ''}
+      </div>
+      <div class="mo-label">${label}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('chartsRow').innerHTML = `
+    <div class="chart-card">
+      <h3>OUTCOME DISTRIBUTION</h3>
+      <div class="donut-row">
+        <div class="donut-wrap">
+          <svg width="90" height="90" viewBox="0 0 90 90">${paths}</svg>
+          <div class="donut-center"><div class="donut-pct" style="color:var(--green)">${winPct}%</div><div class="donut-lbl">WIN RATE</div></div>
+        </div>
+        <div class="legend">
+          ${outcomes.map(o => `<div class="leg-item"><div class="leg-dot" style="background:${o.color}"></div><span style="color:var(--muted)">${o.label}</span> <span style="color:${o.color};font-weight:600;margin-left:4px">${o.val}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>MONTHLY P&L (R MULTIPLES)</h3>
+      <div class="monthly-bars" id="monthlyBarsViz">${monthBars || '<div style="color:var(--muted);font-size:.75rem">No monthly data</div>'}</div>
+    </div>`;
+}
+
+function renderMonthly(r) {
+  const tbody = document.getElementById('monthlyTbody');
+  tbody.innerHTML = (r.monthly || []).map(m => {
+    const closed = m.wins + m.losses + m.be || 1;
+    const wr = ((m.wins / closed) * 100).toFixed(0);
+    const pnlCls = m.pnlR >= 0 ? 'pnl-pos' : 'pnl-neg';
+    return `<tr>
+      <td>${m.month}</td>
+      <td>${m.signals}</td>
+      <td style="color:var(--green)">${m.wins}</td>
+      <td style="color:var(--red)">${m.losses}</td>
+      <td style="color:var(--yellow)">${m.be}</td>
+      <td>${wr}%</td>
+      <td class="${pnlCls}">${m.pnlR >= 0 ? '+' : ''}${m.pnlR.toFixed(2)}R</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px">No data</td></tr>';
+}
+
+function renderSignalTable(signals, filter) {
+  const filtered = filterSignals(signals, filter);
+  const tbody = document.getElementById('sigTbody');
+  tbody.innerHTML = filtered.map(s => {
+    const dirCls = s.direction === 'LONG' ? 'long' : 'short';
+    const pnlCls = s.pnlPct > 0 ? 'pnl-pos' : s.pnlPct < 0 ? 'pnl-neg' : 'pnl-zero';
+    const pnlR = s.pnlPct !== 0 ? (s.pnlPct / 100).toFixed(2) : '0.00';
+    return `<tr>
+      <td style="color:var(--muted)">${s.openDate}</td>
+      <td>${s.symbol}</td>
+      <td><span class="tag ${dirCls}">${s.direction}</span></td>
+      <td style="color:var(--purple)">${s.confidence}</td>
+      <td style="font-family:var(--font-n)">${fmtP(s.entryPrice)}</td>
+      <td style="font-family:var(--font-n)">${fmtP(s.tp1)}</td>
+      <td style="font-family:var(--font-n)">${fmtP(s.tp2)}</td>
+      <td style="font-family:var(--font-n)">${fmtP(s.sl)}</td>
+      <td>${s.rrr1}</td>
+      <td style="color:${s.rsi<=30?'var(--green)':s.rsi>=70?'var(--red)':'var(--muted)'}">${s.rsi}</td>
+      <td>${s.adx.toFixed(0)}</td>
+      <td style="color:${s.trend4h==='bull'?'var(--green)':s.trend4h==='bear'?'var(--red)':'var(--muted)'}">${s.trend4h}</td>
+      <td><span class="tag ${s.outcome.toLowerCase()}">${s.outcome}</span></td>
+      <td class="${pnlCls}">${parseFloat(pnlR) >= 0 ? '+' : ''}${pnlR}R</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="14" style="color:var(--muted);text-align:center;padding:20px">No signals</td></tr>';
+}
+
+function renderWins(signals) {
+  const wins = signals.filter(s => s.outcome === 'TP1' || s.outcome === 'TP2');
+  const tbody = document.getElementById('winsTbody');
+  tbody.innerHTML = wins.map(s => {
+    const pnlR = (s.pnlPct / 100).toFixed(2);
+    return `<tr>
+      <td style="color:var(--muted)">${s.openDate}</td>
+      <td>${s.symbol}</td>
+      <td><span class="tag ${s.direction==='LONG'?'long':'short'}">${s.direction}</span></td>
+      <td style="color:var(--purple)">${s.confidence}</td>
+      <td style="font-family:var(--font-n)">${fmtP(s.entryPrice)}</td>
+      <td style="font-family:var(--font-n)">${fmtP(s.closePrice)}</td>
+      <td><span class="tag ${s.outcome.toLowerCase()}">${s.outcome}</span></td>
+      <td class="pnl-pos">+${pnlR}R</td>
+      <td style="color:${s.trend4h==='bull'?'var(--green)':s.trend4h==='bear'?'var(--red)':'var(--muted)'}">${s.trend4h}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:20px">No wins yet</td></tr>';
+}
+
+function renderLosses(signals) {
+  const losses = signals.filter(s => s.outcome === 'SL');
+  const tbody = document.getElementById('lossesTbody');
+  tbody.innerHTML = losses.map(s => `<tr>
+    <td style="color:var(--muted)">${s.openDate}</td>
+    <td>${s.symbol}</td>
+    <td><span class="tag ${s.direction==='LONG'?'long':'short'}">${s.direction}</span></td>
+    <td style="color:var(--purple)">${s.confidence}</td>
+    <td style="font-family:var(--font-n)">${fmtP(s.entryPrice)}</td>
+    <td style="font-family:var(--font-n)">${fmtP(s.closePrice)}</td>
+    <td style="font-family:var(--font-n)">${fmtP(s.sl)}</td>
+    <td style="color:${s.rsi<=30?'var(--green)':s.rsi>=70?'var(--red)':'var(--muted)'}">${s.rsi}</td>
+    <td>${s.adx.toFixed(0)}</td>
+    <td style="color:${s.trend4h==='bull'?'var(--green)':s.trend4h==='bear'?'var(--red)':'var(--muted)'}">${s.trend4h}</td>
+  </tr>`).join('') || '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:20px">No losses 🎉</td></tr>';
+}
+
+/* ════════════════════════════════════════
+   FILTERS & TABS
+════════════════════════════════════════ */
+function filterSignals(signals, filter) {
+  if (filter === 'all')   return signals;
+  if (filter === 'LONG')  return signals.filter(s => s.direction === 'LONG');
+  if (filter === 'SHORT') return signals.filter(s => s.direction === 'SHORT');
+  if (filter === 'TP2')   return signals.filter(s => s.outcome === 'TP2');
+  if (filter === 'TP1')   return signals.filter(s => s.outcome === 'TP1');
+  if (filter === 'SL')    return signals.filter(s => s.outcome === 'SL');
+  return signals;
+}
+
+function sigFilter(f, btn) {
+  currentSigFilter = f;
+  document.querySelectorAll('#tab-signals .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (activeSymbol && allResults[activeSymbol]) renderSignalTable(allResults[activeSymbol].signals, f);
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+/* ════════════════════════════════════════
+   EXPORT CSV
+════════════════════════════════════════ */
+function exportCSV() {
+  if (!activeSymbol || !allResults[activeSymbol]) { toast('No results to export', 'error'); return; }
+  const signals = allResults[activeSymbol].signals;
+  const rows = [['Date','Symbol','Direction','Confidence','Entry','TP1','TP2','SL','RRR1','RRR2','RSI','ADX','4H Trend','Outcome','PnL%']];
+  signals.forEach(s => rows.push([s.openDate,s.symbol,s.direction,s.confidence,s.entryPrice,s.tp1,s.tp2,s.sl,s.rrr1,s.rrr2,s.rsi,s.adx,s.trend4h,s.outcome,s.pnlPct]));
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `backtest_${activeSymbol}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  toast('CSV downloaded', 'success');
+}
+
+function clearResults() {
+  allResults = {};
+  activeSymbol = null;
+  document.getElementById('resultsSection').classList.remove('show');
+  document.getElementById('progressCard').classList.remove('show');
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('queueList').innerHTML = '';
+}
+
+/* ════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════ */
+function fmtP(p) {
+  if (!p) return '—';
+  const n = parseFloat(p);
+  if (n >= 1000) return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+  if (n >= 1) return '$' + n.toFixed(4);
+  return '$' + n.toFixed(6);
+}
+
+function toast(msg, type) {
+  const box = document.getElementById('toastBox');
+  const t = document.createElement('div');
+  t.className = `toast ${type || ''}`;
+  t.textContent = msg;
+  box.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+</script>
+</body>
+</html>
