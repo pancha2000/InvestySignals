@@ -939,6 +939,15 @@ function scheduleReconnect(){if(reconnectTimer)return;if(restFallbackTimer)clear
 function fetchViaREST(){const req=https.get('https://api.binance.com/api/v3/ticker/24hr',{timeout:12000},res=>{if(res.statusCode!==200){res.resume();return;}let raw='';res.on('data',c=>raw+=c);res.on('end',()=>{try{JSON.parse(raw).forEach(t=>{const o=parseTicker(t);if(!isValidTicker(o))return;marketData[o.symbol]=o;});refreshTickerSnapshot();rebuildTopGainers();broadcastUpdate();}catch(e){console.error('[REST]',e.message);}});});req.on('error',e=>console.error('[REST]',e.message));req.on('timeout',()=>{req.destroy();});}
 function connectBinance(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}binanceWsState='connecting';let ws;try{ws=new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr',{handshakeTimeout:15000});}catch(e){scheduleReconnect();return;}binanceWs=ws;ws.on('open',()=>{binanceWsState='connected';reconnectDelay=3000;lastMessageAt=Date.now();startBroadcastLoop();startHealthCheck();console.log('✅ Binance WS connected');});ws.on('message',raw=>{lastMessageAt=Date.now();try{const t=JSON.parse(raw);if(!Array.isArray(t))return;t.forEach(x=>{const o=parseTicker(x);if(!isValidTicker(o))return;marketData[o.symbol]=o;});refreshTickerSnapshot();rebuildTopGainers();}catch(_){}});ws.on('error',e=>console.error('[Binance]',e.message));ws.on('close',code=>{binanceWsState='disconnected';stopBroadcastLoop();scheduleReconnect();});}
 
+/* ── Backtest Routes ── */
+try {
+  const backtestRoutes = require('./backtest-routes');
+  app.use('/api/backtest', backtestRoutes);
+  console.log('✅ Backtest routes loaded');
+} catch(e) {
+  console.warn('⚠ Backtest routes not loaded:', e.message);
+}
+
 /* ── Startup ── */
 fetchViaREST();
 setTimeout(connectBinance, 2000);
