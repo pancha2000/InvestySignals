@@ -97,16 +97,7 @@ function getSandbox() {
   let analysisCode = htmlContent.slice(scriptStart + 8, scriptEnd); // skip '<script>\n'
 
   // ── Inject BINANCE_FAPI constant + other globals needed ──
-  const preamble = `
-const BINANCE_FAPI = 'https://fapi.binance.com';
-const RSI_PERIOD = 14;
-const KLINE_4H = 80;
-const KLINE_15M = 150;
-const KLINE_1D = 60;
-const premiumIndex = {};
-function KLINE_1H() { return window.ISETTINGS && window.ISETTINGS['ind_kline_limit'] ? window.ISETTINGS['ind_kline_limit'] : 200; }
-`;
-  analysisCode = preamble + analysisCode;
+  // No preamble needed — analysis.html already declares BINANCE_FAPI, RSI_PERIOD etc.
 
   // Remove any DOM manipulation, Firebase imports, event listeners
   // Keep only pure function definitions
