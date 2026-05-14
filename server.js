@@ -586,7 +586,8 @@ app.get('/api/user/settings', verifyFirebaseToken, async (req, res) => {
 });
 app.put('/api/user/settings', verifyFirebaseToken, async (req, res) => {
   try {
-    const allowed = indicatorDefaults.map(d => d.key);
+    // Allow indicator settings + tutorial/onboarding flags
+    const allowed = [...indicatorDefaults.map(d => d.key), 'tutorial_done_v1'];
     const updates = {};
     Object.entries(req.body).forEach(([k, v]) => { if (allowed.includes(k)) updates[k] = v; });
     // Merge new values into existing user settings (don't overwrite unrelated keys)

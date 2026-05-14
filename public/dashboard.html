@@ -461,9 +461,25 @@ onAuthStateChanged(auth, async u => {
   initDash();
 
   // ── First Login Tutorial ──
+  // Check server-side first (works across all devices/browsers)
   const tutorialKey = 'is_tutorial_done_v1_' + u.uid;
-  if (!localStorage.getItem(tutorialKey)) {
-    setTimeout(() => showWelcomeTutorial(u.displayName || name, tutorialKey), 800);
+  const localDone = localStorage.getItem(tutorialKey);
+  if (!localDone) {
+    try {
+      const idToken = await u.getIdToken();
+      const sr = await fetch('/api/user/settings', { headers:{ Authorization:'Bearer '+idToken } });
+      const sj = await sr.json();
+      const serverDone = sj.success && sj.data && sj.data['tutorial_done_v1'];
+      if (serverDone) {
+        localStorage.setItem(tutorialKey, '1'); // sync locally, skip tutorial
+      } else {
+        window._tutIdToken = idToken;
+        setTimeout(() => showWelcomeTutorial(u.displayName || name, tutorialKey), 800);
+      }
+    } catch(_) {
+      // Network error fallback
+      setTimeout(() => showWelcomeTutorial(u.displayName || name, tutorialKey), 800);
+    }
   }
 
   // Poll every 60s for suspension/maintenance changes
@@ -938,6 +954,7 @@ document.addEventListener('visibilitychange', function() {
             <div style="font-size:.78rem;color:#94a3b8">Time left until 1H candle closes — wait before MARKET entry</div>
           </div>
         </div>
+        </div><!-- /signal-table card -->
         <div style="display:flex;gap:10px">
           <button onclick="tutBack(3)" style="flex:1;padding:12px;background:#101827;border:1px solid #1a2640;border-radius:10px;color:#64748b;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer">← Back</button>
           <button onclick="tutNext(3)" style="flex:2;padding:12px;background:linear-gradient(135deg,#00d4ff,#0096b3);border:none;border-radius:10px;color:#070b14;font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:700;cursor:pointer">Next →</button>
@@ -1033,10 +1050,21 @@ function tutNext(step) {
   const steps = [1,2,3,4];
   const next = step + 1;
   if (next > 4) {
-    // Done
+    // Done — save to localStorage + server (MongoDB) so it never shows again
     localStorage.setItem(window._tutStorageKey, '1');
     document.getElementById('welcomeModal').style.display = 'none';
     document.body.style.overflow = '';
+    // Save to server so it persists across browsers/devices
+    try {
+      const idToken = window._tutIdToken;
+      if (idToken) {
+        fetch('/api/user/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type':'application/json', Authorization:'Bearer '+idToken },
+          body: JSON.stringify({ tutorial_done_v1: 1 })
+        }).catch(()=>{});
+      }
+    } catch(_) {}
     return;
   }
   document.getElementById('tStep' + step).style.display = 'none';
