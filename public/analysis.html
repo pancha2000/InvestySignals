@@ -489,18 +489,15 @@ function calcOBV(C,V){if(!C||C.length<10)return null;let o=0;const a=[0];for(let
 function analyzeVolume(kl){const v=kl.map(k=>parseFloat(k[5])),avg=v.slice(-21,-1).reduce((a,b)=>a+b,0)/20,last=v.slice(-4,-1).reduce((a,b)=>a+b,0)/3,ratio=avg>0?last/avg:1;return{avg20:avg,last3:last,ratio,surge:ratio>=1.5,label:ratio>=2?'Very High':ratio>=1.5?'High':ratio>=1?'Normal':'Low'};}
 
 /* ── VWAP — Session Reset (UTC midnight) ── */
+/* ── VWAP — Rolling 24H or Session (Fixes UTC 00:00 Reset Bug) ── */
 function calcVWAP(kl) {
   if (!kl || kl.length < 2) return null;
-  // Find session start = last UTC midnight
-  const now = Date.now();
-  const sessionStart = now - (now % 86400000); // today 00:00 UTC
-  // Filter candles from session start
-  let sessionKl = kl.filter(k => k[0] >= sessionStart);
-  // Fallback: use current UTC hour count (correct session candle count)
-  if (sessionKl.length < 2) {
-    const utcHour = new Date().getUTCHours();
-    sessionKl = kl.slice(-Math.max(utcHour, 1));
-  }
+  
+  // Instead of strict UTC midnight, use a rolling 24-candle (24H) lookback
+  // This guarantees smooth VWAP lines and accurate support/resistance at any time of day
+  const lookback = typeof IS === 'function' ? IS('ind_vwap_lookback', 24) : 24;
+  let sessionKl = kl.slice(-Math.min(kl.length, lookback));
+  
   let pv = 0, vol = 0;
   sessionKl.forEach(k => {
     const h = parseFloat(k[2]), l = parseFloat(k[3]), c = parseFloat(k[4]), v = parseFloat(k[5]);
@@ -1323,8 +1320,21 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
-  // MAX: F8 reduced (neutral 7pts), N14 full weight now (14pts max). Net +8 per side.
-  const MAX = 300;
+  // Dynamically calculate MAX score based on available data (Fixes Backtest vs Live discrepancy)
+  let MAX = 200; // Base max for standard kline indicators
+  if (takerRatio) MAX += 14;
+  if (lsRatio) MAX += 8;
+  if (orderBook) MAX += 12;
+  if (cvdData) MAX += 30;
+  if (unmitLevels) MAX += 14;
+  if (marketProf) MAX += 10;
+  if (mtfDiv && mtfDiv.detected) MAX += 30;
+  if (cmeGaps && cmeGaps.detected) MAX += 12;
+  if (crtSignal && crtSignal.detected) MAX += 16;
+  if (skAnalysis && skAnalysis.detected) MAX += 25;
+  if (propulsion && propulsion.detected) MAX += 14;
+  if (footprint) MAX += 20;
+
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
   // Require minimum 8-point gap between LONG and SHORT scores to avoid coin-flip signals
@@ -2131,7 +2141,10 @@ async function runDeepScan(symbol) {
     const curP = parseFloat(tkData.price);
     const fr   = prData?.lastFundingRate ? parseFloat(prData.lastFundingRate) * 100 : null;
 
-    // OHLCV arrays
+    // Remove the currently open (unclosed) candle to prevent repainting
+    kl1h.pop(); kl15m.pop(); kl4h.pop(); kl1d.pop();
+
+    // OHLCV arrays (Now strictly closed candles)
     const C = kl1h.map(k=>parseFloat(k[4])), H = kl1h.map(k=>parseFloat(k[2])), L = kl1h.map(k=>parseFloat(k[3]));
     const V = kl1h.map(k=>parseFloat(k[5])), O = kl1h.map(k=>parseFloat(k[1]));
     const C15=kl15m.map(k=>parseFloat(k[4])),H15=kl15m.map(k=>parseFloat(k[2])),L15=kl15m.map(k=>parseFloat(k[3])),O15=kl15m.map(k=>parseFloat(k[1]));
