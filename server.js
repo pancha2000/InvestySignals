@@ -184,7 +184,7 @@ const indicatorDefaults = [
   { key:'ind_vwap_lookback',value:24,label:'VWAP Lookback (candles)',group:'indicators' },
   { key:'ind_kline_limit',value:200,label:'Kline History (bars)',group:'indicators' },
   { key:'ind_kline_tf',value:'1h',label:'Primary Timeframe',group:'indicators' },
-  { key:'ind_min_confidence',value:68,label:'Min Confidence % to Signal',group:'indicators' },
+  { key:'ind_min_confidence',value:62,label:'Min Confidence % to Signal',group:'indicators' },
   { key:'ind_market_entry_conf',value:75,label:'Market Entry Min Confidence',group:'indicators' },
   { key:'ind_funding_gate',value:0.25,label:'Funding Rate Hard Gate (%)',group:'indicators' },
   { key:'pt_tp1_trail_mult',value:0.5,label:'TP1 Trail Offset Multiplier',group:'paper_trade' },

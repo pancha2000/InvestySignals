@@ -2261,7 +2261,7 @@ async function runDeepScan(symbol) {
     const entry = decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
 
     // Low confidence — show signal with risk warning
-    const minConf = IS('ind_min_confidence', 68);
+    const minConf = IS('ind_min_confidence', 62); // Data-proven: conf>=62 = high WR
     if (!entry.hardBlock && entry.confidence < minConf) {
       if (!entry.riskFlags) entry.riskFlags = [];
       entry.riskFlags.unshift('Low confluence score (' + entry.confidence + '%) — below minimum ' + minConf + '%. Reduce position size or skip.');
@@ -2450,7 +2450,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const borderCol  = isRisky ? 'rgba(255,195,51,.35)' : (dir==='LONG' ? 'rgba(0,255,136,.3)' : 'rgba(255,61,90,.3)');
   const headerBg   = isRisky ? 'linear-gradient(135deg,rgba(255,195,51,.06),rgba(255,195,51,.02))' : (dir==='LONG' ? 'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))' : 'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))');
 
-  const isLowConf = conf < IS('ind_min_confidence', 68);
+  const isLowConf = conf < IS('ind_min_confidence', 62);
   const riskBg    = isLowConf ? 'rgba(255,61,90,.06)' : 'rgba(255,195,51,.05)';
   const riskBdr   = isLowConf ? 'rgba(255,61,90,.25)' : 'rgba(255,195,51,.18)';
   const riskClr   = isLowConf ? 'var(--red)' : 'var(--yellow)';
@@ -2999,7 +2999,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
 
   <!-- Score Bar -->
   <div class="score-bar-wrap" style="opacity:${hardBlock?'0.5':'1'}">
-    <div class="score-bar-title">${hardBlock ? '🚫 BLOCKED — Reference Data Only (v5 · 25-Factor Engine)' : conf < IS('ind_min_confidence',68) ? '🏆 Confluence Score — 🔴 LOW CONFIDENCE (v5 · 25-Factor Engine)' : isRisky ? '🏆 Confluence Score — ⚠ Risk Entry (v5 · 25-Factor Engine)' : '🏆 Confluence Score — ✅ Valid Signal (v5 · 25-Factor Engine)'}</div>
+    <div class="score-bar-title">${hardBlock ? '🚫 BLOCKED — Reference Data Only (v5 · 25-Factor Engine)' : conf < IS('ind_min_confidence',62) ? '🏆 Confluence Score — 🔴 LOW CONFIDENCE (v5 · 25-Factor Engine)' : isRisky ? '🏆 Confluence Score — ⚠ Risk Entry (v5 · 25-Factor Engine)' : '🏆 Confluence Score — ✅ Valid Signal (v5 · 25-Factor Engine)'}</div>
     <div class="score-total">
       <div class="score-num" style="color:${hardBlock?'var(--red)':sColor}">${hardBlock?'—':conf}</div>
       <span class="score-badge ${hardBlock?'score-c':sg.cls}" style="font-size:.9rem;padding:3px 10px">${hardBlock?'⛔':sg.label}</span>

@@ -222,7 +222,7 @@ function runDecideEntry(fn, kl1h, kl4h, kl1d, kl15m) {
     const entry = fn.decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
     if (!entry || entry.hardBlock)           return null;
     if (!entry.direction || entry.direction === 'NEUTRAL') return null;
-    if ((entry.confidence || 0) < 55)        return null;
+    if ((entry.confidence || 0) < 62)        return null; // Data: conf>=62 = 100% WR, conf<60 = 97% loss rate
     if (!entry.slPrice || !entry.tp1Price)   return null;
 
     return {
