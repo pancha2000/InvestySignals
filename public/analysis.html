@@ -1033,8 +1033,12 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   const adxGate     = IS('ind_adx_choppy_gate', 20);
 
   // ADX hard block — choppy market
-  // hardBlock=true but we continue full calculation so renderDeep shows real levels with a top warning
   const _adxBlocked = (adx && adx.adx < adxGate);
+
+  // RSI Overextension pre-check (used later after direction determined)
+  // Data: 87% of LONG SLs had RSI>65, 85% of SHORT SLs had RSI<40
+  const _rsiOverbought = rsi !== null && rsi > 65;
+  const _rsiOversold   = rsi !== null && rsi < 35;
 
   // Funding rate warning (not a block — signal still shown with top warning banner)
   const fundingRiskFlags = [];
@@ -1398,6 +1402,11 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   // Any single major structural flag = Risk Entry
   const majorFlags = riskFlags.filter(f => f.includes('counter-trend') || f.includes('Daily EMA') || f.includes('OB —') || f.includes('HIGH FUNDING'));
   let isRisky = riskFlags.length >= 2 || (riskFlags.length >= 1 && conf < 60) || majorFlags.length >= 1;
+  // ── MTF RSI Overextension — all TFs overbought/oversold = dangerous ──
+  const _mtfRsiExtBull = mRSI && mRSI.rsi1H > 70 && mRSI.rsi4H > 65 && dir === 'LONG';
+  const _mtfRsiExtBear = mRSI && mRSI.rsi1H < 30 && mRSI.rsi4H < 35 && dir === 'SHORT';
+  if (_mtfRsiExtBull) riskFlags.push('⚠ MTF RSI all overbought (1H+4H) — high pullback risk for LONG');
+  if (_mtfRsiExtBear) riskFlags.push('⚠ MTF RSI all oversold (1H+4H) — high bounce risk for SHORT');
 
   // === SL / TP / Entry Calculation ===
   const aV = atr ? atr.atr : price * 0.015, aP = atr ? atr.pct : 1.5;
@@ -1950,9 +1959,31 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     isRisky = true;
   }
 
-  return { direction:dir, entryType:_adxBlocked?'BLOCKED':entryType, confidence:_adxBlocked?0:conf,
-           hardBlock:_adxBlocked,
-           hardBlockReason: _adxBlocked ? `ADX ${adx.adx.toFixed(1)} < ${adxGate} — Choppy market` : '',
+  // RSI Overextension hard block — only after direction is known
+  const hasBullDiv2 = div && (div.regularBull || div.hiddenBull || div.obvBull);
+  const hasBearDiv2 = div && (div.regularBear || div.hiddenBear || div.obvBear);
+  const _rsiExtBlock = (
+    (dir === 'LONG'  && rsi !== null && rsi > 65 && !hasBullDiv2) ||
+    (dir === 'SHORT' && rsi !== null && rsi < 35 && !hasBearDiv2)
+  );
+  if (_rsiExtBlock) {
+    const msg = dir === 'LONG'
+      ? `RSI ${rsi.toFixed(1)} > 65 — Overbought. 87% SL rate on overextended longs. Wait for RSI pullback below 65 or bullish divergence.`
+      : `RSI ${rsi.toFixed(1)} < 35 — Oversold. 85% SL rate on overextended shorts. Wait for RSI bounce above 35 or bearish divergence.`;
+    riskFlags.unshift('🚫 ' + msg);
+    isRisky = true;
+  }
+
+  const _hardBlock = _adxBlocked || _rsiExtBlock;
+  const _hardBlockReason = _adxBlocked
+    ? `ADX ${adx.adx.toFixed(1)} < ${adxGate} — Choppy market`
+    : _rsiExtBlock
+      ? `RSI ${rsi?.toFixed(1)} ${dir==='LONG'?'overbought (>65)':'oversold (<35)'} — Wait for pullback`
+      : '';
+
+  return { direction:dir, entryType:_hardBlock?'BLOCKED':entryType, confidence:_hardBlock?0:conf,
+           hardBlock:_hardBlock,
+           hardBlockReason: _hardBlockReason,
            riskFlags, isRisky,
            entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2,
            indicators:ind, momentumConf, invalidation, limitExpiry, confluenceLabel, candleCloseTimer };
