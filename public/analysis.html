@@ -1401,7 +1401,7 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
 
   // === SL / TP / Entry Calculation ===
   const aV = atr ? atr.atr : price * 0.015, aP = atr ? atr.pct : 1.5;
-  const slM = isRisky ? 3.0 : (aP > 3.5 ? 2.0 : aP > 2.0 ? 2.2 : 2.5);
+  const slM = isRisky ? 3.0 : (aP > 3.5 ? 1.8 : aP > 2.0 ? 2.0 : 2.2);
   const h10 = H.slice(-10), l10 = L.slice(-10), h5 = H.slice(-5), l5 = L.slice(-5);
   const r10H = h10.length ? Math.max(...h10) : price, r10L = l10.length ? Math.min(...l10) : price;
   const r5H  = h5.length  ? Math.max(...h5)  : price, r5L  = l5.length  ? Math.min(...l5)  : price;
@@ -1587,30 +1587,33 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     const srSL   = srZones?.below?.find(z => z.price < ep - aV * 0.5)?.price;
     const tlSL   = trendLine && trendLine.trend === 'up' ? trendLine.currentVal - aV * 0.5 : null;
     const rawSL  = Math.min(r10L - aV * 0.2, ep - aV * slM);
-    // Choose deepest valid SL (must be below entry)
-    const slCandidates = [fibSL, obSL, srSL ? srSL - aV * 0.2 : null, tlSL, rawSL].filter(v => v !== null && v < ep);
-    sl = slCandidates.length ? Math.max(...slCandidates) : rawSL; // use the highest (tightest valid) SL
+    // Choose SL: use tightest valid candidate, but must be at least 0.5×ATR below entry to absorb wick noise
+    const slCandidates = [fibSL, obSL, srSL ? srSL - aV * 0.3 : null, tlSL, rawSL].filter(v => v !== null && v < ep - aV * 0.5);
+    const rawSlChoice = slCandidates.length ? Math.max(...slCandidates) : rawSL;
+    // Extra buffer: SL must be at least 1.0×ATR below entry (avoids wick hunts)
+    sl = Math.min(rawSlChoice, ep - aV * 1.0);
 
     ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'LONG', srZones));
 
-    // Refine TP1 with nearest S/R resistance above entry
+    // Refine TP1 with S/R — only lower TP1 if S/R is still >= 1.5R (don't cut winners short)
+    const minTP1 = ep + (ep - sl) * 1.5;
+    const minTP2 = ep + (ep - sl) * 2.5;
     if (srZones && srZones.above.length) {
-      const nearR = srZones.above.find(z => z.price > ep + (tp1 - ep) * 0.3 && z.price < tp1 * 1.05 && z.strength >= 3);
-      if (nearR) tp1 = Math.min(tp1, nearR.price);
-      // TP2 with S/R
+      const nearR = srZones.above.find(z => z.price > minTP1 && z.price < tp1 * 1.1 && z.strength >= 3);
+      if (nearR) tp1 = Math.max(nearR.price, minTP1);
       const farR = srZones.above.find(z => z.price > tp1 && z.strength >= 3);
-      if (farR) tp2 = Math.max(tp2, Math.min(farR.price, tp2 * 1.05));
+      if (farR) tp2 = Math.max(farR.price, minTP2);
     }
 
-    // Pivot point TP refinement
+    // Pivot point TP refinement — only use if above minimum
     if (pivotPoints) {
-      const pvAbove = [pivotPoints.R1, pivotPoints.R2, pivotPoints.R3].filter(p => p > ep);
-      if (pvAbove.length && pvAbove[0] < tp1 * 1.02) tp1 = pvAbove[0];
-      if (pvAbove.length > 1 && pvAbove[1] < tp2 * 1.02) tp2 = pvAbove[1];
+      const pvAbove = [pivotPoints.R1, pivotPoints.R2, pivotPoints.R3].filter(p => p > minTP1);
+      if (pvAbove.length && pvAbove[0] < tp1 * 1.05) tp1 = Math.max(pvAbove[0], minTP1);
+      if (pvAbove.length > 1 && pvAbove[1] > tp1 && pvAbove[1] < tp2 * 1.05) tp2 = Math.max(pvAbove[1], minTP2);
     }
-    // Validate TP ordering: for LONG, tp1 must be closer (lower) than tp2
+    // Validate TP ordering
     if (tp1 >= tp2) { const tmp=tp1; tp1=tp2; tp2=tmp; }
-    // Final safety: both TPs must be above entry
+    // Final safety
     if (tp1 <= ep) tp1 = ep + aV * 2;
     if (tp2 <= tp1) tp2 = tp1 + aV * 3;
 
@@ -1666,44 +1669,45 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     const srSL   = srZones?.above?.find(z => z.price > ep + aV * 0.5)?.price;
     const tlSL   = trendLine && trendLine.trend === 'down' ? trendLine.currentVal + aV * 0.5 : null;
     const rawSL  = Math.max(r10H + aV * 0.2, ep + aV * slM);
-    const slCandidates = [fibSL, obSL, srSL ? srSL + aV * 0.2 : null, tlSL, rawSL].filter(v => v !== null && v > ep);
-    sl = slCandidates.length ? Math.min(...slCandidates) : rawSL;
+    const slCandidates = [fibSL, obSL, srSL ? srSL + aV * 0.3 : null, tlSL, rawSL].filter(v => v !== null && v > ep + aV * 0.5);
+    const rawSlChoice = slCandidates.length ? Math.min(...slCandidates) : rawSL;
+    // Extra buffer: SL must be at least 1.0×ATR above entry
+    sl = Math.max(rawSlChoice, ep + aV * 1.0);
 
     ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'SHORT', srZones));
 
+    const minTP1s = ep - (sl - ep) * 1.5;
+    const minTP2s = ep - (sl - ep) * 2.5;
     if (srZones && srZones.below.length) {
-      const nearS = srZones.below.find(z => z.price < ep - (ep - tp1) * 0.3 && z.price > tp1 * 0.95 && z.strength >= 3);
-      if (nearS) tp1 = Math.max(tp1, nearS.price);
+      const nearS = srZones.below.find(z => z.price < minTP1s && z.price > tp1 * 0.92 && z.strength >= 3);
+      if (nearS) tp1 = Math.min(nearS.price, minTP1s);
       const farS = srZones.below.find(z => z.price < tp1 && z.strength >= 3);
-      if (farS) tp2 = Math.min(tp2, Math.max(farS.price, tp2 * 0.95));
+      if (farS) tp2 = Math.min(farS.price, minTP2s);
     }
 
     if (pivotPoints) {
-      const pvBelow = [pivotPoints.S1, pivotPoints.S2, pivotPoints.S3].filter(p => p < ep).sort((a,b) => b-a);
-      if (pvBelow.length && pvBelow[0] > tp1 * 0.98) tp1 = pvBelow[0];
-      if (pvBelow.length > 1 && pvBelow[1] > tp2 * 0.98) tp2 = pvBelow[1];
+      const pvBelow = [pivotPoints.S1, pivotPoints.S2, pivotPoints.S3].filter(p => p < minTP1s).sort((a,b) => b-a);
+      if (pvBelow.length && pvBelow[0] < tp1 * 1.05) tp1 = Math.min(pvBelow[0], minTP1s);
+      if (pvBelow.length > 1 && pvBelow[1] < tp1 && pvBelow[1] > tp2 * 1.05) tp2 = Math.min(pvBelow[1], minTP2s);
     }
-    // Validate TP ordering: for SHORT, tp1 must be closer (higher) than tp2
     if (tp1 <= tp2) { const tmp=tp1; tp1=tp2; tp2=tmp; }
-    // Final safety: both TPs must be below entry
     if (tp1 >= ep) tp1 = ep - aV * 2;
     if (tp2 >= tp1) tp2 = tp1 - aV * 3;
   }
 
   const risk = dir === 'LONG' ? ep - sl : sl - ep;
 
-  // ── RRR Minimum Gate: if RR1 < 1.2 after all calcs → adjust TP1 ──
+  // ── RRR Minimum Gate: TP1 >= 1.5R, TP2 >= 2.5R ──
   if (risk > 0) {
     const rr1check = Math.abs(tp1 - ep) / risk;
-    if (rr1check < 1.2) {
-      if (dir === 'LONG') tp1 = ep + risk * 1.2;
-      else                tp1 = ep - risk * 1.2;
+    if (rr1check < 1.5) {
+      if (dir === 'LONG') tp1 = ep + risk * 1.5;
+      else                tp1 = ep - risk * 1.5;
     }
-    // Also enforce TP2 >= 2.0R
     const rr2check = Math.abs(tp2 - ep) / risk;
-    if (rr2check < 2.0) {
-      if (dir === 'LONG') tp2 = ep + risk * 2.0;
-      else                tp2 = ep - risk * 2.0;
+    if (rr2check < 2.5) {
+      if (dir === 'LONG') tp2 = ep + risk * 2.5;
+      else                tp2 = ep - risk * 2.5;
     }
   }
 

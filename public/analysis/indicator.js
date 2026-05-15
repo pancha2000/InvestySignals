@@ -353,10 +353,10 @@ function getFibTargets(ep, sl, fibData, direction, srZones) {
     if (!tp1) tp1 = ep + risk * 1.5;
     if (!tp2) tp2 = ep + risk * 2.5;
     if (!tp3) tp3 = ep + risk * 3.8;
-    // Enforce minimums
-    if ((tp1 - ep) / risk < 1.2) tp1 = ep + risk * 1.2;
-    if ((tp2 - ep) / risk < 2.0) tp2 = ep + risk * 2.0;
-    if ((tp3 - ep) / risk < 3.0) tp3 = ep + risk * 3.0;
+    // Enforce minimums — 1.5R / 2.5R / 3.5R
+    if ((tp1 - ep) / risk < 1.5) tp1 = ep + risk * 1.5;
+    if ((tp2 - ep) / risk < 2.5) tp2 = ep + risk * 2.5;
+    if ((tp3 - ep) / risk < 3.5) tp3 = ep + risk * 3.5;
   } else {
     if (hasFib) {
       for (const r of extRatios) {
@@ -385,9 +385,9 @@ function getFibTargets(ep, sl, fibData, direction, srZones) {
     if (!tp1) tp1 = ep - risk * 1.5;
     if (!tp2) tp2 = ep - risk * 2.5;
     if (!tp3) tp3 = ep - risk * 3.8;
-    if ((ep - tp1) / risk < 1.2) tp1 = ep - risk * 1.2;
-    if ((ep - tp2) / risk < 2.0) tp2 = ep - risk * 2.0;
-    if ((ep - tp3) / risk < 3.0) tp3 = ep - risk * 3.0;
+    if ((ep - tp1) / risk < 1.5) tp1 = ep - risk * 1.5;
+    if ((ep - tp2) / risk < 2.5) tp2 = ep - risk * 2.5;
+    if ((ep - tp3) / risk < 3.5) tp3 = ep - risk * 3.5;
   }
 
   return { tp1, tp2, tp3 };
