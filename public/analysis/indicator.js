@@ -2447,3 +2447,426 @@ function calcFootprintLite(O, H, L, C, V, atr) {
   };
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   NEW INDICATORS v7 — IDM, AVWAP, TTM Squeeze, CMF, Ichimoku, Parabolic SAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── 1. INDUCEMENT (IDM) DETECTION ─── */
+function detectInducement(O, H, L, C, atr, mtfOBs, mtfFVGs) {
+  if (!O || O.length < 20 || !atr) return null;
+  const aV = atr.atr;
+  const tol = aV * 0.5;
+  const result = { detected: false, bullIDM: [], bearIDM: [], score: 0 };
+
+  // Look at last 30 bars for equal highs/lows (IDM = engineered liquidity)
+  const lb = Math.min(O.length - 1, 30);
+  const equalHighs = [], equalLows = [];
+
+  for (let i = lb; i >= 3; i--) {
+    const idxI = O.length - 1 - i;
+    for (let j = i - 2; j >= 1; j--) {
+      const idxJ = O.length - 1 - j;
+      // Equal highs within 0.3×ATR = engineered liquidity above
+      if (Math.abs(H[idxI] - H[idxJ]) < aV * 0.3 && H[idxI] > H[O.length - 1] - aV * 5) {
+        equalHighs.push({ price: (H[idxI] + H[idxJ]) / 2, barI: idxI, barJ: idxJ });
+      }
+      // Equal lows within 0.3×ATR = engineered liquidity below
+      if (Math.abs(L[idxI] - L[idxJ]) < aV * 0.3 && L[idxI] < L[O.length - 1] + aV * 5) {
+        equalLows.push({ price: (L[idxI] + L[idxJ]) / 2, barI: idxI, barJ: idxJ });
+      }
+    }
+  }
+
+  const curP = C[C.length - 1];
+
+  // Bull IDM: equal lows below price (retail shorts targeted) → near bullish OB/FVG = high prob LONG
+  for (const eq of equalLows) {
+    const distBelow = curP - eq.price;
+    if (distBelow < 0 || distBelow > aV * 8) continue;
+    const nearBullOB = mtfOBs?.nearestBullOB
+      ? Math.abs(mtfOBs.nearestBullOB.mid - eq.price) < aV * 2
+      : false;
+    const nearBullFVG = mtfFVGs?.bullFVGs?.some(f => Math.abs((f.high + f.low) / 2 - eq.price) < aV * 2) || false;
+    const confluence = (nearBullOB ? 1 : 0) + (nearBullFVG ? 1 : 0);
+    result.bullIDM.push({
+      liquidityPrice: eq.price,
+      confluenceWithOB: nearBullOB,
+      confluenceWithFVG: nearBullFVG,
+      confluenceScore: confluence,
+      label: `📍 Bull IDM @ ${eq.price.toFixed(4)} — equal lows${nearBullOB ? ' + Bull OB' : ''}${nearBullFVG ? ' + FVG' : ''}`,
+      probability: confluence >= 2 ? 'High' : confluence === 1 ? 'Medium' : 'Low',
+    });
+  }
+
+  // Bear IDM: equal highs above price (retail longs targeted) → near bearish OB/FVG = high prob SHORT
+  for (const eq of equalHighs) {
+    const distAbove = eq.price - curP;
+    if (distAbove < 0 || distAbove > aV * 8) continue;
+    const nearBearOB = mtfOBs?.nearestBearOB
+      ? Math.abs(mtfOBs.nearestBearOB.mid - eq.price) < aV * 2
+      : false;
+    const nearBearFVG = mtfFVGs?.bearFVGs?.some(f => Math.abs((f.high + f.low) / 2 - eq.price) < aV * 2) || false;
+    const confluence = (nearBearOB ? 1 : 0) + (nearBearFVG ? 1 : 0);
+    result.bearIDM.push({
+      liquidityPrice: eq.price,
+      confluenceWithOB: nearBearOB,
+      confluenceWithFVG: nearBearFVG,
+      confluenceScore: confluence,
+      label: `📍 Bear IDM @ ${eq.price.toFixed(4)} — equal highs${nearBearOB ? ' + Bear OB' : ''}${nearBearFVG ? ' + FVG' : ''}`,
+      probability: confluence >= 2 ? 'High' : confluence === 1 ? 'Medium' : 'Low',
+    });
+  }
+
+  // Keep best 3 each
+  result.bullIDM = result.bullIDM.sort((a, b) => b.confluenceScore - a.confluenceScore).slice(0, 3);
+  result.bearIDM = result.bearIDM.sort((a, b) => b.confluenceScore - a.confluenceScore).slice(0, 3);
+  result.detected = result.bullIDM.length > 0 || result.bearIDM.length > 0;
+
+  // Scoring hint for integration
+  const bestBull = result.bullIDM[0];
+  const bestBear = result.bearIDM[0];
+  result.bestBullScore = bestBull ? bestBull.confluenceScore : 0;
+  result.bestBearScore = bestBear ? bestBear.confluenceScore : 0;
+
+  return result;
+}
+
+/* ─── 2. ANCHORED VWAP (AVWAP) ─── */
+function calcAnchoredVWAP(kl1h, kl1d) {
+  if (!kl1h || kl1h.length < 10) return null;
+
+  const curP = parseFloat(kl1h[kl1h.length - 1][4]);
+
+  // Anchor 1: Start of current month (UTC)
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).getTime();
+
+  // Anchor 2: Start of current week (Monday UTC)
+  const dayOfWeek = now.getUTCDay(); // 0=Sun
+  const daysToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysToMon)).getTime();
+
+  // Anchor 3: Find last significant swing (largest single-bar move in last 50 bars)
+  let swingAnchorTs = null;
+  let maxMove = 0;
+  const lb = Math.min(kl1h.length - 1, 50);
+  for (let i = kl1h.length - lb; i < kl1h.length - 1; i++) {
+    const o = parseFloat(kl1h[i][1]), c = parseFloat(kl1h[i][4]);
+    const move = Math.abs(c - o);
+    if (move > maxMove) { maxMove = move; swingAnchorTs = parseInt(kl1h[i][0]); }
+  }
+
+  function vwapFrom(kl, anchorTs) {
+    let cumPV = 0, cumV = 0;
+    for (const k of kl) {
+      if (parseInt(k[0]) < anchorTs) continue;
+      const tp = (parseFloat(k[2]) + parseFloat(k[3]) + parseFloat(k[4])) / 3;
+      const v  = parseFloat(k[5]);
+      cumPV += tp * v;
+      cumV  += v;
+    }
+    return cumV > 0 ? cumPV / cumV : null;
+  }
+
+  const monthlyAVWAP = vwapFrom(kl1h, monthStart);
+  const weeklyAVWAP  = vwapFrom(kl1h, weekStart);
+  const swingAVWAP   = swingAnchorTs ? vwapFrom(kl1h, swingAnchorTs) : null;
+
+  // Classify price vs each AVWAP
+  function classify(avwap) {
+    if (!avwap) return null;
+    const pct = ((curP - avwap) / avwap) * 100;
+    return {
+      value: avwap,
+      pct: pct,
+      above: curP > avwap,
+      far: Math.abs(pct) > 3,
+      label: pct > 2 ? '↑↑ Far Above' : pct > 0.5 ? '↑ Above' : pct < -2 ? '↓↓ Far Below' : pct < -0.5 ? '↓ Below' : '≈ At AVWAP',
+    };
+  }
+
+  const monthly = classify(monthlyAVWAP);
+  const weekly  = classify(weeklyAVWAP);
+  const swing   = classify(swingAVWAP);
+
+  // Institutional bias: all AVWAPs agree = strong directional conviction
+  const allAbove = [monthly, weekly, swing].filter(Boolean).every(a => a.above);
+  const allBelow = [monthly, weekly, swing].filter(Boolean).every(a => !a.above);
+
+  return {
+    monthly, weekly, swing,
+    allAbove, allBelow,
+    institutionalBias: allAbove ? 'bullish' : allBelow ? 'bearish' : 'mixed',
+    label: allAbove
+      ? '🏦 All AVWAPs: bullish — institutions in profit, buyers in control'
+      : allBelow
+      ? '🏦 All AVWAPs: bearish — institutions distributing, sellers in control'
+      : '🏦 AVWAP mixed — no clear institutional bias',
+  };
+}
+
+/* ─── 3. TTM SQUEEZE ─── */
+function calcTTMSqueeze(C, H, L, atr, bbData) {
+  if (!C || C.length < 22 || !atr) return null;
+
+  // Keltner Channel (EMA20 ± 1.5×ATR)
+  const ema20 = calcEMA(C, 20);
+  if (!ema20) return null;
+  const aV = atr.atr;
+  const kcUpper = ema20 + 1.5 * aV;
+  const kcLower = ema20 - 1.5 * aV;
+
+  // BB from passed bbData or compute
+  const bb = bbData || calcBollingerBands(C, 20, 2);
+  if (!bb) return null;
+
+  // SQUEEZE: BB inside KC = compression, big move incoming
+  const squeeze = bb.upper < kcUpper && bb.lower > kcLower;
+  const sqReleased = !squeeze && bb.width > 0.035; // BB expanded past KC
+
+  // Momentum oscillator: Linear regression of (close - midpoint of (highest high + lowest low)/2 + EMA20) / 2
+  const lb = 20;
+  const recentC = C.slice(-lb);
+  const recentH = H.slice(-lb), recentL = L.slice(-lb);
+  const highestH = Math.max(...recentH), lowestL = Math.min(...recentL);
+  const midHL = (highestH + lowestL) / 2;
+  const midEMA = (midHL + ema20) / 2;
+
+  // Momentum values (last 5 bars)
+  const momentumVals = [];
+  for (let i = Math.max(0, C.length - 6); i < C.length; i++) {
+    const hh = Math.max(...H.slice(Math.max(0, i - lb + 1), i + 1));
+    const ll = Math.min(...L.slice(Math.max(0, i - lb + 1), i + 1));
+    const em = calcEMA(C.slice(0, i + 1), 20);
+    if (!em) continue;
+    momentumVals.push(C[i] - ((hh + ll) / 2 + em) / 2);
+  }
+
+  const lastMom = momentumVals[momentumVals.length - 1] || 0;
+  const prevMom = momentumVals[momentumVals.length - 2] || 0;
+  const momRising = lastMom > prevMom;
+  const momPositive = lastMom > 0;
+
+  return {
+    squeeze,
+    sqReleased,
+    momentum: lastMom,
+    momRising,
+    momPositive,
+    bbWidth: bb.width,
+    kcUpper, kcLower,
+    bias: momPositive ? (momRising ? 'strong_bull' : 'weak_bull') : (momRising ? 'weak_bear' : 'strong_bear'),
+    label: squeeze
+      ? `🔴 TTM SQUEEZE active — compression (BB inside KC). ${momPositive ? 'Bull' : 'Bear'} breakout loading.`
+      : sqReleased
+      ? `🟢 TTM SQUEEZE released — breakout in progress (${momPositive ? '▲ BULL' : '▼ BEAR'} momentum${momRising ? ' rising' : ' fading'})`
+      : `⚪ No squeeze — normal BB/KC relationship`,
+    note: squeeze
+      ? 'Wait for squeeze release. Direction = momentum color at release.'
+      : sqReleased
+      ? `Breakout direction: ${momPositive ? 'LONG' : 'SHORT'}. Momentum ${momRising ? 'accelerating' : 'decelerating'}.`
+      : '',
+  };
+}
+
+/* ─── 4. CHAIKIN MONEY FLOW (CMF) ─── */
+function calcCMF(C, H, L, V, period) {
+  period = period || 20;
+  if (!C || C.length < period || !V) return null;
+
+  const mfv = []; // Money Flow Volume per bar
+  for (let i = 0; i < C.length; i++) {
+    const hl = H[i] - L[i];
+    if (hl === 0) { mfv.push(0); continue; }
+    const mfm = ((C[i] - L[i]) - (H[i] - C[i])) / hl; // Money Flow Multiplier [-1, +1]
+    mfv.push(mfm * V[i]);
+  }
+
+  const slice = (arr, p) => arr.slice(-p);
+  const sumMFV = slice(mfv, period).reduce((a, b) => a + b, 0);
+  const sumVol = slice(V, period).reduce((a, b) => a + b, 0);
+  const cmf   = sumVol > 0 ? sumMFV / sumVol : 0;
+
+  // CMF 5-bar ago for trend direction
+  const prev5 = (() => {
+    if (C.length < period + 5) return null;
+    const pmfv = mfv.slice(-period - 5, -5);
+    const pv   = V.slice(-period - 5, -5);
+    const ps   = pv.reduce((a, b) => a + b, 0);
+    return ps > 0 ? pmfv.reduce((a, b) => a + b, 0) / ps : null;
+  })();
+
+  const rising = prev5 !== null ? cmf > prev5 : null;
+  const strongBuy  = cmf > 0.15;
+  const strongSell = cmf < -0.15;
+  const weakBuy    = cmf > 0.05 && !strongBuy;
+  const weakSell   = cmf < -0.05 && !strongSell;
+
+  return {
+    value: cmf,
+    rising,
+    strongBuy, strongSell, weakBuy, weakSell,
+    bullish: cmf > 0,
+    label: strongBuy
+      ? `💰 CMF ${cmf.toFixed(3)} — Strong Smart Money BUY pressure`
+      : weakBuy
+      ? `📈 CMF ${cmf.toFixed(3)} — Moderate buying flow`
+      : strongSell
+      ? `💸 CMF ${cmf.toFixed(3)} — Strong Smart Money SELL pressure`
+      : weakSell
+      ? `📉 CMF ${cmf.toFixed(3)} — Moderate selling flow`
+      : `〰 CMF ${cmf.toFixed(3)} — Neutral money flow`,
+    note: rising !== null
+      ? (rising ? 'Money flow improving — accumulation signal.' : 'Money flow deteriorating — distribution signal.')
+      : '',
+  };
+}
+
+/* ─── 5. ICHIMOKU CLOUD ─── */
+function calcIchimoku(H, L, C) {
+  if (!H || H.length < 52) return null;
+
+  function midpoint(arr, start, len) {
+    const sl = arr.slice(start, start + len);
+    return (Math.max(...sl) + Math.min(...sl)) / 2;
+  }
+
+  const n = H.length;
+  // Tenkan-sen (Conversion): 9-period midpoint
+  const tenkan  = midpoint(H.concat(), n - 9, 9) !== undefined
+    ? (Math.max(...H.slice(-9))  + Math.min(...L.slice(-9)))  / 2 : null;
+  // Kijun-sen (Base): 26-period midpoint
+  const kijun   = (Math.max(...H.slice(-26)) + Math.min(...L.slice(-26))) / 2;
+  // Senkou Span A (Cloud top/bottom A): (Tenkan+Kijun)/2, plotted 26 ahead
+  const spanA   = tenkan !== null ? (tenkan + kijun) / 2 : null;
+  // Senkou Span B (Cloud top/bottom B): 52-period midpoint, plotted 26 ahead
+  const spanB   = (Math.max(...H.slice(-52)) + Math.min(...L.slice(-52))) / 2;
+  // Chikou Span (Lagging): current close plotted 26 back
+  const chikou  = C[C.length - 1]; // vs price 26 bars ago
+  const chikouRef = C.length > 26 ? C[C.length - 27] : null;
+
+  const curP    = C[C.length - 1];
+
+  // Cloud colour
+  const cloudBull = spanA !== null && spanA > spanB; // green cloud
+  const cloudBear = spanA !== null && spanA < spanB; // red cloud
+
+  // Price vs cloud
+  const aboveCloud = spanA !== null && curP > Math.max(spanA, spanB);
+  const belowCloud = spanA !== null && curP < Math.min(spanA, spanB);
+  const insideCloud= !aboveCloud && !belowCloud;
+
+  // TK cross (momentum signal)
+  const tkBullCross = tenkan !== null && tenkan > kijun;
+  const tkBearCross = tenkan !== null && tenkan < kijun;
+
+  // Kumo twist detection (span A crosses span B = cloud color flip = big trend change)
+  // Use 26-bar-ago spans for previous cloud
+  let prevSpanA = null, prevSpanB = null;
+  if (n >= 52 + 26) {
+    const pH = H.slice(0, n - 26), pL = L.slice(0, n - 26);
+    const pt = (Math.max(...pH.slice(-9)) + Math.min(...pL.slice(-9))) / 2;
+    const pk = (Math.max(...pH.slice(-26)) + Math.min(...pL.slice(-26))) / 2;
+    prevSpanA = (pt + pk) / 2;
+    prevSpanB = (Math.max(...pH.slice(-52)) + Math.min(...pL.slice(-52))) / 2;
+  }
+  const kumoTwist = prevSpanA !== null && prevSpanB !== null
+    && ((prevSpanA < prevSpanB && spanA > spanB) || (prevSpanA > prevSpanB && spanA < spanB));
+  const kumoTwistBull = kumoTwist && spanA > spanB;
+  const kumoTwistBear = kumoTwist && spanA < spanB;
+
+  // Chikou confirmation
+  const chikouBull = chikouRef !== null && chikou > chikouRef;
+  const chikouBear = chikouRef !== null && chikou < chikouRef;
+
+  // Full Ichimoku bullish signal: price above cloud + TK bull + chikou bull + green cloud
+  const fullBull = aboveCloud && tkBullCross && chikouBull && cloudBull;
+  const fullBear = belowCloud && tkBearCross && chikouBear && cloudBear;
+
+  return {
+    tenkan, kijun, spanA, spanB, chikou,
+    cloudBull, cloudBear, aboveCloud, belowCloud, insideCloud,
+    tkBullCross, tkBearCross,
+    kumoTwist, kumoTwistBull, kumoTwistBear,
+    chikouBull, chikouBear,
+    fullBull, fullBear,
+    strength: fullBull ? 'full_bull' : fullBear ? 'full_bear'
+      : aboveCloud && tkBullCross ? 'bull'
+      : belowCloud && tkBearCross ? 'bear'
+      : insideCloud ? 'neutral'
+      : aboveCloud ? 'weak_bull' : 'weak_bear',
+    label: fullBull
+      ? '☁ Ichimoku: FULL BULL — price above cloud + TK cross + Chikou confirm'
+      : fullBear
+      ? '☁ Ichimoku: FULL BEAR — price below cloud + TK cross + Chikou confirm'
+      : kumoTwistBull
+      ? '☁ Ichimoku: KUMO TWIST BULL — cloud flipping green = major trend reversal UP'
+      : kumoTwistBear
+      ? '☁ Ichimoku: KUMO TWIST BEAR — cloud flipping red = major trend reversal DOWN'
+      : aboveCloud
+      ? `☁ Ichimoku: Above cloud (${cloudBull ? 'green' : 'red'}) — bullish bias`
+      : belowCloud
+      ? `☁ Ichimoku: Below cloud (${cloudBull ? 'green' : 'red'}) — bearish bias`
+      : `☁ Ichimoku: Inside cloud — consolidation / indecision`,
+    note: kumoTwist ? '⚠ Kumo Twist detected — major trend change signal. High probability reversal.' : '',
+  };
+}
+
+/* ─── 6. PARABOLIC SAR (for Trailing SL) ─── */
+function calcParabolicSAR(H, L, C, step, max) {
+  step = step || 0.02;
+  max  = max  || 0.2;
+  if (!H || H.length < 10) return null;
+
+  let af = step, rising = true;
+  let sar = L[0], ep = H[0];
+
+  for (let i = 1; i < H.length; i++) {
+    const prevSAR = sar;
+    sar = sar + af * (ep - sar);
+
+    if (rising) {
+      if (L[i] < sar) {
+        // Flip to falling
+        rising = false;
+        sar = ep;
+        ep  = L[i];
+        af  = step;
+      } else {
+        if (H[i] > ep) { ep = H[i]; af = Math.min(af + step, max); }
+        sar = Math.min(sar, L[i - 1], i > 1 ? L[i - 2] : L[i - 1]);
+      }
+    } else {
+      if (H[i] > sar) {
+        // Flip to rising
+        rising = true;
+        sar = ep;
+        ep  = H[i];
+        af  = step;
+      } else {
+        if (L[i] < ep) { ep = L[i]; af = Math.min(af + step, max); }
+        sar = Math.max(sar, H[i - 1], i > 1 ? H[i - 2] : H[i - 1]);
+      }
+    }
+  }
+
+  const curP  = C[C.length - 1];
+  const sarPct = ((curP - sar) / curP) * 100;
+
+  return {
+    value: sar,
+    rising,
+    bullish: rising,
+    distPct: sarPct,
+    trailingSL: sar, // use directly as trailing stop loss
+    tightTrail: Math.abs(sarPct) < 1.5, // very close = tight trailing
+    label: rising
+      ? `⬆ PSAR ${sar.toFixed(4)} (${sarPct.toFixed(2)}% below) — bullish, trail SL here`
+      : `⬇ PSAR ${sar.toFixed(4)} (${Math.abs(sarPct).toFixed(2)}% above) — bearish, trail SL here`,
+    note: rising
+      ? `Trailing Stop Loss: ${sar.toFixed(4)} — move SL up as price rises.`
+      : `Trailing Stop Loss: ${sar.toFixed(4)} — move SL down as price falls.`,
+  };
+}
+

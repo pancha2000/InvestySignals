@@ -489,15 +489,18 @@ function calcOBV(C,V){if(!C||C.length<10)return null;let o=0;const a=[0];for(let
 function analyzeVolume(kl){const v=kl.map(k=>parseFloat(k[5])),avg=v.slice(-21,-1).reduce((a,b)=>a+b,0)/20,last=v.slice(-4,-1).reduce((a,b)=>a+b,0)/3,ratio=avg>0?last/avg:1;return{avg20:avg,last3:last,ratio,surge:ratio>=1.5,label:ratio>=2?'Very High':ratio>=1.5?'High':ratio>=1?'Normal':'Low'};}
 
 /* ── VWAP — Session Reset (UTC midnight) ── */
-/* ── VWAP — Rolling 24H or Session (Fixes UTC 00:00 Reset Bug) ── */
 function calcVWAP(kl) {
   if (!kl || kl.length < 2) return null;
-  
-  // Instead of strict UTC midnight, use a rolling 24-candle (24H) lookback
-  // This guarantees smooth VWAP lines and accurate support/resistance at any time of day
-  const lookback = typeof IS === 'function' ? IS('ind_vwap_lookback', 24) : 24;
-  let sessionKl = kl.slice(-Math.min(kl.length, lookback));
-  
+  // Find session start = last UTC midnight
+  const now = Date.now();
+  const sessionStart = now - (now % 86400000); // today 00:00 UTC
+  // Filter candles from session start
+  let sessionKl = kl.filter(k => k[0] >= sessionStart);
+  // Fallback: use current UTC hour count (correct session candle count)
+  if (sessionKl.length < 2) {
+    const utcHour = new Date().getUTCHours();
+    sessionKl = kl.slice(-Math.max(utcHour, 1));
+  }
   let pv = 0, vol = 0;
   sessionKl.forEach(k => {
     const h = parseFloat(k[2]), l = parseFloat(k[3]), c = parseFloat(k[4]), v = parseFloat(k[5]);
@@ -1019,7 +1022,9 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     oteZone=null, killzone=null, amdModel=null, vsa=null,
     wyckoff=null, premDisc=null, harmonics=null, cvdData=null, unmitLevels=null,
     marketProf=null, mtfDiv=null, roundLevels=null, cmeGaps=null, setupType=null,
-    crtSignal=null, skAnalysis=null, ipdaLevels=null, propulsion=null, footprint=null
+    crtSignal=null, skAnalysis=null, ipdaLevels=null, propulsion=null, footprint=null,
+    idmSignal=null, avwap=null, ttmSqueeze=null, cmf=null, cmf4h=null,
+    ichimoku=null, psarData=null,
   } = ex;
 
   // ══════════════════════════════════════════════════════
@@ -1317,24 +1322,84 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     }
   }
 
+  // ── N18: INDUCEMENT (IDM) — Smart Money engineered liquidity ──
+  if (ex.idmSignal && ex.idmSignal.detected) {
+    const idm = ex.idmSignal;
+    // High-confluence Bull IDM near price = institutional LONG setup
+    if (idm.bestBullScore >= 2)      { ls += 14; }
+    else if (idm.bestBullScore === 1) { ls += 8;  }
+    // High-confluence Bear IDM near price = institutional SHORT setup
+    if (idm.bestBearScore >= 2)      { ss += 14; }
+    else if (idm.bestBearScore === 1) { ss += 8;  }
+  }
+
+  // ── N19: ANCHORED VWAP (AVWAP) — Institutional price reference ──
+  if (ex.avwap) {
+    const av = ex.avwap;
+    if (av.allAbove)      { ls += 12; }  // price above all AVWAPs = institutional bull
+    else if (av.allBelow) { ss += 12; }  // price below all AVWAPs = institutional bear
+    else {
+      // Partial alignment
+      if (av.monthly?.above && av.weekly?.above) { ls += 6; }
+      else if (av.monthly && !av.monthly.above && av.weekly && !av.weekly.above) { ss += 6; }
+    }
+  }
+
+  // ── N20: TTM SQUEEZE — Breakout direction + momentum ──
+  if (ex.ttmSqueeze) {
+    const sq = ex.ttmSqueeze;
+    if (sq.sqReleased) {
+      // Released squeeze = confirmed breakout — high conviction
+      if (sq.momPositive && sq.momRising)  { ls += 16; }  // bull breakout accelerating
+      else if (sq.momPositive)              { ls += 10; }  // bull breakout (fading)
+      else if (!sq.momPositive && !sq.momRising) { ss += 16; }  // bear breakout accelerating
+      else                                  { ss += 10; }  // bear breakout (fading)
+    } else if (sq.squeeze) {
+      // Active squeeze — no trade yet, small directional hint from momentum
+      if (sq.momPositive) { ls += 5; }
+      else                { ss += 5; }
+    }
+  }
+
+  // ── N21: CMF (Chaikin Money Flow) — Smart money flow ──
+  if (ex.cmf) {
+    const c = ex.cmf;
+    if (c.strongBuy  && c.rising)          { ls += 14; }
+    else if (c.strongBuy)                  { ls += 9;  }
+    else if (c.weakBuy && c.rising)        { ls += 6;  }
+    else if (c.strongSell && !c.rising)    { ss += 14; }
+    else if (c.strongSell)                 { ss += 9;  }
+    else if (c.weakSell && !c.rising)      { ss += 6;  }
+    // 4H CMF confirmation bonus
+    if (ex.cmf4h) {
+      if (ex.cmf4h.bullish && c.bullish)   { ls += 5; }
+      else if (!ex.cmf4h.bullish && !c.bullish) { ss += 5; }
+    }
+  }
+
+  // ── N22: ICHIMOKU CLOUD — Multi-factor trend system ──
+  if (ex.ichimoku) {
+    const ich = ex.ichimoku;
+    if (ich.fullBull)                      { ls += 18; }  // all 4 components bullish
+    else if (ich.aboveCloud && ich.tkBullCross && ich.chikouBull) { ls += 13; }
+    else if (ich.aboveCloud && ich.tkBullCross) { ls += 9; }
+    else if (ich.aboveCloud)               { ls += 5;  }
+    if (ich.fullBear)                      { ss += 18; }  // all 4 components bearish
+    else if (ich.belowCloud && ich.tkBearCross && ich.chikouBear) { ss += 13; }
+    else if (ich.belowCloud && ich.tkBearCross) { ss += 9; }
+    else if (ich.belowCloud)               { ss += 5;  }
+    // Kumo Twist = major reversal — heavy weight
+    if (ich.kumoTwistBull) { ls += 16; ss = Math.max(ss - 8, 0); }
+    if (ich.kumoTwistBear) { ss += 16; ls = Math.max(ls - 8, 0); }
+    // Inside cloud = uncertainty — slight penalty
+    if (ich.insideCloud) { ls = Math.max(ls - 4, 0); ss = Math.max(ss - 4, 0); }
+  }
+
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
-  // Dynamically calculate MAX score based on available data (Fixes Backtest vs Live discrepancy)
-  let MAX = 200; // Base max for standard kline indicators
-  if (takerRatio) MAX += 14;
-  if (lsRatio) MAX += 8;
-  if (orderBook) MAX += 12;
-  if (cvdData) MAX += 30;
-  if (unmitLevels) MAX += 14;
-  if (marketProf) MAX += 10;
-  if (mtfDiv && mtfDiv.detected) MAX += 30;
-  if (cmeGaps && cmeGaps.detected) MAX += 12;
-  if (crtSignal && crtSignal.detected) MAX += 16;
-  if (skAnalysis && skAnalysis.detected) MAX += 25;
-  if (propulsion && propulsion.detected) MAX += 14;
-  if (footprint) MAX += 20;
-
+  // MAX: Updated for N18-N22 additions (+~65 per side max)
+  const MAX = 365;
   const lc = Math.min(100, Math.round(ls / MAX * 100));
   const sc = Math.min(100, Math.round(ss / MAX * 100));
   // Require minimum 8-point gap between LONG and SHORT scores to avoid coin-flip signals
@@ -1360,7 +1425,8 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   const ind = { emaStack:es, macd, bb, stochRsi:stoch, adx, obv, atr, trend4h:t4, fundingRate:fr, oiChange:oi,
                 divergence:div, vwap, supertrend:st, bos, mtfRSI:mRSI, session:sess, btcContext:btc,
                 srZones, fibonacci, trendLine, mtfOBs, mtfFVGs, ema15m, ema1d, rsi15m, rsi1d, bos15m, bos4h,
-                candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol };
+                candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol,
+                idmSignal, avwap, ttmSqueeze, cmf, cmf4h, ichimoku, psarData };
 
   // confluenceLabel calculated AFTER ep is assigned (below) — moved to avoid TDZ error
 
@@ -1407,6 +1473,36 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   // Prepend funding warnings at top of riskFlags (always show prominently)
   if (fundingRiskFlags.length > 0) {
     riskFlags.unshift(...fundingRiskFlags);
+  }
+
+  // ── TTM Squeeze active = wait for release ──
+  if (ttmSqueeze && ttmSqueeze.squeeze) {
+    riskFlags.push(`🔴 TTM Squeeze active — price compressed between BB/KC. Wait for squeeze release before entering. Expected ${ttmSqueeze.momPositive ? 'BULL' : 'BEAR'} breakout.`);
+  }
+  // ── Ichimoku inside cloud = neutral zone, avoid ──
+  if (ichimoku && ichimoku.insideCloud) {
+    riskFlags.push('☁ Price inside Ichimoku cloud — high uncertainty zone. Wait for clean break above/below cloud.');
+  }
+  // ── Ichimoku direction conflict ──
+  if (ichimoku && dir === 'LONG' && ichimoku.belowCloud) {
+    riskFlags.push('☁ Ichimoku: price below cloud — counter-trend LONG. High risk trade.');
+  }
+  if (ichimoku && dir === 'SHORT' && ichimoku.aboveCloud) {
+    riskFlags.push('☁ Ichimoku: price above cloud — counter-trend SHORT. High risk trade.');
+  }
+  // ── AVWAP conflict ──
+  if (avwap && avwap.allAbove && dir === 'SHORT') {
+    riskFlags.push('🏦 AVWAP: all anchored VWAPs below price — institutions bullish. Counter-trend SHORT.');
+  }
+  if (avwap && avwap.allBelow && dir === 'LONG') {
+    riskFlags.push('🏦 AVWAP: all anchored VWAPs above price — institutions bearish. Counter-trend LONG.');
+  }
+  // ── PSAR trailing note ──
+  if (psarData && psarData.bullish && dir === 'LONG') {
+    riskFlags.push(`✅ PSAR trailing SL: ${psarData.value.toFixed(4)} — move SL up as price rises (${psarData.distPct.toFixed(2)}% below entry).`);
+  }
+  if (psarData && !psarData.bullish && dir === 'SHORT') {
+    riskFlags.push(`✅ PSAR trailing SL: ${psarData.value.toFixed(4)} — move SL down as price falls (${Math.abs(psarData.distPct).toFixed(2)}% above entry).`);
   }
 
   // Any single major structural flag = Risk Entry
@@ -1503,6 +1599,29 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     // ── VWAP ──
     if (vwap && Math.abs(vwap.vwap - candidate) < tol) score += 10;
 
+    // ── Anchored VWAP (institutional) ──
+    if (avwap) {
+      if (avwap.monthly?.value && Math.abs(avwap.monthly.value - candidate) < tol) score += 16;
+      else if (avwap.weekly?.value && Math.abs(avwap.weekly.value - candidate) < tol) score += 12;
+      else if (avwap.swing?.value && Math.abs(avwap.swing.value - candidate) < tol) score += 10;
+    }
+
+    // ── Ichimoku Kijun/Tenkan/Cloud edge ──
+    if (ichimoku) {
+      if (ichimoku.kijun && Math.abs(ichimoku.kijun - candidate) < tol) score += 14;
+      if (ichimoku.tenkan && Math.abs(ichimoku.tenkan - candidate) < tol) score += 10;
+      if (ichimoku.spanA && Math.abs(ichimoku.spanA - candidate) < tol) score += 12;
+      if (ichimoku.spanB && Math.abs(ichimoku.spanB - candidate) < tol) score += 12;
+    }
+
+    // ── IDM level: smart money engineered liquidity = high probability reversal ──
+    if (idmSignal) {
+      const bullMatch = idmSignal.bullIDM?.find(m => Math.abs(m.liquidityPrice - candidate) < tol);
+      const bearMatch = idmSignal.bearIDM?.find(m => Math.abs(m.liquidityPrice - candidate) < tol);
+      if (dir === 'LONG' && bullMatch)  score += bullMatch.confluenceScore >= 2 ? 20 : 12;
+      if (dir === 'SHORT' && bearMatch) score += bearMatch.confluenceScore >= 2 ? 20 : 12;
+    }
+
     // ── Multi-confluence bonus: 3+ levels overlap = institutional zone ──
     let overlapCount = 0;
     if (fibonacci?.levels?.some(l => l.key && Math.abs(l.price - candidate) < tol)) overlapCount++;
@@ -1539,6 +1658,14 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     if (bb && dir==='SHORT' && Math.abs(bb.upper - ep) < tol) hits.push('BB Upper');
     if (pivotPoints && [pivotPoints.S1, pivotPoints.PP, pivotPoints.R1].some(p => p && Math.abs(p-ep)<tol)) hits.push('Pivot');
     if (vwap && Math.abs(vwap.vwap - ep) < tol) hits.push('VWAP');
+    if (avwap?.monthly?.value && Math.abs(avwap.monthly.value - ep) < tol) hits.push('Monthly AVWAP');
+    else if (avwap?.weekly?.value && Math.abs(avwap.weekly.value - ep) < tol) hits.push('Weekly AVWAP');
+    if (ichimoku?.kijun && Math.abs(ichimoku.kijun - ep) < tol) hits.push('Ichi Kijun');
+    else if (ichimoku?.tenkan && Math.abs(ichimoku.tenkan - ep) < tol) hits.push('Ichi Tenkan');
+    const idmBull = idmSignal?.bullIDM?.find(m => Math.abs(m.liquidityPrice - ep) < tol);
+    const idmBear = idmSignal?.bearIDM?.find(m => Math.abs(m.liquidityPrice - ep) < tol);
+    if (dir==='LONG' && idmBull) hits.push('IDM Zone');
+    if (dir==='SHORT' && idmBear) hits.push('IDM Zone');
     if (!hits.length) return 'ATR-based';
     return hits.join(' + ');
   }
@@ -1565,16 +1692,29 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
           return best;
         }, null)
       : null;
+    // AVWAP entry: if monthly AVWAP is below price = strong dynamic support
+    const avwapEP = avwap?.monthly?.value && avwap.monthly.value < price && avwap.monthly.value > price - aV * 3
+      ? avwap.monthly.value : (avwap?.weekly?.value && avwap.weekly.value < price && avwap.weekly.value > price - aV * 2 ? avwap.weekly.value : null);
+    // IDM entry: if high-confidence bull IDM below current price = institutional magnet
+    const idmEP = idmSignal?.bullIDM?.[0]?.confluenceScore >= 1
+      ? idmSignal.bullIDM[0].liquidityPrice + aV * 0.1 : null;
+    // Ichimoku Kijun/Tenkan entry
+    const kijunEP = ichimoku?.kijun && ichimoku.kijun < price && ichimoku.kijun > price - aV * 3 ? ichimoku.kijun : null;
+    const tenkanEP = ichimoku?.tenkan && ichimoku.tenkan < price && ichimoku.tenkan > price - aV * 1.5 ? ichimoku.tenkan : null;
     const atrEP = price - aV * 0.3;
     const candidates = [
-      { label:'fib',  price: fibEP },
-      { label:'bb',   price: bbEP  },
-      { label:'sr',   price: srEP  },
-      { label:'ob',   price: obEP  },
-      { label:'fvg',  price: fvgEP },
-      { label:'piv',  price: pvEP  },
-      { label:'mkt',  price: price },
-      { label:'atr',  price: atrEP },
+      { label:'fib',    price: fibEP },
+      { label:'bb',     price: bbEP  },
+      { label:'sr',     price: srEP  },
+      { label:'ob',     price: obEP  },
+      { label:'fvg',    price: fvgEP },
+      { label:'piv',    price: pvEP  },
+      { label:'avwap',  price: avwapEP },
+      { label:'idm',    price: idmEP },
+      { label:'kijun',  price: kijunEP },
+      { label:'tenkan', price: tenkanEP },
+      { label:'mkt',    price: price },
+      { label:'atr',    price: atrEP },
     ].filter(c => c.price != null && c.price > 0);
 
     // Score all candidates
@@ -1600,14 +1740,18 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
       ep = best.price; entryType = best.price < price ? 'LIMIT' : 'MARKET';
     }
 
-    // SL: Fib swing-low → OB low → S/R zone below → Trendline → ATR fallback
+    // SL: Fib swing-low → OB low → S/R zone below → Trendline → PSAR → Ichimoku Kijun → ATR fallback
     const fibSL  = getFibSL(ep, fibonacci, 'LONG', aV);
     const obSL   = mtfOBs?.nearestBullOB ? mtfOBs.nearestBullOB.low - aV * 0.3 : null;
     const srSL   = srZones?.below?.find(z => z.price < ep - aV * 0.5)?.price;
     const tlSL   = trendLine && trendLine.trend === 'up' ? trendLine.currentVal - aV * 0.5 : null;
+    // PSAR trailing SL: use if it's tighter than ATR-based SL and price is bullish
+    const psarSL = psarData && psarData.bullish && psarData.value < ep - aV * 0.5 ? psarData.value : null;
+    // Ichimoku Kijun-sen as dynamic SL (institutional level)
+    const kijunSL = ichimoku && ichimoku.kijun && ichimoku.kijun < ep - aV * 0.3 ? ichimoku.kijun - aV * 0.2 : null;
     const rawSL  = Math.min(r10L - aV * 0.2, ep - aV * slM);
     // Choose SL: use tightest valid candidate, but must be at least 0.5×ATR below entry to absorb wick noise
-    const slCandidates = [fibSL, obSL, srSL ? srSL - aV * 0.3 : null, tlSL, rawSL].filter(v => v !== null && v < ep - aV * 0.5);
+    const slCandidates = [fibSL, obSL, srSL ? srSL - aV * 0.3 : null, tlSL, psarSL, kijunSL, rawSL].filter(v => v !== null && v < ep - aV * 0.5);
     const rawSlChoice = slCandidates.length ? Math.max(...slCandidates) : rawSL;
     // Extra buffer: SL must be at least 1.0×ATR below entry (avoids wick hunts)
     sl = Math.min(rawSlChoice, ep - aV * 1.0);
@@ -1629,6 +1773,13 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
       const pvAbove = [pivotPoints.R1, pivotPoints.R2, pivotPoints.R3].filter(p => p > minTP1);
       if (pvAbove.length && pvAbove[0] < tp1 * 1.05) tp1 = Math.max(pvAbove[0], minTP1);
       if (pvAbove.length > 1 && pvAbove[1] > tp1 && pvAbove[1] < tp2 * 1.05) tp2 = Math.max(pvAbove[1], minTP2);
+    }
+    // Ichimoku SpanB as TP target (strong cloud resistance/support)
+    if (ichimoku && ichimoku.spanB && ichimoku.spanB > minTP1 && ichimoku.spanB < tp1 * 1.08) {
+      tp1 = Math.max(ichimoku.spanB, minTP1);
+    }
+    if (ichimoku && ichimoku.spanA && ichimoku.spanA > tp1 && ichimoku.spanA < tp2 * 1.08) {
+      tp2 = Math.max(ichimoku.spanA, minTP2);
     }
     // Validate TP ordering
     if (tp1 >= tp2) { const tmp=tp1; tp1=tp2; tp2=tmp; }
@@ -1653,16 +1804,29 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
           return best;
         }, null)
       : null;
+    // AVWAP SHORT entry: monthly/weekly AVWAP above price = institutional resistance
+    const avwapEP = avwap?.monthly?.value && avwap.monthly.value > price && avwap.monthly.value < price + aV * 3
+      ? avwap.monthly.value : (avwap?.weekly?.value && avwap.weekly.value > price && avwap.weekly.value < price + aV * 2 ? avwap.weekly.value : null);
+    // IDM SHORT: high-confluence bear IDM above price
+    const idmEP = idmSignal?.bearIDM?.[0]?.confluenceScore >= 1
+      ? idmSignal.bearIDM[0].liquidityPrice - aV * 0.1 : null;
+    // Ichimoku Kijun/Tenkan as SHORT entry resistance
+    const kijunEP = ichimoku?.kijun && ichimoku.kijun > price && ichimoku.kijun < price + aV * 3 ? ichimoku.kijun : null;
+    const tenkanEP = ichimoku?.tenkan && ichimoku.tenkan > price && ichimoku.tenkan < price + aV * 1.5 ? ichimoku.tenkan : null;
     const atrEP = price + aV * 0.3;
     const candidates = [
-      { label:'fib',  price: fibEP },
-      { label:'bb',   price: bbEP  },
-      { label:'sr',   price: srEP  },
-      { label:'ob',   price: obEP  },
-      { label:'fvg',  price: fvgEP },
-      { label:'piv',  price: pvEP  },
-      { label:'mkt',  price: price },
-      { label:'atr',  price: atrEP },
+      { label:'fib',    price: fibEP },
+      { label:'bb',     price: bbEP  },
+      { label:'sr',     price: srEP  },
+      { label:'ob',     price: obEP  },
+      { label:'fvg',    price: fvgEP },
+      { label:'piv',    price: pvEP  },
+      { label:'avwap',  price: avwapEP },
+      { label:'idm',    price: idmEP },
+      { label:'kijun',  price: kijunEP },
+      { label:'tenkan', price: tenkanEP },
+      { label:'mkt',    price: price },
+      { label:'atr',    price: atrEP },
     ].filter(c => c.price != null && c.price > 0);
 
     candidates.forEach(c => { c.score = scoreEntry(c.price, 'SHORT'); });
@@ -1687,8 +1851,12 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     const obSL   = mtfOBs?.nearestBearOB ? mtfOBs.nearestBearOB.high + aV * 0.3 : null;
     const srSL   = srZones?.above?.find(z => z.price > ep + aV * 0.5)?.price;
     const tlSL   = trendLine && trendLine.trend === 'down' ? trendLine.currentVal + aV * 0.5 : null;
+    // PSAR trailing SL for SHORT: use if it's tighter than ATR-based SL and price is bearish
+    const psarSL = psarData && !psarData.bullish && psarData.value > ep + aV * 0.5 ? psarData.value : null;
+    // Ichimoku Kijun-sen as dynamic SL for SHORT
+    const kijunSL = ichimoku && ichimoku.kijun && ichimoku.kijun > ep + aV * 0.3 ? ichimoku.kijun + aV * 0.2 : null;
     const rawSL  = Math.max(r10H + aV * 0.2, ep + aV * slM);
-    const slCandidates = [fibSL, obSL, srSL ? srSL + aV * 0.3 : null, tlSL, rawSL].filter(v => v !== null && v > ep + aV * 0.5);
+    const slCandidates = [fibSL, obSL, srSL ? srSL + aV * 0.3 : null, tlSL, psarSL, kijunSL, rawSL].filter(v => v !== null && v > ep + aV * 0.5);
     const rawSlChoice = slCandidates.length ? Math.min(...slCandidates) : rawSL;
     // Extra buffer: SL must be at least 1.0×ATR above entry
     sl = Math.max(rawSlChoice, ep + aV * 1.0);
@@ -1708,6 +1876,13 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
       const pvBelow = [pivotPoints.S1, pivotPoints.S2, pivotPoints.S3].filter(p => p < minTP1s).sort((a,b) => b-a);
       if (pvBelow.length && pvBelow[0] < tp1 * 1.05) tp1 = Math.min(pvBelow[0], minTP1s);
       if (pvBelow.length > 1 && pvBelow[1] < tp1 && pvBelow[1] > tp2 * 1.05) tp2 = Math.min(pvBelow[1], minTP2s);
+    }
+    // Ichimoku SpanB as TP target for SHORT
+    if (ichimoku && ichimoku.spanB && ichimoku.spanB < minTP1s && ichimoku.spanB > tp1 * 0.92) {
+      tp1 = Math.min(ichimoku.spanB, minTP1s);
+    }
+    if (ichimoku && ichimoku.spanA && ichimoku.spanA < tp1 && ichimoku.spanA > tp2 * 0.92) {
+      tp2 = Math.min(ichimoku.spanA, minTP2s);
     }
     if (tp1 <= tp2) { const tmp=tp1; tp1=tp2; tp2=tmp; }
     if (tp1 >= ep) tp1 = ep - aV * 2;
@@ -2141,10 +2316,7 @@ async function runDeepScan(symbol) {
     const curP = parseFloat(tkData.price);
     const fr   = prData?.lastFundingRate ? parseFloat(prData.lastFundingRate) * 100 : null;
 
-    // Remove the currently open (unclosed) candle to prevent repainting
-    kl1h.pop(); kl15m.pop(); kl4h.pop(); kl1d.pop();
-
-    // OHLCV arrays (Now strictly closed candles)
+    // OHLCV arrays
     const C = kl1h.map(k=>parseFloat(k[4])), H = kl1h.map(k=>parseFloat(k[2])), L = kl1h.map(k=>parseFloat(k[3]));
     const V = kl1h.map(k=>parseFloat(k[5])), O = kl1h.map(k=>parseFloat(k[1]));
     const C15=kl15m.map(k=>parseFloat(k[4])),H15=kl15m.map(k=>parseFloat(k[2])),L15=kl15m.map(k=>parseFloat(k[3])),O15=kl15m.map(k=>parseFloat(k[1]));
@@ -2260,6 +2432,15 @@ async function runDeepScan(symbol) {
     // Footprint lite — aggressive/passive delta
     const footprint    = calcFootprintLite(O, H, L, C, V, atr);
 
+    // ═══ NEW v7 INDICATORS ═══
+    const idmSignal   = detectInducement(O, H, L, C, atr, mtfOBs, mtfFVGs);
+    const avwap       = calcAnchoredVWAP(kl1h, kl1d);
+    const ttmSqueeze  = calcTTMSqueeze(C, H, L, atr, bb);
+    const cmf         = calcCMF(C, H, L, V, 20);
+    const ichimoku    = calcIchimoku(H, L, C);
+    const psarData    = calcParabolicSAR(H, L, C);
+    const cmf4h       = calcCMF(C4, H4, L4, kl4h.map(k=>parseFloat(k[5])), 20);
+
     const ex = {
       trend4h: t4, fundingRate: fr, oiChange: oi, divergence: div, emaStack: es, vwap,
       supertrend: spt, bos, mtfRSI: mRSI, session: getSession(), btcContext: btc,
@@ -2268,6 +2449,7 @@ async function runDeepScan(symbol) {
       wyckoff, premDisc, harmonics, cvdData, unmitLevels, marketProf, mtfDiv,
       roundLevels, cmeGaps, setupType, crtSignal, skAnalysis, ipdaLevels,
       propulsion, footprint,
+      idmSignal, avwap, ttmSqueeze, cmf, cmf4h, ichimoku, psarData,
       candlePatterns, pivotPoints, takerRatio, lsRatio, orderBook, rvol, candleCloseTimer
     };
 
@@ -2313,7 +2495,8 @@ async function runDeepScan(symbol) {
       pdResult, regime, dcaLadder,
       liqSweeps, breakers, oteZone, killzone, amdModel, vsa,
       wyckoff, premDisc, harmonics, cvdData, unmitLevels, marketProf, mtfDiv,
-      roundLevels, cmeGaps, setupType, crtSignal, skAnalysis, ipdaLevels, propulsion, footprint
+      roundLevels, cmeGaps, setupType, crtSignal, skAnalysis, ipdaLevels, propulsion, footprint,
+      idmSignal, avwap, ttmSqueeze, cmf, cmf4h, ichimoku, psarData
     });
 
     btSaveSignal(symbol, entry, curP, getSession(), rsi);
