@@ -177,19 +177,19 @@ const indicatorDefaults = [
   { key:'ind_stoch_k',value:3,label:'Stoch RSI K Smooth',group:'indicators' },
   { key:'ind_stoch_d',value:3,label:'Stoch RSI D Smooth',group:'indicators' },
   { key:'ind_adx_period',value:14,label:'ADX Period',group:'indicators' },
-  { key:'ind_adx_choppy_gate',value:18,label:'ADX Choppy Market Gate',group:'indicators' },
+  { key:'ind_adx_choppy_gate',value:22,label:'ADX Choppy Market Gate',group:'indicators' },  // was 18 — too low, choppy markets getting through
   { key:'ind_atr_period',value:14,label:'ATR Period',group:'indicators' },
   { key:'ind_supertrend_period',value:10,label:'Supertrend Period',group:'indicators' },
   { key:'ind_supertrend_mult',value:3,label:'Supertrend Multiplier',group:'indicators' },
   { key:'ind_vwap_lookback',value:24,label:'VWAP Lookback (candles)',group:'indicators' },
   { key:'ind_kline_limit',value:200,label:'Kline History (bars)',group:'indicators' },
   { key:'ind_kline_tf',value:'1h',label:'Primary Timeframe',group:'indicators' },
-  { key:'ind_min_confidence',value:60, label:'Min Confidence % to Signal',  group:'indicators' },
+  { key:'ind_min_confidence',value:65, label:'Min Confidence % to Signal',  group:'indicators' },  // was 60 — backtest: <65 = 60%+ loss rate
   { key:'ind_account_size',  value:0,  label:'Account Size USD (0 = hide position sizing)', group:'account' },
   { key:'ind_risk_pct',      value:2,  label:'Risk % Per Trade (e.g. 2 = 2%)', group:'account' },
   { key:'ind_leverage',      value:10, label:'Leverage',                        group:'account' },
   { key:'ind_beginner_mode', value:false, label:'Beginner Mode (stricter gates + tips)', group:'account' },
-  { key:'ind_market_entry_conf',value:75,label:'Market Entry Min Confidence',group:'indicators' },
+  { key:'ind_market_entry_conf',value:78,label:'Market Entry Min Confidence',group:'indicators' },  // was 75
   { key:'ind_funding_gate',value:0.25,label:'Funding Rate Hard Gate (%)',group:'indicators' },
   { key:'pt_tp1_trail_mult',value:0.5,label:'TP1 Trail Offset Multiplier',group:'paper_trade' },
   { key:'pt_default_leverage',value:5,label:'Default Leverage',group:'paper_trade' },

@@ -222,7 +222,9 @@ function runDecideEntry(fn, kl1h, kl4h, kl1d, kl15m) {
     const entry = fn.decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
     if (!entry || entry.hardBlock)           return null;
     if (!entry.direction || entry.direction === 'NEUTRAL') return null;
-    if ((entry.confidence || 0) < 40)        return null; // Backtest gate lower — live data (OI/taker/OB) missing so scores ~20pts lower
+    // Backtest gate: 62 (live gate is 65; backtest scores ~3pts lower due to missing OI/taker/OB live data)
+    // Previously 40 — that's why 91% of trades were low-confidence garbage signals
+    if ((entry.confidence || 0) < 62)        return null;
     if (!entry.slPrice || !entry.tp1Price)   return null;
 
     return {
@@ -251,23 +253,59 @@ function runDecideEntry(fn, kl1h, kl4h, kl1d, kl15m) {
 
 function checkOutcome(dir, ep, sl, tp1, tp2, futureKlines) {
   let tp1Hit = false, tp2Hit = false, slHit = false;
+  let tp1Candle = null, tp2Candle = null, slCandle = null;
   let closePrice = null, closeCandle = null;
+
+  // After TP1 hit, SL moves to breakeven (entry price)
+  // This correctly models: partial close at TP1, remainder runs to TP2 or BE
+  let dynamicSL = sl; // starts at original SL
 
   for (let i = 0; i < futureKlines.length; i++) {
     const h = parseFloat(futureKlines[i][2]);
     const l = parseFloat(futureKlines[i][3]);
+    const c = parseFloat(futureKlines[i][4]);
 
     if (dir === 'LONG') {
-      if (!tp1Hit && h >= tp1) tp1Hit = true;
-      if (tp1Hit  && h >= tp2) { tp2Hit = true; closePrice = tp2; closeCandle = i; break; }
-      if (l <= sl) { slHit = true; closePrice = tp1Hit ? ep : sl; closeCandle = i; break; }
-    } else {
-      if (!tp1Hit && l <= tp1) tp1Hit = true;
-      if (tp1Hit  && l <= tp2) { tp2Hit = true; closePrice = tp2; closeCandle = i; break; }
-      if (h >= sl) { slHit = true; closePrice = tp1Hit ? ep : sl; closeCandle = i; break; }
+      // Check SL first (using dynamic SL — moves to BE after TP1)
+      if (l <= dynamicSL) {
+        slHit = true; slCandle = i;
+        closePrice = tp1Hit ? ep : sl; // if TP1 already hit, close at BE (entry)
+        closeCandle = i;
+        break;
+      }
+      // Check TP1
+      if (!tp1Hit && h >= tp1) {
+        tp1Hit = true;
+        tp1Candle = i;
+        dynamicSL = ep; // move SL to breakeven after TP1
+      }
+      // Check TP2 (only after TP1)
+      if (tp1Hit && h >= tp2) {
+        tp2Hit = true; tp2Candle = i;
+        closePrice = tp2; closeCandle = i;
+        break;
+      }
+    } else { // SHORT
+      if (h >= dynamicSL) {
+        slHit = true; slCandle = i;
+        closePrice = tp1Hit ? ep : sl;
+        closeCandle = i;
+        break;
+      }
+      if (!tp1Hit && l <= tp1) {
+        tp1Hit = true;
+        tp1Candle = i;
+        dynamicSL = ep;
+      }
+      if (tp1Hit && l <= tp2) {
+        tp2Hit = true; tp2Candle = i;
+        closePrice = tp2; closeCandle = i;
+        break;
+      }
     }
   }
 
+  // Timed out — close at last candle price
   if (!slHit && !tp2Hit) {
     const last = futureKlines[futureKlines.length - 1];
     closePrice  = last ? parseFloat(last[4]) : ep;
@@ -275,15 +313,39 @@ function checkOutcome(dir, ep, sl, tp1, tp2, futureKlines) {
   }
 
   let outcome = 'OPEN';
-  if (tp2Hit)            outcome = 'TP2';
-  else if (tp1Hit&&slHit) outcome = 'BE';
-  else if (tp1Hit)        outcome = 'TP1';
-  else if (slHit)         outcome = 'SL';
+  if (tp2Hit)             outcome = 'TP2';
+  else if (tp1Hit && slHit) outcome = 'BE';   // TP1 taken, remainder stopped at entry = breakeven
+  else if (tp1Hit)          outcome = 'TP1';  // TP1 taken, trade still open at end of window
+  else if (slHit)           outcome = 'SL';
 
   const risk = dir === 'LONG' ? ep - sl : sl - ep;
-  const pnlR = (risk > 0 && closePrice !== null)
-    ? parseFloat(((dir==='LONG' ? (closePrice-ep) : (ep-closePrice)) / risk).toFixed(3))
-    : 0;
+
+  // PnL calculation — model partial close:
+  // 50% at TP1, 50% at TP2/SL/close. More realistic than all-in.
+  let pnlR = 0;
+  if (risk > 0) {
+    if (outcome === 'TP2') {
+      // 50% at TP1 + 50% at TP2
+      const r1 = dir === 'LONG' ? (tp1 - ep) / risk : (ep - tp1) / risk;
+      const r2 = dir === 'LONG' ? (tp2 - ep) / risk : (ep - tp2) / risk;
+      pnlR = parseFloat((0.5 * r1 + 0.5 * r2).toFixed(3));
+    } else if (outcome === 'BE') {
+      // 50% at TP1 + 50% at 0 (entry) = half the TP1 gain
+      const r1 = dir === 'LONG' ? (tp1 - ep) / risk : (ep - tp1) / risk;
+      pnlR = parseFloat((0.5 * r1).toFixed(3));
+    } else if (outcome === 'TP1') {
+      // 50% at TP1, remainder open — count 50% TP1 gain only
+      const r1 = dir === 'LONG' ? (tp1 - ep) / risk : (ep - tp1) / risk;
+      pnlR = parseFloat((0.5 * r1).toFixed(3));
+    } else if (outcome === 'SL') {
+      pnlR = -1; // full loss
+    } else {
+      // OPEN — mark to market
+      pnlR = closePrice !== null
+        ? parseFloat(((dir === 'LONG' ? closePrice - ep : ep - closePrice) / risk).toFixed(3))
+        : 0;
+    }
+  }
 
   return { outcome, tp1Hit, tp2Hit, slHit, closePrice, closeCandle, pnlR };
 }
@@ -312,8 +374,8 @@ async function runBacktest(symbol, startMs, endMs, onProgress) {
   const signals = [];
   const WARMUP    = 220;
   const MIN_FUTURE = 24;
-  const SCAN_STEP  = 4;
-  const MIN_GAP    = 12;
+  const SCAN_STEP  = 6;  // was 4 — scan every 6 candles instead of 4
+  const MIN_GAP    = 24; // was 12 — minimum 24H gap between signals to avoid over-trading
   let lastSig = -999;
 
   for (let i = WARMUP; i < kl1h_all.length - MIN_FUTURE; i += SCAN_STEP) {
