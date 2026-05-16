@@ -222,7 +222,7 @@ function runDecideEntry(fn, kl1h, kl4h, kl1d, kl15m) {
     const entry = fn.decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
     if (!entry || entry.hardBlock)           return null;
     if (!entry.direction || entry.direction === 'NEUTRAL') return null;
-    if ((entry.confidence || 0) < 60)        return null; // Data: conf>=62 = 100% WR, conf<60 = 97% loss rate
+    if ((entry.confidence || 0) < 40)        return null; // Backtest gate lower — live data (OI/taker/OB) missing so scores ~20pts lower
     if (!entry.slPrice || !entry.tp1Price)   return null;
 
     return {
