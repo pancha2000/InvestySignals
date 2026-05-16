@@ -1032,10 +1032,13 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   // Funding: warning only, not a hard block
   // ══════════════════════════════════════════════════════
   const fundingGate = IS('ind_funding_gate', 0.25) / 100; // warning threshold only
-  const adxGate     = IS('ind_adx_choppy_gate', 20);
+  const adxGate       = IS('ind_adx_choppy_gate', 20);
+  const _beginnerMode = IS('ind_beginner_mode', false);
+  const _effConfGate  = _beginnerMode ? 65 : IS('ind_min_confidence', 60);
+  const _effAdxGate   = _beginnerMode ? 25 : adxGate;
 
   // ADX hard block — choppy market
-  const _adxBlocked = (adx && adx.adx < adxGate);
+  const _adxBlocked = (adx && adx.adx < _effAdxGate);
 
   // RSI Overextension pre-check (used later after direction determined)
   // Data: 87% of LONG SLs had RSI>65, 85% of SHORT SLs had RSI<40
@@ -1751,10 +1754,20 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     const kijunSL = ichimoku && ichimoku.kijun && ichimoku.kijun < ep - aV * 0.3 ? ichimoku.kijun - aV * 0.2 : null;
     const rawSL  = Math.min(r10L - aV * 0.2, ep - aV * slM);
     // Choose SL: use tightest valid candidate, but must be at least 0.5×ATR below entry to absorb wick noise
-    const slCandidates = [fibSL, obSL, srSL ? srSL - aV * 0.3 : null, tlSL, psarSL, kijunSL, rawSL].filter(v => v !== null && v < ep - aV * 0.5);
-    const rawSlChoice = slCandidates.length ? Math.max(...slCandidates) : rawSL;
-    // Extra buffer: SL must be at least 1.0×ATR below entry (avoids wick hunts)
-    sl = Math.min(rawSlChoice, ep - aV * 1.0);
+    // Priority: OB low > PSAR > Ichimoku Kijun > Fib > S/R > Trendline > Swing low
+    // Each with small wick buffer. Min 0.3×ATR, Max 2.5×ATR from entry
+    const slCandidates = [
+      obSL    ? obSL    - aV * 0.15 : null,
+      psarSL  ? psarSL  - aV * 0.1  : null,
+      kijunSL ? kijunSL - aV * 0.1  : null,
+      fibSL   ? fibSL   - aV * 0.1  : null,
+      srSL    ? srSL    - aV * 0.2  : null,
+      tlSL    ? tlSL    - aV * 0.15 : null,
+      rawSL
+    ].filter(v => v !== null && v < ep - aV * 0.3 && v > ep - aV * 2.5);
+    sl = slCandidates.length ? Math.max(...slCandidates) : ep - aV * 1.5;
+    sl = Math.max(sl, ep - aV * 2.5);
+    sl = Math.min(sl, ep - aV * 0.3);
 
     ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'LONG', srZones));
 
@@ -1891,22 +1904,31 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
 
   const risk = dir === 'LONG' ? ep - sl : sl - ep;
 
-  // ── RRR Minimum Gate: TP1 >= 1.5R, TP2 >= 2.5R ──
+  // ── RRR Gate: TP1 >= 2.0R, TP2 >= 3.0R, TP3 >= 4.5R ──
+  let tp3 = null;
   if (risk > 0) {
-    const rr1check = Math.abs(tp1 - ep) / risk;
-    if (rr1check < 1.5) {
-      if (dir === 'LONG') tp1 = ep + risk * 1.5;
-      else                tp1 = ep - risk * 1.5;
+    if (Math.abs(tp1 - ep) / risk < 2.0)
+      tp1 = dir === 'LONG' ? ep + risk * 2.0 : ep - risk * 2.0;
+    if (Math.abs(tp2 - ep) / risk < 3.0)
+      tp2 = dir === 'LONG' ? ep + risk * 3.0 : ep - risk * 3.0;
+    // TP3 — runner target using far S/R or Fib extensions
+    const _fibTP3 = typeof getFibTargets === 'function'
+      ? getFibTargets(ep, sl, fibonacci, dir, srZones).tp3 : null;
+    if (_fibTP3 && Math.abs(_fibTP3 - ep) / risk >= 4.0) {
+      tp3 = _fibTP3;
+    } else {
+      tp3 = dir === 'LONG' ? ep + risk * 4.5 : ep - risk * 4.5;
     }
-    const rr2check = Math.abs(tp2 - ep) / risk;
-    if (rr2check < 2.5) {
-      if (dir === 'LONG') tp2 = ep + risk * 2.5;
-      else                tp2 = ep - risk * 2.5;
+    if (srZones) {
+      const farLvls = dir === 'LONG' ? srZones.above : srZones.below;
+      const farSR   = farLvls?.find(z => Math.abs(z.price-ep)/risk >= 4.0 && z.strength >= 3);
+      if (farSR) tp3 = dir === 'LONG' ? Math.max(farSR.price, tp3) : Math.min(farSR.price, tp3);
     }
   }
 
   const rrr1 = risk > 0 ? (Math.abs(tp1 - ep) / risk).toFixed(2) : '—';
   const rrr2 = risk > 0 ? (Math.abs(tp2 - ep) / risk).toFixed(2) : '—';
+  const rrr3 = (risk > 0 && tp3) ? (Math.abs(tp3 - ep) / risk).toFixed(2) : '—';
 
   // DCA Point
   const dcaPoint = calcDCAPoint(ep, sl, dir, fibonacci, srZones, mtfOBs, atr);
@@ -2170,7 +2192,7 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
            hardBlock:_hardBlock,
            hardBlockReason: _hardBlockReason,
            riskFlags, isRisky,
-           entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2,
+           entryPrice:ep, slPrice:sl, tp1Price:tp1, tp2Price:tp2, tp3Price:tp3||null, dcaPoint, rrr1, rrr2, rrr3,
            indicators:ind, momentumConf, invalidation, limitExpiry, confluenceLabel, candleCloseTimer };
 }
 
@@ -2456,7 +2478,7 @@ async function runDeepScan(symbol) {
     const entry = decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
 
     // Low confidence — show signal with risk warning
-    const minConf = IS('ind_min_confidence', 62); // Data-proven: conf>=62 = high WR
+    const minConf = IS('ind_min_confidence', 60); // Data-proven: conf>=62 = high WR
     if (!entry.hardBlock && entry.confidence < minConf) {
       if (!entry.riskFlags) entry.riskFlags = [];
       entry.riskFlags.unshift('Low confluence score (' + entry.confidence + '%) — below minimum ' + minConf + '%. Reduce position size or skip.');
@@ -2515,7 +2537,10 @@ function renderBlocked(container, symbol, entry, curP, adx, fr) {
   const pair = symbol.replace('USDT', '/USDT');
   const reasons = entry.riskFlags || [];
   const fundingGate = IS('ind_funding_gate', 0.25);
-  const adxGate     = IS('ind_adx_choppy_gate', 20);
+  const adxGate       = IS('ind_adx_choppy_gate', 20);
+  const _beginnerMode = IS('ind_beginner_mode', false);
+  const _effConfGate  = _beginnerMode ? 65 : IS('ind_min_confidence', 60);
+  const _effAdxGate   = _beginnerMode ? 25 : adxGate;
   const ep = entry.entryPrice, sl = entry.slPrice, tp1 = entry.tp1Price, tp2 = entry.tp2Price;
   const dir = entry.direction;
   const dirColor = dir === 'LONG' ? 'var(--green)' : 'var(--red)';
@@ -2628,7 +2653,7 @@ function renderBlocked(container, symbol, entry, curP, adx, fr) {
    ═════════════════════════════ */
 function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const { direction:dir, entryType, confidence:conf, entryPrice:ep, slPrice:sl,
-          tp1Price:tp1, tp2Price:tp2, dcaPoint, rrr1, rrr2, riskFlags=[], isRisky=false, indicators:ind,
+          tp1Price:tp1, tp2Price:tp2, tp3Price:tp3=null, dcaPoint, rrr1, rrr2, rrr3='—', riskFlags=[], isRisky=false, indicators:ind,
           momentumConf=null, invalidation=null, limitExpiry=null,
           confluenceLabel=null, candleCloseTimer=null,
           hardBlock=false, hardBlockReason='' } = entry;
@@ -2646,7 +2671,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
   const borderCol  = isRisky ? 'rgba(255,195,51,.35)' : (dir==='LONG' ? 'rgba(0,255,136,.3)' : 'rgba(255,61,90,.3)');
   const headerBg   = isRisky ? 'linear-gradient(135deg,rgba(255,195,51,.06),rgba(255,195,51,.02))' : (dir==='LONG' ? 'linear-gradient(135deg,rgba(0,255,136,.07),rgba(0,255,136,.02))' : 'linear-gradient(135deg,rgba(255,61,90,.07),rgba(255,61,90,.02))');
 
-  const isLowConf = conf < IS('ind_min_confidence', 62);
+  const isLowConf = conf < IS('ind_min_confidence', 60);
   const riskBg    = isLowConf ? 'rgba(255,61,90,.06)' : 'rgba(255,195,51,.05)';
   const riskBdr   = isLowConf ? 'rgba(255,61,90,.25)' : 'rgba(255,195,51,.18)';
   const riskClr   = isLowConf ? 'var(--red)' : 'var(--yellow)';
@@ -3195,7 +3220,7 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
 
   <!-- Score Bar -->
   <div class="score-bar-wrap" style="opacity:${hardBlock?'0.5':'1'}">
-    <div class="score-bar-title">${hardBlock ? '🚫 BLOCKED — Reference Data Only (v5 · 25-Factor Engine)' : conf < IS('ind_min_confidence',62) ? '🏆 Confluence Score — 🔴 LOW CONFIDENCE (v5 · 25-Factor Engine)' : isRisky ? '🏆 Confluence Score — ⚠ Risk Entry (v5 · 25-Factor Engine)' : '🏆 Confluence Score — ✅ Valid Signal (v5 · 25-Factor Engine)'}</div>
+    <div class="score-bar-title">${hardBlock ? '🚫 BLOCKED — Reference Data Only (v5 · 25-Factor Engine)' : conf < IS('ind_min_confidence',60) ? '🏆 Confluence Score — 🔴 LOW CONFIDENCE (v5 · 25-Factor Engine)' : isRisky ? '🏆 Confluence Score — ⚠ Risk Entry (v5 · 25-Factor Engine)' : '🏆 Confluence Score — ✅ Valid Signal (v5 · 25-Factor Engine)'}</div>
     <div class="score-total">
       <div class="score-num" style="color:${hardBlock?'var(--red)':sColor}">${hardBlock?'—':conf}</div>
       <span class="score-badge ${hardBlock?'score-c':sg.cls}" style="font-size:.9rem;padding:3px 10px">${hardBlock?'⛔':sg.label}</span>
@@ -3233,12 +3258,65 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
       <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:rgba(0,255,136,.65)">${fmtPrice(tp2)}</div>
       <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr2} · Extension</div>
     </div>
+    ${tp3 ? `<div style="background:var(--surface);border:1px solid rgba(0,255,136,.08);border-radius:10px;padding:10px 12px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:rgba(0,255,136,.45);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">TP 3 🚀</div>
+      <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:rgba(0,255,136,.45)">${fmtPrice(tp3)}</div>
+      <div style="font-size:.62rem;color:var(--muted);margin-top:2px">RR ${rrr3} · Runner</div>
+    </div>` : ''}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
       <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Current</div>
       <div style="font-family:var(--font-n);font-size:.9rem;font-weight:600;color:var(--text)">${fmtPrice(curP)}</div>
       <div style="font-size:.62rem;color:var(--muted);margin-top:2px">Live price</div>
     </div>
   </div>
+  ${(function(){
+    var accSize = parseFloat(window.ISETTINGS && window.ISETTINGS['ind_account_size'] || 0);
+    if (!accSize || accSize < 1) return '';
+    var riskPct  = parseFloat(window.ISETTINGS && window.ISETTINGS['ind_risk_pct'] || 2) / 100;
+    var lev      = parseFloat(window.ISETTINGS && window.ISETTINGS['ind_leverage'] || 10);
+    var beginner = window.ISETTINGS && (window.ISETTINGS['ind_beginner_mode'] === true || window.ISETTINGS['ind_beginner_mode'] === 'true');
+    var risk     = dir === 'LONG' ? ep - sl : sl - ep;
+    var riskAmt  = accSize * riskPct;
+    var slPct    = Math.abs(risk / ep) * 100;
+    var posSize  = slPct > 0 ? (riskAmt / (slPct / 100)) : 0;
+    var margin   = lev > 0 ? posSize / lev : posSize;
+    var contracts= ep > 0 ? (posSize / ep).toFixed(4) : '—';
+    var tp1Pnl   = risk > 0 ? (riskAmt * parseFloat(rrr1)).toFixed(2) : '—';
+    var tp2Pnl   = risk > 0 ? (riskAmt * parseFloat(rrr2)).toFixed(2) : '—';
+    var tp3Pnl   = (risk > 0 && tp3 && rrr3 !== '—') ? (riskAmt * parseFloat(rrr3)).toFixed(2) : null;
+    var modeTag  = beginner ? '<span style="background:rgba(255,195,51,.12);color:var(--yellow);font-size:.58rem;padding:2px 7px;border-radius:4px;margin-left:6px">BEGINNER MODE</span>' : '';
+    return '<div style="margin:8px 16px 0;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.2);border-radius:12px;padding:14px 16px">'
+      + '<div style="font-family:var(--font-n);font-size:.6rem;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">'
+      + '💰 POSITION SIZING — $' + accSize.toFixed(0) + ' Account' + modeTag + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">'
+      + '<div style="background:var(--surface);border-radius:8px;padding:8px 10px">'
+      + '<div style="font-size:.58rem;color:var(--muted);font-family:var(--font-n);margin-bottom:2px">RISK AMOUNT</div>'
+      + '<div style="font-family:var(--font-n);font-size:.85rem;font-weight:600;color:var(--red)">$' + riskAmt.toFixed(2) + '</div>'
+      + '<div style="font-size:.58rem;color:var(--dim)">' + (riskPct*100).toFixed(0) + '% of account</div></div>'
+      + '<div style="background:var(--surface);border-radius:8px;padding:8px 10px">'
+      + '<div style="font-size:.58rem;color:var(--muted);font-family:var(--font-n);margin-bottom:2px">POSITION SIZE</div>'
+      + '<div style="font-family:var(--font-n);font-size:.85rem;font-weight:600;color:var(--cyan)">$' + posSize.toFixed(2) + '</div>'
+      + '<div style="font-size:.58rem;color:var(--dim)">' + contracts + ' coins</div></div>'
+      + '<div style="background:var(--surface);border-radius:8px;padding:8px 10px">'
+      + '<div style="font-size:.58rem;color:var(--muted);font-family:var(--font-n);margin-bottom:2px">MARGIN USED</div>'
+      + '<div style="font-family:var(--font-n);font-size:.85rem;font-weight:600;color:var(--yellow)">$' + margin.toFixed(2) + '</div>'
+      + '<div style="font-size:.58rem;color:var(--dim)">' + lev + '× leverage</div></div></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr ' + (tp3Pnl ? '1fr 1fr' : '1fr') + ';gap:6px;margin-bottom:8px">'
+      + '<div style="background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.15);border-radius:6px;padding:6px 8px;text-align:center">'
+      + '<div style="font-size:.58rem;color:var(--muted)">TP1 Profit</div>'
+      + '<div style="font-family:var(--font-n);font-size:.82rem;font-weight:600;color:var(--green)">+$' + tp1Pnl + '</div></div>'
+      + '<div style="background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.1);border-radius:6px;padding:6px 8px;text-align:center">'
+      + '<div style="font-size:.58rem;color:var(--muted)">TP2 Profit</div>'
+      + '<div style="font-family:var(--font-n);font-size:.82rem;font-weight:600;color:rgba(0,255,136,.7)">+$' + tp2Pnl + '</div></div>'
+      + (tp3Pnl ? '<div style="background:rgba(0,255,136,.02);border:1px solid rgba(0,255,136,.06);border-radius:6px;padding:6px 8px;text-align:center"><div style="font-size:.58rem;color:var(--muted)">TP3 Runner</div><div style="font-family:var(--font-n);font-size:.82rem;font-weight:600;color:rgba(0,255,136,.45)">+$' + tp3Pnl + '</div></div>' : '')
+      + '<div style="background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.15);border-radius:6px;padding:6px 8px;text-align:center">'
+      + '<div style="font-size:.58rem;color:var(--muted)">Max Loss</div>'
+      + '<div style="font-family:var(--font-n);font-size:.82rem;font-weight:600;color:var(--red)">-$' + riskAmt.toFixed(2) + '</div></div></div>'
+      + (beginner ? '<div style="font-size:.68rem;color:var(--yellow);padding:6px 8px;background:rgba(255,195,51,.06);border-radius:6px;line-height:1.5">'
+      + '📚 <b>Beginner tip:</b> Close 50% at TP1, move SL to break-even. Risk only ' + (riskPct*100).toFixed(0) + '% per trade. '
+      + 'Hit SL 5× still have $' + (accSize*(1-riskPct)**5).toFixed(2) + ' remaining.</div>' : '')
+      + '</div>';
+  })()}
 
   ${killzoneHtml ? `<div style="padding:8px 16px 0">${killzoneHtml}</div>` : ''}
   ${regimeHtml ? `<div style="padding:4px 16px 0">${regimeHtml}</div>` : ''}

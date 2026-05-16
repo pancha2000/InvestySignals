@@ -184,7 +184,11 @@ const indicatorDefaults = [
   { key:'ind_vwap_lookback',value:24,label:'VWAP Lookback (candles)',group:'indicators' },
   { key:'ind_kline_limit',value:200,label:'Kline History (bars)',group:'indicators' },
   { key:'ind_kline_tf',value:'1h',label:'Primary Timeframe',group:'indicators' },
-  { key:'ind_min_confidence',value:62,label:'Min Confidence % to Signal',group:'indicators' },
+  { key:'ind_min_confidence',value:60, label:'Min Confidence % to Signal',  group:'indicators' },
+  { key:'ind_account_size',  value:0,  label:'Account Size USD (0 = hide position sizing)', group:'account' },
+  { key:'ind_risk_pct',      value:2,  label:'Risk % Per Trade (e.g. 2 = 2%)', group:'account' },
+  { key:'ind_leverage',      value:10, label:'Leverage',                        group:'account' },
+  { key:'ind_beginner_mode', value:false, label:'Beginner Mode (stricter gates + tips)', group:'account' },
   { key:'ind_market_entry_conf',value:75,label:'Market Entry Min Confidence',group:'indicators' },
   { key:'ind_funding_gate',value:0.25,label:'Funding Rate Hard Gate (%)',group:'indicators' },
   { key:'pt_tp1_trail_mult',value:0.5,label:'TP1 Trail Offset Multiplier',group:'paper_trade' },
@@ -587,7 +591,7 @@ app.get('/api/user/settings', verifyFirebaseToken, async (req, res) => {
 app.put('/api/user/settings', verifyFirebaseToken, async (req, res) => {
   try {
     // Allow indicator settings + tutorial/onboarding flags
-    const allowed = [...indicatorDefaults.map(d => d.key), 'tutorial_done_v1'];
+    const allowed = [...indicatorDefaults.map(d => d.key), 'tutorial_done_v1', 'ind_account_size', 'ind_risk_pct', 'ind_leverage', 'ind_beginner_mode'];
     const updates = {};
     Object.entries(req.body).forEach(([k, v]) => { if (allowed.includes(k)) updates[k] = v; });
     // Merge new values into existing user settings (don't overwrite unrelated keys)

@@ -222,7 +222,7 @@ function runDecideEntry(fn, kl1h, kl4h, kl1d, kl15m) {
     const entry = fn.decideEntry(rsi, vol, O, C, H, L, curP, macd, bb, stoch, adx, obv, atr, ex);
     if (!entry || entry.hardBlock)           return null;
     if (!entry.direction || entry.direction === 'NEUTRAL') return null;
-    if ((entry.confidence || 0) < 62)        return null; // Data: conf>=62 = 100% WR, conf<60 = 97% loss rate
+    if ((entry.confidence || 0) < 60)        return null; // Data: conf>=62 = 100% WR, conf<60 = 97% loss rate
     if (!entry.slPrice || !entry.tp1Price)   return null;
 
     return {
@@ -232,8 +232,10 @@ function runDecideEntry(fn, kl1h, kl4h, kl1d, kl15m) {
       sl:        entry.slPrice,
       tp1:       entry.tp1Price,
       tp2:       entry.tp2Price,
+      tp3:       entry.tp3Price || null,
       rrr1:      parseFloat(entry.rrr1) || 0,
       rrr2:      parseFloat(entry.rrr2) || 0,
+      rrr3:      parseFloat(entry.rrr3) || 0,
       rsi, adx:  adx?.adx,
       trend4h:   t4?.bias,
       entryType: entry.entryType,
