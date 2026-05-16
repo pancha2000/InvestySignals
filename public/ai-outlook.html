@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>AI Outlook — InvestySignals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070b14;--surface:#0c1220;--card:#101827;--border:#1a2640;--border2:#243350;
+  --cyan:#00d4ff;--green:#00ff88;--red:#ff3d5a;--yellow:#ffc333;--purple:#a78bfa;
+  --text:#e2e8f0;--muted:#64748b;--dim:#334155;
+  --font-h:'Rajdhani',sans-serif;--font-n:'IBM Plex Mono',monospace;--font-b:'Outfit',sans-serif;
+  --sidebar-w:240px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-height:1.6;overflow-x:hidden;min-height:100vh;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.auth-guard{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;}
+.auth-spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Top Bar ── */
+.top-bar{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;position:fixed;top:0;left:0;right:0;z-index:300;}
+.tb-brand{font-family:var(--font-h);font-size:1.1rem;font-weight:700;letter-spacing:.05em;}
+.tb-brand span{color:var(--cyan);}
+.mob-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:4px 8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;}
+@media(max-width:768px){.mob-menu-btn{display:flex}}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s ease-in-out infinite;flex-shrink:0;}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,255,136,.4)}50%{opacity:.8;box-shadow:0 0 0 5px rgba(0,255,136,0)}}
+
+/* ── Sidebar ── */
+.dash-sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:48px;left:0;height:calc(100vh - 48px);display:flex;flex-direction:column;z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+@media(max-width:768px){.dash-sidebar{transform:translateX(-100%);top:0;height:100vh;}.dash-sidebar.open{transform:translateX(0);}}
+.ds-brand{padding:16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
+.ds-logo{font-family:var(--font-h);font-size:1.05rem;font-weight:700;letter-spacing:.05em;}
+.ds-logo span{color:var(--cyan);}
+.ds-user{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.ds-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;}
+.ds-uname{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ds-uemail{font-size:.65rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ds-nav{flex:1;padding:10px 8px;overflow-y:auto;}
+.ds-section{font-family:var(--font-n);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;padding:10px 10px 4px;}
+.ds-nav a{display:flex;align-items:center;gap:9px;padding:10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.84rem;font-weight:500;transition:all .2s;margin-bottom:1px;min-height:44px;}
+.ds-nav a:hover{background:rgba(255,255,255,.04);color:var(--text);}
+.ds-nav a.active{background:rgba(167,139,250,.1);color:var(--purple);border-left:2px solid var(--purple);padding-left:8px;}
+.ds-badge{font-family:var(--font-n);font-size:.58rem;padding:2px 6px;border-radius:4px;font-weight:600;margin-left:auto;}
+.ds-badge.cyan{background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.25);}
+.ds-badge.purple{background:rgba(167,139,250,.12);color:var(--purple);border:1px solid rgba(167,139,250,.25);}
+.ds-badge.green{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2);}
+.ds-footer{padding:12px;border-top:1px solid var(--border);}
+.btn-signout{width:100%;padding:9px;background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:8px;font-family:var(--font-b);font-size:.8rem;cursor:pointer;transition:all .2s;min-height:40px;}
+.btn-signout:hover{border-color:var(--red);color:var(--red);}
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:190;}
+.mob-overlay.open{display:block;}
+
+/* ── Layout ── */
+.dash-layout{display:flex;margin-top:48px;}
+.dash-main{margin-left:var(--sidebar-w);flex:1;padding:24px;max-width:960px;min-width:0;}
+@media(max-width:768px){.dash-main{margin-left:0;padding:16px;}}
+
+/* ── Panel ── */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px;}
+.panel-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.panel-title{font-family:var(--font-h);font-size:1rem;font-weight:700;letter-spacing:.03em;display:flex;align-items:center;gap:8px;}
+.panel-body{padding:18px;}
+
+/* ── Input Section ── */
+.outlook-input-row{display:flex;gap:10px;flex-wrap:wrap;}
+.coin-input-wrap{position:relative;flex:1;min-width:160px;}
+.coin-input{width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:12px 16px;font-family:var(--font-n);font-size:.95rem;font-weight:600;outline:none;transition:border .2s;min-height:48px;text-transform:uppercase;}
+.coin-input:focus{border-color:var(--purple);}
+.coin-input::placeholder{color:var(--muted);font-weight:400;text-transform:none;}
+.btn-outlook{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:linear-gradient(135deg,rgba(167,139,250,.2),rgba(167,139,250,.08));border:1px solid rgba(167,139,250,.45);color:var(--purple);border-radius:10px;font-family:var(--font-b);font-size:.92rem;font-weight:700;cursor:pointer;transition:all .25s;min-height:48px;white-space:nowrap;}
+.btn-outlook:hover:not(:disabled){background:linear-gradient(135deg,rgba(167,139,250,.3),rgba(167,139,250,.14));border-color:var(--purple);box-shadow:0 0 20px rgba(167,139,250,.25);}
+.btn-outlook:disabled{opacity:.5;cursor:not-allowed;}
+.btn-outlook.loading{animation:outlookPulse 1.2s ease-in-out infinite;}
+@keyframes outlookPulse{0%,100%{box-shadow:0 0 0 0 rgba(167,139,250,.4)}50%{box-shadow:0 0 0 8px rgba(167,139,250,0)}}
+
+/* ── Quick Coins ── */
+.quick-coins{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.qc-btn{padding:5px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border2);color:var(--muted);border-radius:20px;font-family:var(--font-n);font-size:.7rem;cursor:pointer;transition:all .2s;min-height:32px;}
+.qc-btn:hover{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.3);color:var(--purple);}
+
+/* ── Result Area ── */
+.outlook-result{display:none;}
+
+/* ── Loading State ── */
+.outlook-loading{text-align:center;padding:48px 24px;}
+.ol-spinner{width:48px;height:48px;border:3px solid var(--border2);border-top-color:var(--purple);border-radius:50%;animation:spin .9s linear infinite;margin:0 auto 16px;}
+.ol-label{font-family:var(--font-h);font-size:1.1rem;color:var(--purple);letter-spacing:.04em;}
+.ol-sub{font-family:var(--font-n);font-size:.7rem;color:var(--muted);margin-top:6px;}
+.ol-steps{display:flex;flex-direction:column;gap:4px;margin-top:14px;text-align:left;max-width:300px;margin-inline:auto;}
+.ol-step{font-family:var(--font-n);font-size:.68rem;color:rgba(255,255,255,.3);display:flex;align-items:center;gap:8px;padding:3px 0;transition:color .3s;}
+.ol-step.done{color:var(--green);}
+.ol-step.active{color:var(--purple);}
+.ol-step::before{content:'○';flex-shrink:0;}
+.ol-step.done::before{content:'✓';}
+.ol-step.active::before{content:'◉';}
+
+/* ── Market Snapshot ── */
+.snapshot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:18px;}
+.snap-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;}
+.snap-label{font-family:var(--font-n);font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;}
+.snap-value{font-family:var(--font-n);font-size:.88rem;font-weight:600;}
+.snap-value.bull{color:var(--green);}
+.snap-value.bear{color:var(--red);}
+.snap-value.neu{color:var(--yellow);}
+.snap-value.cyan{color:var(--cyan);}
+
+/* ── MTF Bias Row ── */
+.mtf-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:18px;}
+.mtf-box{background:var(--surface);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);}
+.mtf-tf{font-family:var(--font-n);font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;}
+.mtf-bias{font-family:var(--font-h);font-size:1rem;font-weight:700;letter-spacing:.04em;}
+.mtf-bias.bull{color:var(--green);}
+.mtf-bias.bear{color:var(--red);}
+.mtf-bias.neu{color:var(--yellow);}
+.mtf-detail{font-family:var(--font-n);font-size:.58rem;color:var(--muted);margin-top:3px;}
+
+/* ── Key Levels ── */
+.levels-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;}
+.level-group{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.level-group-title{font-family:var(--font-n);font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.level-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);font-family:var(--font-n);font-size:.75rem;}
+.level-item:last-child{border-bottom:none;}
+.level-name{color:var(--muted);}
+.level-price{font-weight:600;}
+.level-price.res{color:rgba(255,61,90,.9);}
+.level-price.sup{color:rgba(0,255,136,.9);}
+.level-price.neu{color:var(--cyan);}
+.level-price.warn{color:var(--yellow);}
+
+/* ── Scenario Cards ── */
+.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;}
+@media(max-width:580px){.scenario-grid{grid-template-columns:1fr;}}
+.scenario-card{border-radius:12px;padding:16px;border:1px solid;}
+.scenario-card.bull{background:rgba(0,255,136,.04);border-color:rgba(0,255,136,.2);}
+.scenario-card.bear{background:rgba(255,61,90,.04);border-color:rgba(255,61,90,.2);}
+.scenario-card.side{background:rgba(255,195,51,.03);border-color:rgba(255,195,51,.15);}
+.sc-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.sc-icon{font-size:1.3rem;}
+.sc-title{font-family:var(--font-h);font-size:.95rem;font-weight:700;letter-spacing:.03em;}
+.sc-prob{font-family:var(--font-n);font-size:.7rem;padding:2px 8px;border-radius:10px;margin-left:auto;}
+.sc-prob.bull{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2);}
+.sc-prob.bear{background:rgba(255,61,90,.1);color:var(--red);border:1px solid rgba(255,61,90,.2);}
+.sc-prob.side{background:rgba(255,195,51,.08);color:var(--yellow);border:1px solid rgba(255,195,51,.2);}
+.sc-trigger{font-family:var(--font-n);font-size:.67rem;color:var(--muted);margin-bottom:8px;}
+.sc-trigger strong{color:var(--text);}
+.sc-body{font-family:var(--font-n);font-size:.72rem;color:rgba(255,255,255,.75);line-height:1.7;}
+.sc-targets{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.sc-target{font-family:var(--font-n);font-size:.67rem;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);}
+
+/* ── AI Narrative ── */
+.ai-narrative{background:linear-gradient(135deg,rgba(167,139,250,.06),rgba(0,212,255,.03));border:1px solid rgba(167,139,250,.2);border-radius:12px;padding:16px 18px;margin-bottom:18px;}
+.ai-nar-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-family:var(--font-h);font-size:.9rem;font-weight:700;color:var(--purple);}
+.ai-nar-body{font-family:var(--font-n);font-size:.75rem;color:rgba(255,255,255,.82);line-height:1.8;}
+.ai-nar-body strong{color:var(--text);}
+.ai-nar-body .highlight{color:var(--purple);}
+.ai-nar-body .warn{color:var(--yellow);}
+.ai-nar-body .bull-c{color:var(--green);}
+.ai-nar-body .bear-c{color:var(--red);}
+
+/* ── Watch Zones ── */
+.watch-zones{margin-bottom:18px;}
+.watch-zone-title{font-family:var(--font-h);font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:.03em;}
+.wz-item{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:var(--surface);border-radius:8px;margin-bottom:6px;border:1px solid var(--border);}
+.wz-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}
+.wz-content{flex:1;}
+.wz-label{font-family:var(--font-n);font-size:.67rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.wz-desc{font-family:var(--font-n);font-size:.72rem;color:rgba(255,255,255,.8);line-height:1.6;margin-top:2px;}
+.wz-price{font-family:var(--font-n);font-size:.75rem;font-weight:600;margin-left:auto;flex-shrink:0;}
+
+/* ── Indicator Status Table ── */
+.ind-table{width:100%;border-collapse:collapse;font-family:var(--font-n);font-size:.72rem;}
+.ind-table th{color:var(--muted);font-weight:500;text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-size:.63rem;text-transform:uppercase;letter-spacing:.07em;}
+.ind-table td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);}
+.ind-table tr:last-child td{border-bottom:none;}
+.ind-name{color:rgba(255,255,255,.8);}
+.ind-tf{color:var(--muted);font-size:.63rem;}
+.ind-value{font-weight:600;}
+.ind-signal{padding:2px 8px;border-radius:4px;font-size:.62rem;font-weight:600;}
+.ind-signal.bull{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2);}
+.ind-signal.bear{background:rgba(255,61,90,.1);color:var(--red);border:1px solid rgba(255,61,90,.2);}
+.ind-signal.neu{background:rgba(255,195,51,.08);color:var(--yellow);border:1px solid rgba(255,195,51,.18);}
+
+/* ── TradingView Chart ── */
+.tv-chart-wrap{border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:18px;height:420px;}
+@media(max-width:580px){.tv-chart-wrap{height:280px;}}
+
+/* ── Action Buttons ── */
+.outlook-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:18px;}
+.btn-action{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:9px;font-family:var(--font-b);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s;min-height:42px;border:1px solid;}
+.btn-action.go-analysis{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.35);color:var(--cyan);}
+.btn-action.go-analysis:hover{background:rgba(0,212,255,.18);box-shadow:0 0 14px rgba(0,212,255,.2);}
+.btn-action.copy-report{background:rgba(255,255,255,.04);border-color:var(--border2);color:var(--muted);}
+.btn-action.copy-report:hover{background:rgba(255,255,255,.08);color:var(--text);}
+.btn-action.refresh{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.25);color:var(--purple);}
+.btn-action.refresh:hover{background:rgba(167,139,250,.15);}
+
+/* ── Disclaimer ── */
+.disclaimer{font-family:var(--font-n);font-size:.65rem;color:rgba(255,255,255,.3);background:rgba(255,195,51,.03);border:1px solid rgba(255,195,51,.1);border-radius:8px;padding:10px 14px;line-height:1.6;}
+
+/* ── Error ── */
+.outlook-error{text-align:center;padding:40px 24px;}
+.oe-icon{font-size:2.5rem;margin-bottom:12px;}
+.oe-msg{font-family:var(--font-h);font-size:1.1rem;color:var(--red);margin-bottom:6px;}
+.oe-sub{font-family:var(--font-n);font-size:.75rem;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class="auth-guard" id="authGuard"><div class="auth-spinner"></div></div>
+
+<div class="top-bar">
+  <button class="mob-menu-btn" onclick="openMobSidebar()">☰</button>
+  <div class="tb-brand">INVESTY<span>SIGNALS</span></div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;font-weight:600;color:var(--green);font-family:var(--font-n);margin-left:auto">
+    <div class="live-dot"></div> LIVE
+  </div>
+</div>
+
+<div class="mob-overlay" id="mobOverlay" onclick="closeMobSidebar()"></div>
+
+<div class="dash-layout">
+  <aside class="dash-sidebar" id="dashSidebar">
+    <div class="ds-brand">
+      <div class="ds-logo">INVESTY<span>SIGNALS</span></div>
+      <div class="live-dot" style="margin-left:auto"></div>
+    </div>
+    <div class="ds-user">
+      <div class="ds-avatar" id="userAvatar">?</div>
+      <div style="min-width:0">
+        <div class="ds-uname" id="userName">Loading…</div>
+        <div class="ds-uemail" id="userEmail">—</div>
+      </div>
+    </div>
+    <nav class="ds-nav">
+      <div class="ds-section">Main</div>
+      <a href="dashboard.html"><span>📊</span> Dashboard</a>
+      <a href="live-signals.html"><span>📝</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
+      <a href="analysis.html"><span>🔬</span> Analysis</a>
+      <a href="ai-outlook.html" class="active"><span>🔮</span> AI Outlook <span class="ds-badge purple">NEW</span></a>
+      <a href="backtest.html"><span>📈</span> Signal Tracker</a>
+      <div class="ds-section">Market</div>
+      <a href="dashboard.html#gainers"><span>📈</span> Top Gainers</a>
+      <a href="dashboard.html#news"><span>📰</span> Market News</a>
+      <div class="ds-section">Account</div>
+      <a href="profile.html"><span>👤</span> Profile & Settings</a>
+      <div class="ds-section">Support</div>
+      <a href="index.html"><span>🏠</span> Home</a>
+      <a href="report.html"><span>🚩</span> Report Issue</a>
+    </nav>
+    <div class="ds-footer">
+      <button class="btn-signout" onclick="handleSignOut()">🚪 Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="dash-main" id="dashMain" style="display:none">
+    <div style="margin-bottom:20px">
+      <h1 style="font-family:var(--font-h);font-size:1.6rem;font-weight:700;letter-spacing:.04em">🔮 AI Outlook</h1>
+      <p style="color:var(--muted);font-size:.82rem;margin-top:3px">Forward-looking scenario analysis — where could price go before you enter?</p>
+    </div>
+
+    <!-- Input Panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">⚡ Scenario Analysis</div>
+        <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">15m · 1H · 4H · 1D · Multi-TF</span>
+      </div>
+      <div class="panel-body">
+        <div class="outlook-input-row">
+          <div class="coin-input-wrap">
+            <input class="coin-input" id="outlookCoin" type="text" placeholder="Enter coin e.g. BTC, ETH, SOL"
+              maxlength="12" onkeydown="if(event.key==='Enter') runOutlook()">
+          </div>
+          <button class="btn-outlook" id="btnOutlook" onclick="runOutlook()">
+            <span id="btnOutlookIcon">🔮</span>
+            <span id="btnOutlookLabel">Analyze Outlook</span>
+          </button>
+        </div>
+        <div class="quick-coins" id="quickCoins">
+          <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);align-self:center">Quick:</span>
+        </div>
+        <div style="margin-top:10px;font-family:var(--font-n);font-size:.67rem;color:rgba(255,255,255,.3);line-height:1.6">
+          💡 Fetches 15m, 1H, 4H, 1D data → calculates all indicators → AI generates scenario analysis with key levels to watch
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="outlook-result" id="outlookResult"></div>
+
+  </main>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+
+const app = initializeApp({apiKey:"AIzaSyCUlQccwWK-UBzFPWov2GYQjecF63y6X8k",authDomain:"crypto-98b33.firebaseapp.com",projectId:"crypto-98b33",storageBucket:"crypto-98b33.firebasestorage.app",messagingSenderId:"619954501803",appId:"1:619954501803:web:559d48b801f072abd71fee"});
+const auth = getAuth(app);
+const guard = document.getElementById('authGuard');
+const main  = document.getElementById('dashMain');
+
+onAuthStateChanged(auth, user => {
+  if (!user) { window.location.href = 'login.html'; return; }
+  guard.style.display = 'none';
+  main.style.display  = 'block';
+  document.getElementById('userAvatar').textContent = (user.displayName || user.email || 'U')[0].toUpperCase();
+  document.getElementById('userName').textContent   = user.displayName || user.email?.split('@')[0] || 'User';
+  document.getElementById('userEmail').textContent  = user.email || '';
+  initQuickCoins();
+});
+
+window.handleSignOut = () => signOut(auth).then(() => window.location.href = 'login.html');
+window.openMobSidebar  = () => { document.getElementById('dashSidebar').classList.add('open'); document.getElementById('mobOverlay').classList.add('open'); };
+window.closeMobSidebar = () => { document.getElementById('dashSidebar').classList.remove('open'); document.getElementById('mobOverlay').classList.remove('open'); };
+
+/* ═══════════ CONSTANTS ═══════════ */
+const BINANCE = 'https://fapi.binance.com';
+const POPULAR = ['BTC','ETH','SOL','BNB','XRP','DOGE','ADA','AVAX','LINK','DOT','MATIC','OP'];
+
+function initQuickCoins() {
+  const wrap = document.getElementById('quickCoins');
+  POPULAR.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'qc-btn';
+    btn.textContent = c;
+    btn.onclick = () => { document.getElementById('outlookCoin').value = c; runOutlook(); };
+    wrap.appendChild(btn);
+  });
+}
+
+/* ═══════════ INDICATOR HELPERS ═══════════ */
+function calcEMA(c, p) {
+  if (!c || c.length < p) return null;
+  const k = 2 / (p + 1);
+  let e = c.slice(0, p).reduce((a, b) => a + b, 0) / p;
+  for (let i = p; i < c.length; i++) e = c[i] * k + e * (1 - k);
+  return e;
+}
+
+function calcRSI(c, p = 14) {
+  if (!c || c.length < p + 1) return null;
+  let g = 0, l = 0;
+  for (let i = 1; i <= p; i++) { const d = c[i] - c[i - 1]; if (d > 0) g += d; else l -= d; }
+  let ag = g / p, al = l / p;
+  for (let i = p + 1; i < c.length; i++) {
+    const d = c[i] - c[i - 1];
+    ag = (ag * (p - 1) + (d > 0 ? d : 0)) / p;
+    al = (al * (p - 1) + (d < 0 ? -d : 0)) / p;
+  }
+  return al === 0 ? 100 : 100 - (100 / (1 + ag / al));
+}
+
+function calcATR(H, L, C, p = 14) {
+  if (!H || H.length < p + 1) return null;
+  const tr = [H[0] - L[0]];
+  for (let i = 1; i < H.length; i++) tr.push(Math.max(H[i] - L[i], Math.abs(H[i] - C[i - 1]), Math.abs(L[i] - C[i - 1])));
+  let a = tr.slice(0, p).reduce((x, y) => x + y, 0) / p;
+  for (let i = p; i < tr.length; i++) a = (a * (p - 1) + tr[i]) / p;
+  return a;
+}
+
+function calcMACD(c) {
+  if (!c || c.length < 35) return null;
+  const emaArr = (arr, p) => {
+    const k = 2/(p+1); let e = arr.slice(0,p).reduce((a,b)=>a+b,0)/p;
+    const out = [e];
+    for (let i=p;i<arr.length;i++){e=arr[i]*k+e*(1-k);out.push(e);}
+    return out;
+  };
+  const e12 = emaArr(c, 12), e26 = emaArr(c, 26);
+  const off = 26 - 12;
+  const ml = e12.slice(off).map((v, i) => v - e26[i]);
+  const sig = emaArr(ml, 9);
+  const last = ml[ml.length-1], sigLast = sig[sig.length-1];
+  return { macd: last, signal: sigLast, hist: last - sigLast, trend: last > sigLast ? 'bullish' : 'bearish' };
+}
+
+function calcBB(c, p = 20, mult = 2) {
+  if (!c || c.length < p) return null;
+  const sl = c.slice(-p), mean = sl.reduce((a,b)=>a+b,0)/p;
+  const std = Math.sqrt(sl.reduce((s,v)=>s+(v-mean)**2,0)/p);
+  const upper = mean + mult*std, lower = mean - mult*std, width = (upper-lower)/mean;
+  const last = c[c.length-1];
+  const pct = (last-lower)/(upper-lower);
+  return { upper, lower, mid: mean, width, pct, squeeze: width < 0.04 };
+}
+
+function calcADX(H, L, C, p = 14) {
+  if (!H || H.length < p * 2) return null;
+  const pm = [], mm = [], tr2 = [];
+  for (let i = 1; i < H.length; i++) {
+    const up = H[i]-H[i-1], dn = L[i-1]-L[i];
+    pm.push(up>dn&&up>0?up:0); mm.push(dn>up&&dn>0?dn:0);
+    tr2.push(Math.max(H[i]-L[i], Math.abs(H[i]-C[i-1]), Math.abs(L[i]-C[i-1])));
+  }
+  const ws = (a, n) => { let s=a.slice(0,n).reduce((x,y)=>x+y,0); const o=[s]; for(let i=n;i<a.length;i++){s=s-s/n+a[i];o.push(s);} return o; };
+  const sTR=ws(tr2,p), sPM=ws(pm,p), sMM=ws(mm,p);
+  const diP=sPM.map((v,i)=>sTR[i]>0?v/sTR[i]*100:0), diM=sMM.map((v,i)=>sTR[i]>0?v/sTR[i]*100:0);
+  const dx=diP.map((v,i)=>{const s=v+diM[i]; return s>0?Math.abs(v-diM[i])/s*100:0;});
+  const adxArr=ws(dx,p);
+  const adx=adxArr[adxArr.length-1], diPlus=diP[diP.length-1], diMinus=diM[diM.length-1];
+  return { adx, diPlus, diMinus, trend: adx > 25 ? (diPlus>diMinus?'bull':'bear') : 'ranging' };
+}
+
+function calcSupertrend(H, L, C, p = 10, m = 3) {
+  if (!H || H.length < p + 5) return null;
+  const tr=[H[0]-L[0]]; for(let i=1;i<H.length;i++) tr.push(Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])));
+  let av=tr.slice(0,p).reduce((a,b)=>a+b,0)/p;
+  const aa=[av]; for(let i=p;i<tr.length;i++){av=(av*(p-1)+tr[i])/p;aa.push(av);}
+  const off=H.length-aa.length;
+  let up=[], dn=[], st=[], dir=[];
+  for(let i=0;i<aa.length;i++){
+    const idx=i+off, mid=(H[idx]+L[idx])/2;
+    up.push(mid+m*aa[i]); dn.push(mid-m*aa[i]);
+    if(i===0){st.push(up[i]);dir.push(-1);continue;}
+    const pDir=dir[i-1];
+    if(pDir===-1){
+      dn[i]=Math.max(dn[i],dn[i-1]);
+      if(C[idx]<dn[i]){st.push(up[i]);dir.push(-1);}else{st.push(dn[i]);dir.push(1);}
+    } else {
+      up[i]=Math.min(up[i],up[i-1]);
+      if(C[idx]>up[i]){st.push(dn[i]);dir.push(1);}else{st.push(up[i]);dir.push(-1);}
+    }
+  }
+  return { value: st[st.length-1], direction: dir[dir.length-1] === 1 ? 'bull' : 'bear' };
+}
+
+function calcVWAP(kl) {
+  let tv=0,tv2=0;
+  for(const k of kl){
+    const tp=(parseFloat(k[2])+parseFloat(k[3])+parseFloat(k[4]))/3, v=parseFloat(k[5]);
+    tv+=tp*v; tv2+=v;
+  }
+  return tv2>0?tv/tv2:null;
+}
+
+function calcEMABias(C) {
+  const e20=calcEMA(C,20), e50=calcEMA(C,50), e200=calcEMA(C,200), last=C[C.length-1];
+  const bulls=[last>e20,last>e50,last>e200,e20>e50].filter(Boolean).length;
+  return { e20, e50, e200, score: bulls, bias: bulls>=3?'bull':bulls<=1?'bear':'neu' };
+}
+
+function findSRLevels(H, L, C) {
+  const price = C[C.length-1];
+  const levels = [];
+  for(let i=3;i<H.length-3;i++){
+    const isHigh=H[i]>H[i-1]&&H[i]>H[i-2]&&H[i]>H[i+1]&&H[i]>H[i+2];
+    const isLow =L[i]<L[i-1]&&L[i]<L[i-2]&&L[i]<L[i+1]&&L[i]<L[i+2];
+    if(isHigh) levels.push({price:H[i],type:'res'});
+    if(isLow)  levels.push({price:L[i],type:'sup'});
+  }
+  const above = levels.filter(l=>l.price>price*1.002).sort((a,b)=>a.price-b.price).slice(0,4);
+  const below = levels.filter(l=>l.price<price*0.998).sort((a,b)=>b.price-a.price).slice(0,4);
+  return { above, below };
+}
+
+function calcFib(swingHigh, swingLow) {
+  const range = swingHigh - swingLow;
+  return {
+    '0.236': swingHigh - range * 0.236,
+    '0.382': swingHigh - range * 0.382,
+    '0.500': swingHigh - range * 0.500,
+    '0.618': swingHigh - range * 0.618,
+    '0.705': swingHigh - range * 0.705,
+    '0.786': swingHigh - range * 0.786,
+    '1.000': swingLow,
+    '1.272': swingLow - range * 0.272,
+    '1.618': swingLow - range * 0.618,
+  };
+}
+
+function findSwings(H, L, lookback = 20) {
+  const recentH = H.slice(-lookback), recentL = L.slice(-lookback);
+  return { high: Math.max(...recentH), low: Math.min(...recentL) };
+}
+
+function detectBOS(C, H, L, lookback = 30) {
+  const recent = C.slice(-lookback);
+  const highs = H.slice(-lookback), lows = L.slice(-lookback);
+  const prevHigh = Math.max(...highs.slice(0,-5));
+  const prevLow  = Math.min(...lows.slice(0,-5));
+  const last = recent[recent.length-1];
+  if(last > prevHigh) return { type:'BOS', direction:'bull', level: prevHigh };
+  if(last < prevLow)  return { type:'BOS', direction:'bear', level: prevLow };
+  return null;
+}
+
+/* ═══════════ MAIN ANALYSIS ═══════════ */
+window.runOutlook = async function() {
+  const raw = document.getElementById('outlookCoin').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if (!raw) { document.getElementById('outlookCoin').focus(); return; }
+  const symbol = raw.endsWith('USDT') ? raw : raw + 'USDT';
+
+  const btn = document.getElementById('btnOutlook');
+  const lbl = document.getElementById('btnOutlookLabel');
+  const ico = document.getElementById('btnOutlookIcon');
+  btn.disabled = true; ico.textContent = '⟳'; lbl.textContent = 'Analyzing…';
+
+  const result = document.getElementById('outlookResult');
+  result.style.display = 'block';
+  result.innerHTML = buildLoadingHTML();
+
+  const steps = ['Fetching multi-timeframe data…', 'Calculating indicators…', 'Finding key levels…', 'Building scenarios…', 'AI generating narrative…'];
+  let stepIdx = 0;
+  const stepTimer = setInterval(() => {
+    const el = document.querySelectorAll('.ol-step');
+    if (el[stepIdx]) {
+      if (stepIdx > 0) el[stepIdx-1]?.classList.replace('active','done');
+      el[stepIdx].classList.add('active');
+    }
+    stepIdx++;
+    if (stepIdx >= steps.length) clearInterval(stepTimer);
+  }, 900);
+
+  try {
+    // ── Fetch all timeframes
+    const [r15, r1h, r4h, r1d, rTk, rFR] = await Promise.all([
+      fetch(`${BINANCE}/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=200`),
+      fetch(`${BINANCE}/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=300`),
+      fetch(`${BINANCE}/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=250`),
+      fetch(`${BINANCE}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=120`),
+      fetch(`${BINANCE}/fapi/v1/ticker/price?symbol=${symbol}`),
+      fetch(`${BINANCE}/fapi/v1/premiumIndex?symbol=${symbol}`)
+    ]);
+    if (!r1h.ok) throw new Error(`"${symbol}" not found on Binance Futures`);
+
+    clearInterval(stepTimer);
+    markStepsDone();
+
+    const [kl15, kl1h, kl4h, kl1d, tkData, frData] = await Promise.all([r15.json(),r1h.json(),r4h.json(),r1d.json(),rTk.json(),rFR.json()]);
+
+    const price = parseFloat(tkData.price);
+    const fundingRate = frData?.lastFundingRate ? parseFloat(frData.lastFundingRate)*100 : null;
+
+    // ── Parse OHLCV for each TF
+    const parse = kl => ({ C:kl.map(k=>parseFloat(k[4])), H:kl.map(k=>parseFloat(k[2])), L:kl.map(k=>parseFloat(k[3])), O:kl.map(k=>parseFloat(k[1])), V:kl.map(k=>parseFloat(k[5])) });
+    const d15=parse(kl15), d1h=parse(kl1h), d4h=parse(kl4h), d1d=parse(kl1d);
+
+    // ── Calculate indicators per TF
+    const calc = (d, kl) => ({
+      rsi:   calcRSI(d.C),
+      macd:  calcMACD(d.C),
+      bb:    calcBB(d.C),
+      adx:   calcADX(d.H, d.L, d.C),
+      atr:   calcATR(d.H, d.L, d.C),
+      st:    calcSupertrend(d.H, d.L, d.C),
+      ema:   calcEMABias(d.C),
+      vwap:  kl ? calcVWAP(kl) : null,
+      sr:    findSRLevels(d.H, d.L, d.C),
+      bos:   detectBOS(d.C, d.H, d.L),
+      swings:findSwings(d.H, d.L, 40),
+      last:  d.C[d.C.length-1],
+      change24h: d.C.length >= 24 ? ((d.C[d.C.length-1]-d.C[d.C.length-25])/d.C[d.C.length-25]*100) : 0
+    });
+
+    const i15 = calc(d15, kl15);
+    const i1h  = calc(d1h, kl1h);
+    const i4h  = calc(d4h, kl4h);
+    const i1d  = calc(d1d, kl1d);
+
+    // ── Volume
+    const vol24h = d1h.V.slice(-24).reduce((a,b)=>a+b,0);
+    const vol24hPrev = d1h.V.slice(-48,-24).reduce((a,b)=>a+b,0);
+    const volChange = vol24hPrev > 0 ? (vol24h-vol24hPrev)/vol24hPrev*100 : 0;
+
+    // ── Fibonacci (from 4H swings)
+    const fib = calcFib(i4h.swings.high, i4h.swings.low);
+
+    // ── Aggregate bias
+    const biases = [i15.ema.bias, i1h.ema.bias, i4h.ema.bias, i1d.ema.bias];
+    const bullCount = biases.filter(b=>b==='bull').length;
+    const bearCount = biases.filter(b=>b==='bear').length;
+    const overallBias = bullCount >= 3 ? 'BULLISH' : bearCount >= 3 ? 'BEARISH' : bullCount > bearCount ? 'MILDLY BULLISH' : bearCount > bullCount ? 'MILDLY BEARISH' : 'NEUTRAL';
+
+    // ── Build full data package for AI
+    const aiData = {
+      symbol, price, fundingRate, overallBias, volChange,
+      timeframes: {
+        '15m': { rsi: i15.rsi, macd: i15.macd?.trend, bb: i15.bb, adx: i15.adx?.adx, st: i15.st?.direction, ema: i15.ema.bias, bos: i15.bos },
+        '1H':  { rsi: i1h.rsi, macd: i1h.macd?.trend, bb: i1h.bb, adx: i1h.adx?.adx, st: i1h.st?.direction, ema: i1h.ema.bias, bos: i1h.bos },
+        '4H':  { rsi: i4h.rsi, macd: i4h.macd?.trend, bb: i4h.bb, adx: i4h.adx?.adx, st: i4h.st?.direction, ema: i4h.ema.bias, bos: i4h.bos },
+        '1D':  { rsi: i1d.rsi, macd: i1d.macd?.trend, bb: i1d.bb, adx: i1d.adx?.adx, st: i1d.st?.direction, ema: i1d.ema.bias, bos: i1d.bos },
+      },
+      levels: {
+        resistance: i4h.sr.above.slice(0,3).map(l=>l.price),
+        support:    i4h.sr.below.slice(0,3).map(l=>l.price),
+        fib, atr4h: i4h.atr,
+        swingHigh: i4h.swings.high, swingLow: i4h.swings.low,
+        vwap1h: i1h.vwap, vwap4h: i4h.vwap
+      }
+    };
+
+    // ── Call AI for narrative
+    const aiResult = await fetchAIOutlook(aiData);
+
+    // ── Render full result
+    result.innerHTML = buildResultHTML(symbol, price, fundingRate, overallBias, volChange, i15, i1h, i4h, i1d, fib, aiResult, aiData);
+
+    // ── Inject TradingView chart
+    injectTVChart(symbol);
+
+  } catch(err) {
+    clearInterval(stepTimer);
+    result.innerHTML = `<div class="panel"><div class="panel-body"><div class="outlook-error">
+      <div class="oe-icon">⚠️</div>
+      <div class="oe-msg">Analysis Failed</div>
+      <div class="oe-sub">${err.message}</div>
+    </div></div></div>`;
+  } finally {
+    btn.disabled = false; ico.textContent = '🔮'; lbl.textContent = 'Analyze Outlook';
+  }
+};
+
+async function fetchAIOutlook(data) {
+  const f = v => v != null ? (typeof v === 'number' ? v.toFixed(2) : v) : 'N/A';
+  const tf = data.timeframes;
+
+  const prompt = `You are an expert crypto market analyst. Based on the following multi-timeframe technical data, generate a forward-looking scenario analysis in JSON format.
+
+MARKET DATA FOR ${data.symbol}:
+- Current Price: $${data.price}
+- Funding Rate: ${data.fundingRate != null ? data.fundingRate.toFixed(4)+'%' : 'N/A'}
+- Volume Change 24h: ${data.volChange.toFixed(1)}%
+- Overall MTF Bias: ${data.overallBias}
+
+TIMEFRAME ANALYSIS:
+15m: RSI=${f(tf['15m'].rsi)} | MACD=${tf['15m'].macd||'N/A'} | ADX=${f(tf['15m'].adx)} | Supertrend=${tf['15m'].st||'N/A'} | EMA Bias=${tf['15m'].ema} | BOS=${tf['15m'].bos?tf['15m'].bos.direction+' break':'none'}
+1H:  RSI=${f(tf['1H'].rsi)}  | MACD=${tf['1H'].macd||'N/A'}  | ADX=${f(tf['1H'].adx)}  | Supertrend=${tf['1H'].st||'N/A'}  | EMA Bias=${tf['1H'].ema}  | BOS=${tf['1H'].bos?tf['1H'].bos.direction+' break':'none'}
+4H:  RSI=${f(tf['4H'].rsi)}  | MACD=${tf['4H'].macd||'N/A'}  | ADX=${f(tf['4H'].adx)}  | Supertrend=${tf['4H'].st||'N/A'}  | EMA Bias=${tf['4H'].ema}  | BOS=${tf['4H'].bos?tf['4H'].bos.direction+' break':'none'}
+1D:  RSI=${f(tf['1D'].rsi)}  | MACD=${tf['1D'].macd||'N/A'}  | ADX=${f(tf['1D'].adx)}  | Supertrend=${tf['1D'].st||'N/A'}  | EMA Bias=${tf['1D'].ema}  | BOS=${tf['1D'].bos?tf['1D'].bos.direction+' break':'none'}
+
+KEY LEVELS:
+- Resistance: ${data.levels.resistance.map(p=>'$'+p.toFixed(2)).join(' | ') || 'N/A'}
+- Support: ${data.levels.support.map(p=>'$'+p.toFixed(2)).join(' | ') || 'N/A'}
+- 4H Swing High: $${data.levels.swingHigh.toFixed(2)} | Swing Low: $${data.levels.swingLow.toFixed(2)}
+- Fib 0.382: $${data.levels.fib['0.382'].toFixed(2)} | 0.5: $${data.levels.fib['0.500'].toFixed(2)} | 0.618: $${data.levels.fib['0.618'].toFixed(2)}
+- VWAP 1H: ${data.levels.vwap1h?'$'+data.levels.vwap1h.toFixed(2):'N/A'} | VWAP 4H: ${data.levels.vwap4h?'$'+data.levels.vwap4h.toFixed(2):'N/A'}
+- ATR 4H: ${data.levels.atr4h?'$'+data.levels.atr4h.toFixed(2):'N/A'}
+
+Respond ONLY in this exact JSON (no markdown, no extra text):
+{
+  "summary": "2-3 sentence market narrative",
+  "bull_scenario": {
+    "probability": "35%",
+    "trigger": "what needs to happen for bulls",
+    "target1": 0,
+    "target2": 0,
+    "description": "2 sentences"
+  },
+  "bear_scenario": {
+    "probability": "45%",
+    "trigger": "what needs to happen for bears",
+    "target1": 0,
+    "target2": 0,
+    "description": "2 sentences"
+  },
+  "sideways_scenario": {
+    "probability": "20%",
+    "range_high": 0,
+    "range_low": 0,
+    "description": "1 sentence"
+  },
+  "key_watch_zones": [
+    {"label": "Bull Entry Zone", "price_low": 0, "price_high": 0, "reason": "brief reason"},
+    {"label": "Bear Entry Zone", "price_low": 0, "price_high": 0, "reason": "brief reason"},
+    {"label": "Invalidation Level", "price": 0, "reason": "brief reason"}
+  ],
+  "bias": "BULLISH|BEARISH|NEUTRAL",
+  "confidence": "HIGH|MEDIUM|LOW",
+  "what_to_watch": "Key catalyst or level to watch in next 4-12 hours",
+  "risk_warning": "Main risk to the primary scenario"
+}`;
+
+  try {
+    const res = await fetch('/api/proxy/anthropic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!res.ok) throw new Error('API error');
+    const d = await res.json();
+    const text = d.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch(e) {
+    // Fallback — local scenario generation
+    return generateLocalOutlook(data);
+  }
+}
+
+function generateLocalOutlook(data) {
+  const tf = data.timeframes;
+  const bullCount = Object.values(tf).filter(t=>t.ema==='bull').length;
+  const bullProb = Math.round(30 + bullCount*10 + (data.overallBias.includes('BULL')?15:0));
+  const bearProb = Math.round(30 + (4-bullCount)*10 + (data.overallBias.includes('BEAR')?15:0));
+  const sideProb = Math.max(5, 100 - bullProb - bearProb);
+  const price = data.price;
+  const atr = data.levels.atr4h || price * 0.02;
+
+  return {
+    summary: `${data.symbol} is trading at $${price.toFixed(2)} with ${data.overallBias} bias across multiple timeframes. ${bullCount >= 3 ? 'Bullish momentum is building across most timeframes.' : bullCount <= 1 ? 'Bearish pressure is dominant across most timeframes.' : 'Mixed signals suggest consolidation before next move.'}`,
+    bull_scenario: { probability: bullProb+'%', trigger: 'Break and close above nearest resistance with volume', target1: +(price+atr*1.5).toFixed(2), target2: +(price+atr*3).toFixed(2), description: 'If bulls reclaim key resistance, momentum could carry price to upper targets. Volume confirmation required for sustained move.' },
+    bear_scenario: { probability: bearProb+'%', trigger: 'Lose key support level on high volume', target1: +(price-atr*1.5).toFixed(2), target2: +(price-atr*3).toFixed(2), description: 'Failure to hold support could trigger cascading sells. Watch for liquidation cascade if key levels break.' },
+    sideways_scenario: { probability: sideProb+'%', range_high: +(price+atr*0.8).toFixed(2), range_low: +(price-atr*0.8).toFixed(2), description: 'Range-bound consolidation until a catalyst breaks the deadlock.' },
+    key_watch_zones: [
+      { label: 'Bull Entry Zone', price_low: +(price-atr*0.8).toFixed(2), price_high: +(price-atr*0.3).toFixed(2), reason: 'Fib 0.618 + support confluence' },
+      { label: 'Bear Entry Zone', price_low: +(price+atr*0.3).toFixed(2), price_high: +(price+atr*0.9).toFixed(2), reason: 'Resistance + OB area' },
+      { label: 'Invalidation', price: +(data.levels.swingHigh*1.005).toFixed(2), reason: 'Break of swing high invalidates bear thesis' }
+    ],
+    bias: data.overallBias.includes('BULL') ? 'BULLISH' : data.overallBias.includes('BEAR') ? 'BEARISH' : 'NEUTRAL',
+    confidence: bullCount === 4 || bullCount === 0 ? 'HIGH' : bullCount === 3 || bullCount === 1 ? 'MEDIUM' : 'LOW',
+    what_to_watch: `4H candle close relative to VWAP and ${data.levels.resistance[0]?'$'+data.levels.resistance[0].toFixed(2)+' resistance':'key S/R levels'}`,
+    risk_warning: data.fundingRate && Math.abs(data.fundingRate) > 0.1 ? `High funding rate (${data.fundingRate.toFixed(4)}%) — longs/shorts crowded, squeeze risk elevated` : 'Watch for BTC correlation moves that could override local structure'
+  };
+}
+
+/* ═══════════ BUILD HTML ═══════════ */
+function buildLoadingHTML() {
+  const steps = ['Fetching multi-timeframe data', 'Calculating 15+ indicators', 'Finding key levels & Fibonacci', 'Building bull/bear/sideways scenarios', 'AI generating narrative'];
+  return `<div class="panel"><div class="panel-body"><div class="outlook-loading">
+    <div class="ol-spinner"></div>
+    <div class="ol-label">Building Outlook…</div>
+    <div class="ol-sub">Analyzing 15m · 1H · 4H · 1D across 15+ indicators</div>
+    <div class="ol-steps">${steps.map(s=>`<div class="ol-step">${s}</div>`).join('')}</div>
+  </div></div></div>`;
+}
+
+function markStepsDone() {
+  document.querySelectorAll('.ol-step').forEach(el => el.classList.remove('active'));
+}
+
+function biasClass(b) {
+  if(!b) return 'neu';
+  const s = b.toString().toLowerCase();
+  return s.includes('bull') ? 'bull' : s.includes('bear') ? 'bear' : 'neu';
+}
+function biasLabel(b) {
+  if(!b) return '—';
+  const s = b.toString().toLowerCase();
+  return s.includes('bull') ? '▲ BULL' : s.includes('bear') ? '▼ BEAR' : '◆ NEU';
+}
+function fmt(v, dec=2) { return v!=null ? (+v).toFixed(dec) : '—'; }
+
+function buildResultHTML(symbol, price, fr, overallBias, volChange, i15, i1h, i4h, i1d, fib, ai, raw) {
+  const pair = symbol.replace('USDT','/USDT');
+  const biasC = biasClass(overallBias);
+  const biasColor = biasC==='bull'?'var(--green)':biasC==='bear'?'var(--red)':'var(--yellow)';
+  const confColor = ai.confidence==='HIGH'?'var(--green)':ai.confidence==='MEDIUM'?'var(--yellow)':'var(--red)';
+
+  return `
+  <!-- Actions -->
+  <div class="outlook-actions">
+    <button class="btn-action copy-report" onclick="copyOutlookReport()">📋 Copy Report</button>
+    <button class="btn-action refresh" onclick="runOutlook()">🔄 Refresh</button>
+    <button class="btn-action go-analysis" onclick="window.location.href='analysis.html'">🔬 Deep Scan →</button>
+  </div>
+
+  <!-- Header -->
+  <div class="panel" style="border-color:${biasColor}22">
+    <div class="panel-head" style="background:linear-gradient(135deg,${biasColor}10,transparent)">
+      <div>
+        <div class="panel-title" style="font-size:1.2rem">${pair} <span style="color:${biasColor}">${biasClass(overallBias)==='bull'?'▲':biasClass(overallBias)==='bear'?'▼':'◆'} ${overallBias}</span></div>
+        <div style="font-family:var(--font-n);font-size:.72rem;color:var(--muted);margin-top:2px">
+          $${fmt(price)} · FR: ${fr!=null?fmt(fr,4)+'%':'N/A'} · Vol 24h: ${volChange>=0?'+':''}${fmt(volChange,1)}%
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">AI Confidence</div>
+        <div style="font-family:var(--font-h);font-size:1.1rem;font-weight:700;color:${confColor}">${ai.confidence}</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="ai-narrative">
+        <div class="ai-nar-header">🧠 AI Market Summary</div>
+        <div class="ai-nar-body">${ai.summary}</div>
+      </div>
+
+      <!-- MTF Bias -->
+      <div style="font-family:var(--font-h);font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:.03em">📊 Multi-Timeframe Bias</div>
+      <div class="mtf-row">
+        ${buildMTFBox('15m', i15)}
+        ${buildMTFBox('1H', i1h)}
+        ${buildMTFBox('4H', i4h)}
+        ${buildMTFBox('1D', i1d)}
+      </div>
+
+      <!-- Snapshot -->
+      <div style="font-family:var(--font-h);font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:.03em">📈 Market Snapshot</div>
+      <div class="snapshot-grid">
+        ${snapBox('RSI 1H', fmt(i1h.rsi?.toFixed?.(1),1), i1h.rsi>=70?'bear':i1h.rsi<=30?'bull':'neu')}
+        ${snapBox('RSI 4H', fmt(i4h.rsi?.toFixed?.(1),1), i4h.rsi>=70?'bear':i4h.rsi<=30?'bull':'neu')}
+        ${snapBox('ADX 4H', fmt(i4h.adx?.adx?.toFixed?.(1),1), i4h.adx?.adx>30?'bull':i4h.adx?.adx<20?'bear':'neu')}
+        ${snapBox('MACD 4H', i4h.macd?.trend||'—', i4h.macd?.trend==='bullish'?'bull':'bear')}
+        ${snapBox('ST 4H', i4h.st?.direction||'—', i4h.st?.direction==='bull'?'bull':'bear')}
+        ${snapBox('ST 1D', i1d.st?.direction||'—', i1d.st?.direction==='bull'?'bull':'bear')}
+        ${snapBox('BB 4H', i4h.bb?.squeeze?'Squeeze':'Normal', i4h.bb?.squeeze?'warn':'neu')}
+        ${snapBox('Funding', fr!=null?fmt(fr,4)+'%':'—', fr!=null&&fr>0.05?'bear':fr!=null&&fr<-0.05?'bull':'neu')}
+      </div>
+    </div>
+  </div>
+
+  <!-- TradingView Chart -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">📊 Live Chart</div>
+      <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">4H · TradingView</span>
+    </div>
+    <div class="tv-chart-wrap" id="tvChartWrap"></div>
+  </div>
+
+  <!-- Scenarios -->
+  <div class="panel">
+    <div class="panel-head"><div class="panel-title">🎯 Price Scenarios</div></div>
+    <div class="panel-body">
+      <div class="scenario-grid">
+        ${buildScenarioCard('bull', '📈 Bullish', ai.bull_scenario)}
+        ${buildScenarioCard('bear', '📉 Bearish', ai.bear_scenario)}
+      </div>
+      <div class="scenario-grid" style="grid-template-columns:1fr">
+        ${buildScenarioCard('side', '↔ Sideways / Consolidation', ai.sideways_scenario)}
+      </div>
+    </div>
+  </div>
+
+  <!-- Watch Zones -->
+  <div class="panel">
+    <div class="panel-head"><div class="panel-title">🎯 Key Zones to Watch</div></div>
+    <div class="panel-body">
+      ${(ai.key_watch_zones||[]).map(z => `
+        <div class="wz-item">
+          <div class="wz-icon">${z.label.includes('Bull')?'🟢':z.label.includes('Bear')?'🔴':'⚠️'}</div>
+          <div class="wz-content">
+            <div class="wz-label">${z.label}</div>
+            <div class="wz-desc">${z.reason}</div>
+          </div>
+          <div class="wz-price" style="color:${z.label.includes('Bull')?'var(--green)':z.label.includes('Bear')?'var(--red)':'var(--yellow)'}">
+            ${z.price ? '$'+fmt(z.price) : z.price_low ? '$'+fmt(z.price_low)+' – $'+fmt(z.price_high) : ''}
+          </div>
+        </div>`).join('')}
+
+      <div style="margin-top:14px;padding:12px 14px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:10px">
+        <div style="font-family:var(--font-n);font-size:.65rem;color:var(--purple);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">⚡ What to Watch Next 4-12h</div>
+        <div style="font-family:var(--font-n);font-size:.75rem;color:rgba(255,255,255,.8)">${ai.what_to_watch||'—'}</div>
+      </div>
+      <div style="margin-top:8px;padding:12px 14px;background:rgba(255,61,90,.04);border:1px solid rgba(255,61,90,.15);border-radius:10px">
+        <div style="font-family:var(--font-n);font-size:.65rem;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">⚠️ Main Risk</div>
+        <div style="font-family:var(--font-n);font-size:.75rem;color:rgba(255,255,255,.8)">${ai.risk_warning||'—'}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Indicator Table -->
+  <div class="panel">
+    <div class="panel-head"><div class="panel-title">📋 Full Indicator Breakdown</div></div>
+    <div class="panel-body">
+      <div style="overflow-x:auto">
+      <table class="ind-table">
+        <thead><tr><th>Indicator</th><th>15m</th><th>1H</th><th>4H</th><th>1D</th></tr></thead>
+        <tbody>
+          ${indRow('RSI', [i15,i1h,i4h,i1d].map(t=>({val:fmt(t.rsi,1), sig:t.rsi>=70?'bear':t.rsi<=30?'bull':'neu'})))}
+          ${indRow('EMA Bias', [i15,i1h,i4h,i1d].map(t=>({val:t.ema.bias, sig:t.ema.bias})))}
+          ${indRow('MACD', [i15,i1h,i4h,i1d].map(t=>({val:t.macd?.trend||'—', sig:t.macd?.trend==='bullish'?'bull':'bear'})))}
+          ${indRow('Supertrend', [i15,i1h,i4h,i1d].map(t=>({val:t.st?.direction||'—', sig:t.st?.direction==='bull'?'bull':'bear'})))}
+          ${indRow('ADX', [i15,i1h,i4h,i1d].map(t=>({val:fmt(t.adx?.adx,1), sig:t.adx?.adx>25?'bull':'neu'})))}
+          ${indRow('BB', [i15,i1h,i4h,i1d].map(t=>({val:t.bb?.squeeze?'Squeeze':fmt(t.bb?.pct,2), sig:t.bb?.squeeze?'neu':t.bb?.pct>0.8?'bear':t.bb?.pct<0.2?'bull':'neu'})))}
+          ${indRow('BOS', [i15,i1h,i4h,i1d].map(t=>({val:t.bos?t.bos.direction+' BOS':'None', sig:t.bos?t.bos.direction:'neu'})))}
+          ${indRow('ATR', [i15,i1h,i4h,i1d].map(t=>({val:'$'+fmt(t.atr), sig:'neu'})))}
+        </tbody>
+      </table>
+      </div>
+
+      <!-- Fibonacci Table -->
+      <div style="margin-top:14px">
+        <div style="font-family:var(--font-h);font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:.03em">📐 Fibonacci Levels (4H Swing)</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px">
+          ${Object.entries(fib).map(([k,v]) => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between">
+              <span style="font-family:var(--font-n);font-size:.65rem;color:var(--muted)">Fib ${k}</span>
+              <span style="font-family:var(--font-n);font-size:.72rem;font-weight:600;color:${Math.abs(v-price)/price<0.015?'var(--yellow)':'var(--cyan)'}">$${fmt(v)}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    ⚠️ AI Outlook is for educational purposes only. This is not financial advice. Past analysis does not guarantee future results. Always use proper risk management and do your own research before trading.
+  </div>`;
+}
+
+function buildMTFBox(tf, ind) {
+  const bias = ind.ema?.bias || 'neu';
+  const rsi  = ind.rsi?.toFixed?.(0) || '—';
+  const st   = ind.st?.direction || 'neu';
+  return `<div class="mtf-box" style="border-color:${bias==='bull'?'rgba(0,255,136,.2)':bias==='bear'?'rgba(255,61,90,.2)':'var(--border)'}">
+    <div class="mtf-tf">${tf}</div>
+    <div class="mtf-bias ${bias}">${biasLabel(bias)}</div>
+    <div class="mtf-detail">RSI ${rsi} · ST ${st}</div>
+  </div>`;
+}
+
+function snapBox(label, value, cls) {
+  return `<div class="snap-box"><div class="snap-label">${label}</div><div class="snap-value ${cls}">${value}</div></div>`;
+}
+
+function buildScenarioCard(type, title, sc) {
+  if (!sc) return '';
+  const isside = type === 'side';
+  return `<div class="scenario-card ${type}">
+    <div class="sc-header">
+      <div class="sc-icon">${type==='bull'?'📈':type==='bear'?'📉':'↔'}</div>
+      <div class="sc-title ${type}">${title}</div>
+      <div class="sc-prob ${type}">${sc.probability||'—'}</div>
+    </div>
+    <div class="sc-trigger">
+      <strong>Trigger:</strong> ${isside ? 'Range-bound between '+('$'+(sc.range_low||0).toFixed(2))+' – '+('$'+(sc.range_high||0).toFixed(2)) : (sc.trigger||'—')}
+    </div>
+    <div class="sc-body">${sc.description||'—'}</div>
+    ${!isside ? `<div class="sc-targets">
+      <div class="sc-target">T1: $${(sc.target1||0).toFixed(2)}</div>
+      <div class="sc-target">T2: $${(sc.target2||0).toFixed(2)}</div>
+    </div>` : ''}
+  </div>`;
+}
+
+function indRow(name, cells) {
+  return `<tr>
+    <td class="ind-name">${name}</td>
+    ${cells.map(c=>`<td><span class="ind-signal ${c.sig}">${c.val}</span></td>`).join('')}
+  </tr>`;
+}
+
+function injectTVChart(symbol) {
+  const wrap = document.getElementById('tvChartWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const s = document.createElement('script');
+  s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  s.async = true;
+  s.innerHTML = JSON.stringify({
+    autosize: true, symbol: 'BINANCE:'+symbol, interval: '240',
+    timezone: 'Etc/UTC', theme: 'dark', style: '1', locale: 'en',
+    backgroundColor: '#101827', gridColor: '#1a2640',
+    hide_top_toolbar: false, hide_legend: false,
+    allow_symbol_change: false, save_image: true,
+    studies: ['RSI@tv-basicstudies','MACD@tv-basicstudies','BB@tv-basicstudies'],
+    support_host: 'https://www.tradingview.com'
+  });
+  wrap.appendChild(s);
+}
+
+window.copyOutlookReport = function() {
+  const text = document.getElementById('outlookResult').innerText;
+  navigator.clipboard.writeText(text).then(() => alert('Report copied to clipboard!'));
+};
+
+</script>
+</body>
+</html>

@@ -285,6 +285,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
       <a href="dashboard.html"><span class="ni">📊</span> Dashboard</a>
       <a href="live-signals.html"><span class="ni">📝</span> Paper Trades <span class="ds-badge green">LIVE</span></a>
       <a href="analysis.html" class="active"><span class="ni">🔬</span> Analysis</a>
+      <a href="ai-outlook.html"><span class="ni">🔮</span> AI Outlook <span class="ds-badge" style="background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.25);font-family:var(--font-n);font-size:.58rem;padding:2px 6px;border-radius:4px;margin-left:auto">NEW</span></a>
       <a href="backtest.html"><span class="ni">📈</span> Signal Tracker <span class="ds-badge cyan">BACKTEST</span></a>
       <div class="ds-section">Market</div>
       <a href="dashboard.html#gainers"><span class="ni">📈</span> Top Gainers</a>
@@ -378,6 +379,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
         <div>AI analysis generating<span class="exp-loading-dots"></span></div>
         <div style="font-size:.72rem;margin-top:6px;color:rgba(255,255,255,.35)">This takes 5–10 seconds</div>
       </div>
+    </div>
+    <!-- MTF indicator strip — populated by JS -->
+    <div id="expMTFStrip" style="display:none;padding:0 20px 14px;border-top:1px solid rgba(255,255,255,.05)">
+      <div style="font-family:var(--font-n);font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px">📊 Indicators Used for This Entry</div>
+      <div id="expMTFGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:5px"></div>
     </div>
     <div class="exp-footer">
       <div style="font-family:var(--font-n);font-size:.65rem;color:rgba(255,255,255,.3)">⚠ Educational only — not financial advice</div>
@@ -504,8 +510,8 @@ window.handleSignOut=async function(){await signOut(auth);window.location.href='
    ================================================================ */
 
 const BINANCE_FAPI = 'https://fapi.binance.com';
-const RSI_PERIOD = 14, KLINE_4H = 80, KLINE_15M = 150, KLINE_1D = 60;
-function getKline1H(){ return IS('ind_kline_limit', 200); }
+const RSI_PERIOD = 14, KLINE_4H = 250, KLINE_15M = 200, KLINE_1D = 120; // v8: increased for EMA200 accuracy
+function getKline1H(){ return IS('ind_kline_limit', 300); } // v8: was 200, needs 300 for EMA200 accuracy
 function getScanLimit(){ return IS('scan_limit', 50); }
 // Dynamic constants — read admin settings at runtime
 function KLINE_1H(){ return getKline1H(); }
@@ -545,7 +551,7 @@ function calcADX(H,L,C,p){p=p||14;if(!H||H.length<p*2)return null;const pm=[],mm
 function calcOBV(C,V){if(!C||C.length<10)return null;let o=0;const a=[0];for(let i=1;i<C.length;i++){if(C[i]>C[i-1])o+=V[i];else if(C[i]<C[i-1])o-=V[i];a.push(o);}const l5=a.slice(-5).reduce((x,y)=>x+y,0)/5,p5=a.slice(-10,-5).reduce((x,y)=>x+y,0)/5;return{obv:o,trend:l5>p5?'accumulation':'distribution',rising:l5>p5};}
 
 /* ── Volume ── */
-function analyzeVolume(kl){const v=kl.map(k=>parseFloat(k[5])),avg=v.slice(-21,-1).reduce((a,b)=>a+b,0)/20,last=v.slice(-4,-1).reduce((a,b)=>a+b,0)/3,ratio=avg>0?last/avg:1;return{avg20:avg,last3:last,ratio,surge:ratio>=1.5,label:ratio>=2?'Very High':ratio>=1.5?'High':ratio>=1?'Normal':'Low'};}
+function analyzeVolume(kl){const v=kl.map(k=>parseFloat(k[5])),avg=v.slice(-21,-1).reduce((a,b)=>a+b,0)/20,last=v[v.length-2]??v[v.length-1],ratio=avg>0?last/avg:1;return{avg20:avg,last3:last,ratio,surge:ratio>=1.5,label:ratio>=2?'Very High':ratio>=1.5?'High':ratio>=1?'Normal':'Low'};} // v8: last bar vs avg20 (was 3-bar avg)
 
 /* ── VWAP — Session Reset (UTC midnight) ── */
 function calcVWAP(kl) {
@@ -1114,14 +1120,14 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
 
   let ls = 0, ss = 0;
 
-  // F1: RSI (1H)
+  // F1: RSI (1H) — v8: tightened to professional 70/30 standard (was 60/40, too loose)
   if (rsi <= 22)      { ls += 22; }
-  else if (rsi <= 30) { ls += 17; }
-  else if (rsi <= 40) { ls += 9;  }
+  else if (rsi <= 28) { ls += 16; }
+  else if (rsi <= 35) { ls += 7;  }
   else if (rsi <= 48) { ls += 3; ss += 3; }
   else if (rsi >= 78) { ss += 22; }
-  else if (rsi >= 70) { ss += 17; }
-  else if (rsi >= 60) { ss += 9;  }
+  else if (rsi >= 72) { ss += 16; }
+  else if (rsi >= 65) { ss += 7;  }
 
   // F2: EMA Stack (1H)
   if (es) {
@@ -1504,8 +1510,8 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   const lc = Math.min(100, Math.round((ls / MAX_RAW) * 100));
   const sc = Math.min(100, Math.round((ss / MAX_RAW) * 100));
 
-  // Require minimum 15-point gap to avoid coin-flip signals
-  const MIN_DIR_GAP = 15;
+  // Require minimum 25-point gap to avoid coin-flip signals — v8: was 15, raised to 25
+  const MIN_DIR_GAP = 25;
   let dir, conf;
   if (lc > sc && (lc - sc) >= MIN_DIR_GAP) {
     dir = 'LONG';  conf = lc;
@@ -1863,11 +1869,10 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
       tlSL    ? tlSL    - aV * 0.15 : null,
       rawSL
     ].filter(v => v !== null && v < ep - aV * 0.8 && v > ep - aV * 3.0);
-    sl = slCandidates.length ? Math.max(...slCandidates) : ep - aV * 1.5;
-    // HARD MINIMUM: SL must be at least 1.0×ATR below entry — prevents wick-outs
-    // Backtest showed 38% of trades had SL < 0.5% = 66% loss rate (vs 51% normal)
-    sl = Math.min(sl, ep - aV * 1.0);   // at least 1.0×ATR below
-    sl = Math.max(sl, ep - aV * 3.0);   // at most 3.0×ATR below (don't give up too much)
+    sl = slCandidates.length ? Math.min(...slCandidates) : ep - aV * 2.0; // v8: was Math.max (tightest=wick-out), now Math.min (loosest structural)
+    // HARD MINIMUM: SL must be at least 1.5×ATR below entry — v8: was 1.0×ATR, increased
+    sl = Math.min(sl, ep - aV * 1.5);   // at least 1.5×ATR below
+    sl = Math.max(sl, ep - aV * 3.5);   // at most 3.5×ATR below (was 3.0)
 
     ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'LONG', srZones));
 
@@ -2632,6 +2637,31 @@ async function runDeepScan(symbol) {
       roundLevels, cmeGaps, setupType, crtSignal, skAnalysis, ipdaLevels, propulsion, footprint,
       idmSignal, avwap, ttmSqueeze, cmf, cmf4h, ichimoku, psarData
     });
+
+    // v8: store full analysis data for Explain modal MTF breakdown
+    window._lastAnalysis = window._lastAnalysis || {};
+    window._lastAnalysis[symbol] = {
+      symbol, curP, entry, rsi, vol,
+      rsi15m, rsi4h, rsi1d,
+      ema15m, ema4h, ema1d,
+      macd: entry.indicators?.macd,
+      bb: entry.indicators?.bb,
+      adx: entry.indicators?.adx,
+      atr: entry.indicators?.atr,
+      stoch: entry.indicators?.stoch,
+      obv: entry.indicators?.obv,
+      supertrend: entry.indicators?.supertrend,
+      supertrend4h: entry.indicators?.supertrend4h,
+      trend4h: entry.indicators?.trend4h,
+      ttmSqueeze, cmf, cmf4h, ichimoku, psarData,
+      fibonacci, srZones, mtfOBs, mtfFVGs,
+      candlePatterns, takerRatio, lsRatio,
+      bos15m, bos4h, regime, oteZone, killzone,
+      fundingRate: entry.indicators?.fundingRate,
+      oiChange: entry.indicators?.oiChange,
+      session: entry.indicators?.session,
+      setupType, wyckoff, vsa, marketProf, avwap
+    };
 
     btSaveSignal(symbol, entry, curP, getSession(), rsi);
 
@@ -3628,6 +3658,9 @@ function openExpModal(symbol, dir, entryType, ep, tp1, tp2, sl, conf) {
   document.getElementById('expCopyBtn').style.display = 'none';
   document.getElementById('expOverlay').classList.add('open');
 
+  // Populate MTF indicator strip from cached analysis data
+  populateExpMTFStrip(symbol, dir);
+
   const cacheKey = symbol + '_' + dir + '_si';
   if (_expCache[cacheKey]) {
     renderExpContent(_expCache[cacheKey]);
@@ -3640,6 +3673,51 @@ function openExpModal(symbol, dir, entryType, ep, tp1, tp2, sl, conf) {
       renderExpContent('<div style="color:var(--red);font-family:var(--font-n);font-size:.82rem">❌ Generation failed. Check your connection and try again.</div>');
     });
   }
+}
+
+function populateExpMTFStrip(symbol, dir) {
+  const ad = window._lastAnalysis?.[symbol];
+  const strip = document.getElementById('expMTFStrip');
+  const grid  = document.getElementById('expMTFGrid');
+  if (!ad || !grid) return;
+  strip.style.display = 'block';
+
+  const f = (v, d=1) => v != null && !isNaN(+v) ? (+v).toFixed(d) : '—';
+  const bc = (b) => {
+    if (!b) return 'rgba(255,255,255,.06)';
+    const s = b.toString().toLowerCase();
+    return s.includes('bull') ? 'rgba(0,255,136,.08)' : s.includes('bear') ? 'rgba(255,61,90,.08)' : 'rgba(255,195,51,.05)';
+  };
+  const tc = (b) => {
+    if (!b) return 'var(--muted)';
+    const s = b.toString().toLowerCase();
+    return s.includes('bull') ? 'var(--green)' : s.includes('bear') ? 'var(--red)' : 'var(--yellow)';
+  };
+
+  const indicators = [
+    { label:'RSI 1H',   value: f(ad.rsi?.value||ad.rsi), bias: (ad.rsi?.value||ad.rsi)>=70?'bear':(ad.rsi?.value||ad.rsi)<=30?'bull':'neu' },
+    { label:'RSI 4H',   value: f(ad.rsi4h),              bias: ad.rsi4h>=70?'bear':ad.rsi4h<=30?'bull':'neu' },
+    { label:'RSI 1D',   value: f(ad.rsi1d),              bias: ad.rsi1d>=70?'bear':ad.rsi1d<=30?'bull':'neu' },
+    { label:'MACD 1H',  value: ad.macd?.trend||'—',      bias: ad.macd?.trend },
+    { label:'ADX 1H',   value: f(ad.adx?.adx),           bias: ad.adx?.adx>25?'bull':'neu' },
+    { label:'EMA 1H',   value: ad.macd?.trend?'stacked':'—', bias: ad.ema15m?.bias },
+    { label:'EMA 4H',   value: ad.ema4h?.bias||'—',      bias: ad.ema4h?.bias },
+    { label:'ST 4H',    value: ad.supertrend4h?.direction||ad.trend4h?.bias||'—', bias: ad.supertrend4h?.direction||ad.trend4h?.bias },
+    { label:'CMF 1H',   value: f(ad.cmf, 3),             bias: ad.cmf>0?'bull':'bear' },
+    { label:'CMF 4H',   value: f(ad.cmf4h, 3),           bias: ad.cmf4h>0?'bull':'bear' },
+    { label:'TTM Sqz',  value: ad.ttmSqueeze?.sqOn?'ON':'OFF', bias: ad.ttmSqueeze?.sqOn?'neu':(ad.ttmSqueeze?.momPositive?'bull':'bear') },
+    { label:'Funding',  value: ad.fundingRate!=null?f(ad.fundingRate,4)+'%':'—', bias: ad.fundingRate>0.05?'bear':ad.fundingRate<-0.05?'bull':'neu' },
+    { label:'OI',       value: ad.oiChange?.trend||'—',  bias: ad.oiChange?.trend==='rising'?'bull':'bear' },
+    { label:'L/S Ratio',value: ad.lsRatio?.label||'—',   bias: ad.lsRatio?.longBias?'bull':ad.lsRatio?.shortBias?'bear':'neu' },
+    { label:'Session',  value: ad.session||'—',          bias: 'neu' },
+    { label:'Vol',      value: ad.vol?.label||'—',       bias: ad.vol?.surge?'bull':'neu' },
+  ].filter(ind => ind.value !== '—' && ind.value !== 'undefined');
+
+  grid.innerHTML = indicators.map(ind => `
+    <div style="background:${bc(ind.bias)};border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:6px 8px">
+      <div style="font-family:var(--font-n);font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">${ind.label}</div>
+      <div style="font-family:var(--font-n);font-size:.72rem;font-weight:600;color:${tc(ind.bias)};margin-top:2px">${ind.value}</div>
+    </div>`).join('');
 }
 
 function closeExpModal() {
@@ -3700,86 +3778,112 @@ async function generateExpExplanation(symbol, dir, entryType, ep, tp1, tp2, sl, 
   const rr2 = risk > 0 ? (Math.abs(tp2 - ep) / risk).toFixed(2) : '—';
   const slPct = ep > 0 ? ((Math.abs(ep - sl) / ep) * 100).toFixed(2) : '—';
 
-  // Gather live indicator snapshot from current analysis if available
-  let indicatorContext = '';
-  try {
-    const deepCard = document.querySelector('.deep-card');
-    if (deepCard) {
-      const chips = deepCard.querySelectorAll('.chip');
-      const chipTexts = Array.from(chips).map(c => c.textContent.trim()).filter(t => t).slice(0, 12);
-      if (chipTexts.length) indicatorContext = 'Active signals: ' + chipTexts.join(' | ');
-    }
-  } catch(_) {}
+  // ── Pull full indicator data from cached analysis
+  const ad = window._lastAnalysis?.[symbol] || {};
+  const f  = (v, d=2) => v != null && !isNaN(+v) ? (+v).toFixed(d) : '—';
+
+  // Build MTF indicator context string
+  const mtfContext = [
+    `15m: RSI=${f(ad.rsi?.value||ad.rsi,1)} | EMA=${ad.ema15m?.bias||'—'} | BOS=${ad.bos15m?.direction||'none'}`,
+    `1H:  RSI=${f(ad.rsi?.value||ad.rsi,1)} | MACD=${ad.macd?.trend||'—'} | BB_pct=${f(ad.bb?.pct)} | ADX=${f(ad.adx?.adx,1)} | Vol=${ad.vol?.label||'—'}`,
+    `4H:  RSI=${f(ad.rsi4h,1)} | EMA=${ad.ema4h?.bias||'—'} | Supertrend=${ad.supertrend4h?.direction||ad.trend4h?.bias||'—'} | CMF4H=${f(ad.cmf4h,3)} | BOS=${ad.bos4h?.direction||'none'}`,
+    `1D:  RSI=${f(ad.rsi1d,1)} | EMA=${ad.ema1d?.bias||'—'} | Regime=${ad.regime||'—'}`,
+  ].join('\n');
+
+  const extraContext = [
+    ad.fundingRate != null ? `Funding Rate: ${f(ad.fundingRate,4)}%` : '',
+    ad.oiChange?.trend ? `OI Trend: ${ad.oiChange.trend} (${f(ad.oiChange.pct,2)}%)` : '',
+    ad.takerRatio?.label ? `Taker Ratio: ${ad.takerRatio.label} (${f(ad.takerRatio.ratio,3)})` : '',
+    ad.lsRatio?.label ? `L/S Ratio: ${ad.lsRatio.label}` : '',
+    ad.ttmSqueeze?.sqOn != null ? `TTM Squeeze: ${ad.ttmSqueeze.sqOn ? 'ON (range)' : 'OFF (released)'}` : '',
+    ad.cmf != null ? `CMF 1H: ${f(ad.cmf,3)} (${ad.cmf>0?'money in':'money out'})` : '',
+    ad.setupType ? `Setup Type: ${ad.setupType}` : '',
+    ad.session ? `Session: ${ad.session}` : '',
+    ad.killzone?.active ? `Killzone: ${ad.killzone.name}` : '',
+    ad.oteZone ? `OTE Zone: $${f(ad.oteZone.low)} – $${f(ad.oteZone.high)}` : '',
+    ad.candlePatterns?.length ? `Candle Patterns: ${ad.candlePatterns.slice(0,3).map(p=>p.pattern||p).join(', ')}` : '',
+    ad.wyckoff?.phase ? `Wyckoff Phase: ${ad.wyckoff.phase}` : '',
+  ].filter(Boolean).join('\n');
+
+  const levelsContext = [
+    ad.fibonacci ? `Fib 0.618: $${f(ad.fibonacci.fib618||ad.fibonacci['0.618'])} | 0.5: $${f(ad.fibonacci.fib50||ad.fibonacci['0.5'])} | 0.382: $${f(ad.fibonacci.fib382||ad.fibonacci['0.382'])}` : '',
+    ad.srZones?.above?.length ? `Resistance: ${ad.srZones.above.slice(0,2).map(z=>'$'+f(z.price)).join(' | ')}` : '',
+    ad.srZones?.below?.length ? `Support: ${ad.srZones.below.slice(0,2).map(z=>'$'+f(z.price)).join(' | ')}` : '',
+    ad.mtfOBs?.length ? `Order Blocks: ${ad.mtfOBs.slice(0,2).map(ob=>`${ob.tf} ${ob.type} OB $${f(ob.low)}–$${f(ob.high)}`).join(' | ')}` : '',
+    ad.mtfFVGs?.length ? `FVG: ${ad.mtfFVGs.slice(0,2).map(g=>`${g.tf} $${f(g.low)}–$${f(g.high)}`).join(' | ')}` : '',
+  ].filter(Boolean).join('\n');
 
   const isSinhala = lang === 'si';
 
   const systemPrompt = isSinhala
-    ? `ඔබ InvestySignals cryptocurrency trading platform එකේ AI analysis assistant. ඔබ expert trader කෙනෙක් ලෙස Sinhala භාෂාවෙන් trading signals explain කරනවා. Technical terms (LONG, SHORT, Stop Loss, Take Profit, Fibonacci, Order Block, BOS, FVG, etc.) English ලෙසම තියා Sinhala explanation දෙනවා. Clear, simple, educational tone use කරනවා. HTML formatting use කරන්න — <strong>, <br> tags use කළ හැකිනම් හොඳයි. "Educational purposes only, not financial advice" disclaimer add කරනවා.`
-    : `You are the AI analysis assistant for InvestySignals, a crypto trading platform. You explain trading signals clearly and educationally as an expert trader. Use professional but accessible language. Include HTML formatting with <strong> tags and <br> where helpful. Always add a brief "Educational purposes only" disclaimer.`;
+    ? `ඔබ InvestySignals crypto trading platform AI assistant. Expert trader ලෙස Sinhala ලා explain කරන්න. Technical terms English ලා, explanation Sinhala ලා. Indicator values හා levels ලා specific ලා mention කරන්න. "Educational only" disclaimer add කරන්න.`
+    : `You are InvestySignals AI trading assistant. Explain this signal as an expert trader — clear, specific, educational. Reference actual indicator values and levels in your explanation. Always add educational disclaimer.`;
 
   const userPrompt = isSinhala
-    ? `${pair} සඳහා ${dirLabel} signal එකක් generate වෙලා තියෙනවා. මේ signal explain කරන්න:
+    ? `${pair} ${dir === 'LONG' ? 'LONG' : 'SHORT'} signal explain කරන්න:
 
-**Signal Details:**
-- Pair: ${pair}
-- Direction: ${dirLabel}
-- Entry Price: $${ep.toFixed(4)}
-- Stop Loss: $${sl.toFixed(4)} (${slPct}% risk)
-- Take Profit 1: $${tp1.toFixed(4)} (${rr1}R)
-- Take Profit 2: $${tp2.toFixed(4)} (${rr2}R)
-- Entry Type: ${entryType}
-- Confidence Score: ${conf}%
-${indicatorContext ? '- ' + indicatorContext : ''}
+ENTRY DETAILS:
+- Entry: $${f(ep,4)} | SL: $${f(sl,4)} (${slPct}% / ${f(Math.abs(ep-sl)/ad.atr?.atr||1,1)}×ATR) | TP1: $${f(tp1,4)} (${rr1}R) | TP2: $${f(tp2,4)} (${rr2}R)
+- Type: ${entryType} | Confidence: ${conf}%
 
-පහත sections ලා HTML format ලා explain කරන්න:
+MULTI-TIMEFRAME INDICATORS:
+${mtfContext}
 
-1. **📊 Signal Summary** — මේ trade ගැන කෙටි overview (2-3 sentences)
-2. **🎯 Entry Strategy** — ඇයි මේ price ලා entry ගන්නේ, ${entryType === 'LIMIT' ? 'Limit order ලා wait කරන්නේ ඇයි' : 'Market order ලා entry ගන්නේ ඇයි'}
-3. **🛡️ Stop Loss Logic** — SL ලා තැබූ reason (structure, ATR, etc.)
-4. **🎁 Take Profit Targets** — TP1 TP2 ලා level ගැන explanation, RR ratio meaning
-5. **⚠️ Risk Factors** — මේ trade ලා watch කරන්න ඕනෙ main risks
-6. **💡 Trade Management Tips** — TP1 hit වුනාම SL move කරන්නේ කොහොමද, position manage කරන්නේ කොහොමද`
-    : `A ${dirLabel} signal has been generated for ${pair}. Please explain this trading signal clearly:
+MARKET CONTEXT:
+${extraContext}
 
-**Signal Details:**
-- Pair: ${pair}
-- Direction: ${dirLabel}
-- Entry Price: $${ep.toFixed(4)}
-- Stop Loss: $${sl.toFixed(4)} (${slPct}% risk)
-- Take Profit 1: $${tp1.toFixed(4)} (${rr1}R)
-- Take Profit 2: $${tp2.toFixed(4)} (${rr2}R)
-- Entry Type: ${entryType}
-- Confidence Score: ${conf}%
-${indicatorContext ? '- ' + indicatorContext : ''}
+KEY LEVELS:
+${levelsContext}
 
-Explain using these sections with HTML formatting:
+ඒ indicator values ලා specific ලා mention කරලා, ඇයි මේ signal හොඳද/ගන්න ඕනෙද/risk මොකද කියලා explain කරන්න:
+1. 📊 Signal Summary (indicator values ලා mention කරලා)
+2. 🎯 Entry Logic (${entryType} reason + key levels ලා ඇයි)
+3. 🛡️ Stop Loss Logic (SL ලා තැබූ structure reason)
+4. 🎁 TP Targets (TP1/TP2 ලා levels explanation + RR meaning)
+5. 📈 MTF Confluence (15m/1H/4H/1D ලා alignment ගැන)
+6. ⚠️ Risk Factors (specific indicator values ලා risk)
+7. 💡 Trade Management`
+    : `Explain this ${pair} ${dir} trade signal:
 
-1. **📊 Signal Summary** — Brief overview of this trade setup
-2. **🎯 Entry Strategy** — Why this entry price, why ${entryType === 'LIMIT' ? 'limit order (wait for price)' : 'market order (enter now)'}
-3. **🛡️ Stop Loss Logic** — Why this SL level, what invalidates the setup
-4. **🎁 Take Profit Targets** — TP1 & TP2 explanation, R:R ratio meaning
-5. **⚠️ Risk Factors** — Key risks to watch for this trade
-6. **💡 Trade Management** — How to move SL to breakeven after TP1, position sizing`;
+ENTRY DETAILS:
+- Entry: $${f(ep,4)} | SL: $${f(sl,4)} (${slPct}% / ${f(Math.abs(ep-sl)/(ad.atr?.atr||1),1)}×ATR) | TP1: $${f(tp1,4)} (${rr1}R) | TP2: $${f(tp2,4)} (${rr2}R)
+- Type: ${entryType} | Confidence: ${conf}%
+
+MULTI-TIMEFRAME INDICATORS:
+${mtfContext}
+
+MARKET CONTEXT:
+${extraContext}
+
+KEY LEVELS:
+${levelsContext}
+
+Reference the actual values above. Explain each section concisely:
+1. 📊 Signal Summary (mention key indicator readings)
+2. 🎯 Entry Logic (why this level, why ${entryType})
+3. 🛡️ Stop Loss Logic (structural reason for SL placement)
+4. 🎁 Take Profit Targets (why these levels, R:R meaning)
+5. 📈 MTF Confluence (how 15m/1H/4H/1D align)
+6. ⚠️ Risk Factors (specific readings that could invalidate)
+7. 💡 Trade Management (breakeven, position sizing)`;
 
   const response = await fetch('/api/proxy/anthropic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1200,
+      max_tokens: 1400,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
     })
   });
 
   if (!response.ok) {
-    // Fallback: generate local explanation without API
     return generateLocalExplanation(pair, dir, dirLabel, entryType, ep, tp1, tp2, sl, conf, rr1, rr2, slPct, isSinhala);
   }
 
   const data = await response.json();
   const text = data.content?.[0]?.text || data.error || 'No response';
-
   return formatExpResponse(text, pair, dir, conf, isSinhala);
 }
 
