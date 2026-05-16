@@ -1398,57 +1398,52 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     if (ich.insideCloud) { ls = Math.max(ls - 4, 0); ss = Math.max(ss - 4, 0); }
   }
 
-  // ── QUALITY GATES — Penalise conflicting / weak signals before normalisation ──
+  // ── QUALITY GATES — Hard penalties for conflicting signals (applied BEFORE normalization) ──
+  // Using flat point deductions — percentage haircuts were compounding unpredictably.
 
-  // Gate 1: EMA Stack conflict — EMA20/50/200 not aligned with direction
+  // Gate 1: EMA Stack conflict — price structure disagrees with direction
   if (es) {
-    const emaBull = es.label === 'perfect_bull' || es.label === 'bull';
-    const emaBear = es.label === 'perfect_bear' || es.label === 'bear';
-    // Subtract from losing side if strong trend opposite
-    if (emaBull && ss > ls) { ss = Math.max(ss * 0.75, 0); }
-    if (emaBear && ls > ss) { ls = Math.max(ls * 0.75, 0); }
+    if ((es.label === 'perfect_bull' || es.label === 'bull') && ss > ls) ss = Math.max(ss - 25, 0);
+    if ((es.label === 'perfect_bear' || es.label === 'bear') && ls > ss) ls = Math.max(ls - 25, 0);
   }
 
-  // Gate 2: Supertrend conflict — hard penalty for trading against supertrend
+  // Gate 2: Supertrend conflict — hardest single-indicator gate
   if (st) {
-    if (st.bullish && ss > ls)  { ss = Math.max(ss * 0.70, 0); }
-    if (!st.bullish && ls > ss) { ls = Math.max(ls * 0.70, 0); }
+    if (st.bullish  && ss > ls) ss = Math.max(ss - 30, 0);
+    if (!st.bullish && ls > ss) ls = Math.max(ls - 30, 0);
   }
 
-  // Gate 3: BTC macro context — if BTC strongly trending against our direction, reduce
-  if (btc) {
-    if (btc.bias === 'bull' && ss > ls)  { ss = Math.max(ss * 0.80, 0); }
-    if (btc.bias === 'bear' && ls > ss)  { ls = Math.max(ls * 0.80, 0); }
+  // Gate 3: BTC macro conflict — macro trend against direction
+  if (btc && btc.bias !== 'neutral') {
+    if (btc.bias === 'bull' && ss > ls) ss = Math.max(ss - 20, 0);
+    if (btc.bias === 'bear' && ls > ss) ls = Math.max(ls - 20, 0);
   }
 
-  // Gate 4: 4H trend hard penalty — counter-4H signals get 25% haircut
-  if (t4) {
-    if (t4.bias === 'bull' && ss > ls) { ss = Math.max(ss * 0.75, 0); }
-    if (t4.bias === 'bear' && ls > ss) { ls = Math.max(ls * 0.75, 0); }
+  // Gate 4: 4H trend conflict — counter-4H is the #1 losing pattern
+  if (t4 && t4.bias !== 'neutral') {
+    if (t4.bias === 'bull' && ss > ls) ss = Math.max(ss - 30, 0);
+    if (t4.bias === 'bear' && ls > ss) ls = Math.max(ls - 30, 0);
   }
 
-  // Gate 5: Ichimoku cloud conflict — inside cloud = uncertainty penalty both sides
+  // Gate 5: Ichimoku cloud inside = high uncertainty both sides
   if (ichimoku && ichimoku.insideCloud) {
-    ls = Math.max(ls * 0.85, 0);
-    ss = Math.max(ss * 0.85, 0);
+    ls = Math.max(ls - 15, 0);
+    ss = Math.max(ss - 15, 0);
   }
 
   // Session penalty — Asian session confidence reduction
   if (sess && sess.isAsian) { ls = Math.max(ls - 10, 0); ss = Math.max(ss - 10, 0); }
 
   // ── MAX SCORE CALIBRATION ──
-  // Real achievable max per side ≈ 170 (not all factors fire simultaneously).
-  // Backtest-proven: trades scoring ≥ 60% after normalize had 50%+ WR.
-  // Formula: normalize to 0-100 using realistic max, then apply sqrt-stretch
-  // to spread the distribution (avoids 40-57 clustering).
-  const MAX_RAW = 170; // calibrated from real scoring observations
-  const rawLc = Math.min(100, (ls / MAX_RAW) * 100);
-  const rawSc = Math.min(100, (ss / MAX_RAW) * 100);
-  // Sqrt-stretch: pushes mid scores up, keeps low scores low, 100 stays 100
-  // e.g. raw 40 → 63, raw 50 → 71, raw 60 → 77, raw 80 → 89
-  const stretch = (raw) => raw <= 0 ? 0 : Math.min(100, Math.round(Math.sqrt(raw / 100) * 100));
-  const lc = stretch(rawLc);
-  const sc = stretch(rawSc);
+  // sqrt-stretch REMOVED — it inflated ALL signals to 66-100, making confidence meaningless.
+  // Proof: avg conf went 43→88 but win rate stayed 29-30% = score had zero predictive power.
+  //
+  // Fix: Linear normalization with MAX_RAW = actual typical-best-case raw score.
+  // Calibrated by measuring what raw score the TOP 20% of signals actually achieve.
+  // Low signals stay low (40-55), high signals reach 70-90+.
+  const MAX_RAW = 130; // typical best-case: not all 170 fires simultaneously in practice
+  const lc = Math.min(100, Math.round((ls / MAX_RAW) * 100));
+  const sc = Math.min(100, Math.round((ss / MAX_RAW) * 100));
 
   // Require minimum 15-point gap to avoid coin-flip signals
   const MIN_DIR_GAP = 15;
@@ -1458,7 +1453,6 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
   } else if (sc > lc && (sc - lc) >= MIN_DIR_GAP) {
     dir = 'SHORT'; conf = sc;
   } else {
-    // Scores too close — ambiguous, use 4H/MACD as tiebreaker but hard-cap confidence
     if (t4 && t4.bias !== 'neutral') {
       dir = t4.bias === 'bull' ? 'LONG' : 'SHORT';
     } else if (macd) {
@@ -1466,7 +1460,7 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     } else {
       dir = lc >= sc ? 'LONG' : 'SHORT';
     }
-    conf = Math.min(Math.max(lc, sc), 52); // cap ambiguous signals at 52 → always filtered out by gate
+    conf = Math.min(Math.max(lc, sc), 52); // hard cap ambiguous signals at 52 — always below gate
   }
   if (conf < 10) conf = 10;
 
@@ -1809,10 +1803,12 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
       srSL    ? srSL    - aV * 0.2  : null,
       tlSL    ? tlSL    - aV * 0.15 : null,
       rawSL
-    ].filter(v => v !== null && v < ep - aV * 0.3 && v > ep - aV * 2.5);
+    ].filter(v => v !== null && v < ep - aV * 0.8 && v > ep - aV * 3.0);
     sl = slCandidates.length ? Math.max(...slCandidates) : ep - aV * 1.5;
-    sl = Math.max(sl, ep - aV * 2.5);
-    sl = Math.min(sl, ep - aV * 0.3);
+    // HARD MINIMUM: SL must be at least 1.0×ATR below entry — prevents wick-outs
+    // Backtest showed 38% of trades had SL < 0.5% = 66% loss rate (vs 51% normal)
+    sl = Math.min(sl, ep - aV * 1.0);   // at least 1.0×ATR below
+    sl = Math.max(sl, ep - aV * 3.0);   // at most 3.0×ATR below (don't give up too much)
 
     ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'LONG', srZones));
 
@@ -1915,10 +1911,11 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     // Ichimoku Kijun-sen as dynamic SL for SHORT
     const kijunSL = ichimoku && ichimoku.kijun && ichimoku.kijun > ep + aV * 0.3 ? ichimoku.kijun + aV * 0.2 : null;
     const rawSL  = Math.max(r10H + aV * 0.2, ep + aV * slM);
-    const slCandidates = [fibSL, obSL, srSL ? srSL + aV * 0.3 : null, tlSL, psarSL, kijunSL, rawSL].filter(v => v !== null && v > ep + aV * 0.5);
+    const slCandidates = [fibSL, obSL, srSL ? srSL + aV * 0.3 : null, tlSL, psarSL, kijunSL, rawSL].filter(v => v !== null && v > ep + aV * 0.8);
     const rawSlChoice = slCandidates.length ? Math.min(...slCandidates) : rawSL;
-    // Extra buffer: SL must be at least 1.0×ATR above entry
+    // HARD MINIMUM: SL must be at least 1.0×ATR above entry — prevents wick-outs
     sl = Math.max(rawSlChoice, ep + aV * 1.0);
+    sl = Math.min(sl, ep + aV * 3.0); // at most 3.0×ATR above
 
     ({ tp1, tp2 } = getFibTargets(ep, sl, fibonacci, 'SHORT', srZones));
 
@@ -1950,20 +1947,30 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
 
   const risk = dir === 'LONG' ? ep - sl : sl - ep;
 
-  // ── RRR Gate: TP1 >= 2.0R, TP2 >= 3.0R, TP3 >= 4.5R ──
+  // ── RRR Gate: TP1 = 1.3-1.8R, TP2 = 2.5R, TP3 = 4.0R ──
+  // Backtest showed avg RRR1=3.17 was TOO FAR — price rarely reached TP1.
+  // Fix: TP1 at 1.5R sweet spot — close enough to hit frequently, still profitable.
   let tp3 = null;
   if (risk > 0) {
-    if (Math.abs(tp1 - ep) / risk < 2.0)
-      tp1 = dir === 'LONG' ? ep + risk * 2.0 : ep - risk * 2.0;
-    if (Math.abs(tp2 - ep) / risk < 3.0)
-      tp2 = dir === 'LONG' ? ep + risk * 3.0 : ep - risk * 3.0;
-    // TP3 — runner target using far S/R or Fib extensions
+    const tp1R = Math.abs(tp1 - ep) / risk;
+    const tp2R = Math.abs(tp2 - ep) / risk;
+    // TP1: must be between 1.3R and 2.0R — not too close, not too far
+    if (tp1R < 1.3)
+      tp1 = dir === 'LONG' ? ep + risk * 1.3 : ep - risk * 1.3;
+    if (tp1R > 2.0)
+      tp1 = dir === 'LONG' ? ep + risk * 1.8 : ep - risk * 1.8; // cap TP1 at 1.8R
+    // TP2: must be between 2.5R and 4.0R
+    if (tp2R < 2.5)
+      tp2 = dir === 'LONG' ? ep + risk * 2.5 : ep - risk * 2.5;
+    if (tp2R > 4.0)
+      tp2 = dir === 'LONG' ? ep + risk * 3.5 : ep - risk * 3.5; // cap TP2 at 3.5R
+    // TP3 — runner target
     const _fibTP3 = typeof getFibTargets === 'function'
       ? getFibTargets(ep, sl, fibonacci, dir, srZones).tp3 : null;
     if (_fibTP3 && Math.abs(_fibTP3 - ep) / risk >= 4.0) {
       tp3 = _fibTP3;
     } else {
-      tp3 = dir === 'LONG' ? ep + risk * 4.5 : ep - risk * 4.5;
+      tp3 = dir === 'LONG' ? ep + risk * 4.0 : ep - risk * 4.0;
     }
     if (srZones) {
       const farLvls = dir === 'LONG' ? srZones.above : srZones.below;

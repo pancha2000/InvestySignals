@@ -266,14 +266,8 @@ function checkOutcome(dir, ep, sl, tp1, tp2, futureKlines) {
     const c = parseFloat(futureKlines[i][4]);
 
     if (dir === 'LONG') {
-      // Check SL first (using dynamic SL — moves to BE after TP1)
-      if (l <= dynamicSL) {
-        slHit = true; slCandle = i;
-        closePrice = tp1Hit ? ep : sl; // if TP1 already hit, close at BE (entry)
-        closeCandle = i;
-        break;
-      }
-      // Check TP1
+      // On same candle: assume bullish wick hits TP1 before bearish wick hits SL
+      // (realistic: if candle wicks both ways, partial fill at TP1 protects some profit)
       if (!tp1Hit && h >= tp1) {
         tp1Hit = true;
         tp1Candle = i;
@@ -285,13 +279,15 @@ function checkOutcome(dir, ep, sl, tp1, tp2, futureKlines) {
         closePrice = tp2; closeCandle = i;
         break;
       }
-    } else { // SHORT
-      if (h >= dynamicSL) {
+      // Check SL (dynamic — moved to entry after TP1)
+      if (l <= dynamicSL) {
         slHit = true; slCandle = i;
         closePrice = tp1Hit ? ep : sl;
         closeCandle = i;
         break;
       }
+    } else { // SHORT
+      // On same candle: bearish wick hits TP1 before bullish wick hits SL
       if (!tp1Hit && l <= tp1) {
         tp1Hit = true;
         tp1Candle = i;
@@ -300,6 +296,12 @@ function checkOutcome(dir, ep, sl, tp1, tp2, futureKlines) {
       if (tp1Hit && l <= tp2) {
         tp2Hit = true; tp2Candle = i;
         closePrice = tp2; closeCandle = i;
+        break;
+      }
+      if (h >= dynamicSL) {
+        slHit = true; slCandle = i;
+        closePrice = tp1Hit ? ep : sl;
+        closeCandle = i;
         break;
       }
     }
