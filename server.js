@@ -774,6 +774,50 @@ app.get('/api/signals/winrate', userAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
+/* ─── POST /api/proxy/anthropic — AI Explain button proxy ─── */
+app.post('/api/proxy/anthropic', async (req, res) => {
+  try {
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI explanation service not configured. Add ANTHROPIC_API_KEY to .env' });
+    }
+    // Rate limit: 1 req per 5 seconds per IP
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    if (!app._explainRateMap) app._explainRateMap = new Map();
+    const last = app._explainRateMap.get(ip) || 0;
+    if (now - last < 5000) {
+      return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
+    }
+    app._explainRateMap.set(ip, now);
+    // Clean old entries
+    if (app._explainRateMap.size > 500) {
+      const cutoff = now - 60000;
+      for (const [k, v] of app._explainRateMap) if (v < cutoff) app._explainRateMap.delete(k);
+    }
+
+    const { model, max_tokens, system, messages } = req.body;
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: model || 'claude-sonnet-4-20250514',
+        max_tokens: Math.min(max_tokens || 1200, 1500),
+        system,
+        messages
+      })
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/settings/public', async (req, res) => {
   if (!mongoConnected) return res.json({ success:true, data:{} });
   try {

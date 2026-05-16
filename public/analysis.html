@@ -191,6 +191,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
 .deep-disclaimer strong{color:var(--yellow);}
 .btn-paper-trade{display:inline-flex;align-items:center;gap:8px;padding:11px 24px;background:linear-gradient(135deg,rgba(255,195,51,.18),rgba(255,195,51,.07));border:1px solid rgba(255,195,51,.45);color:var(--yellow);border-radius:10px;font-family:var(--font-b);font-size:.9rem;font-weight:700;cursor:pointer;transition:all .25s;min-height:44px;}
 .btn-paper-trade:hover{background:linear-gradient(135deg,rgba(255,195,51,.28),rgba(255,195,51,.14));border-color:var(--yellow);box-shadow:0 0 18px rgba(255,195,51,.25);}
+.btn-explain{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.06));border:1px solid rgba(0,212,255,.38);color:var(--cyan);border-radius:10px;font-family:var(--font-b);font-size:.9rem;font-weight:700;cursor:pointer;transition:all .25s;min-height:44px;}
+.btn-explain:hover{background:linear-gradient(135deg,rgba(0,212,255,.25),rgba(0,212,255,.12));border-color:var(--cyan);box-shadow:0 0 18px rgba(0,212,255,.2);}
+.btn-explain:disabled{opacity:.5;cursor:not-allowed;}
+.exp-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9100;align-items:center;justify-content:center;padding:16px;}
+.exp-overlay.open{display:flex;}
+.exp-modal{background:var(--card);border:1px solid rgba(0,212,255,.25);border-radius:16px;width:100%;max-width:560px;overflow:hidden;animation:ptIn .2s ease;max-height:92vh;display:flex;flex-direction:column;}
+.exp-header{padding:16px 20px;background:linear-gradient(135deg,rgba(0,212,255,.1),rgba(0,212,255,.04));border-bottom:1px solid rgba(0,212,255,.18);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.exp-lang-btns{display:flex;gap:6px;flex-shrink:0;}
+.exp-lang-btn{padding:6px 14px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:var(--font-b);font-size:.75rem;cursor:pointer;transition:all .2s;}
+.exp-lang-btn.active{border-color:var(--cyan);background:rgba(0,212,255,.15);color:var(--cyan);}
+.exp-body{padding:18px 20px;overflow-y:auto;flex:1;}
+.exp-loading{text-align:center;padding:32px 0;color:var(--muted);font-family:var(--font-n);font-size:.85rem;}
+.exp-loading-dots::after{content:'...';animation:dots 1.2s steps(4,end) infinite;}
+@keyframes dots{0%,100%{content:'.'}33%{content:'..'}66%{content:'...'}}
+.exp-section{margin-bottom:18px;}
+.exp-section-title{font-family:var(--font-h);font-size:.78rem;font-weight:700;color:var(--cyan);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(0,212,255,.15);}
+.exp-text{font-family:var(--font-n);font-size:.82rem;color:rgba(255,255,255,.85);line-height:1.75;}
+.exp-text strong{color:var(--text);}
+.exp-badge-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.exp-badge{font-family:var(--font-n);font-size:.7rem;padding:3px 9px;border-radius:5px;border:1px solid;}
+.exp-badge.bull{color:var(--green);border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.08);}
+.exp-badge.bear{color:var(--red);border-color:rgba(255,61,90,.3);background:rgba(255,61,90,.08);}
+.exp-badge.neu{color:var(--yellow);border-color:rgba(255,195,51,.3);background:rgba(255,195,51,.06);}
+.exp-footer{padding:12px 20px;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px;}
+.exp-copy-btn{padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);font-family:var(--font-n);font-size:.75rem;cursor:pointer;transition:all .2s;}
+.exp-copy-btn:hover{background:rgba(255,255,255,.1);color:var(--text);}
 .pt-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9000;align-items:center;justify-content:center;padding:16px;}
 .pt-overlay.open{display:flex;}
 .pt-modal{background:var(--card);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:440px;overflow:hidden;animation:ptIn .2s ease;max-height:90vh;overflow-y:auto;}
@@ -325,6 +351,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);line-heigh
     </div>
     <div id="deepResult" style="display:none"></div>
   </main>
+</div>
+
+<!-- Explain Analysis Modal -->
+<div class="exp-overlay" id="expOverlay">
+  <div class="exp-modal">
+    <div class="exp-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.3rem">🧠</span>
+        <div>
+          <div style="font-family:var(--font-h);font-size:.95rem;font-weight:700;color:var(--cyan)" id="expModalTitle">Analysis Explanation</div>
+          <div style="font-family:var(--font-n);font-size:.65rem;color:var(--muted);margin-top:1px" id="expModalSub">AI-powered breakdown</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="exp-lang-btns">
+          <button class="exp-lang-btn active" id="expLangSi" onclick="switchExpLang('si')">සිංහල</button>
+          <button class="exp-lang-btn" id="expLangEn" onclick="switchExpLang('en')">English</button>
+        </div>
+        <button onclick="closeExpModal()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:4px;line-height:1">×</button>
+      </div>
+    </div>
+    <div class="exp-body" id="expBody">
+      <div class="exp-loading">
+        <div style="font-size:2rem;margin-bottom:12px">⚡</div>
+        <div>AI analysis generating<span class="exp-loading-dots"></span></div>
+        <div style="font-size:.72rem;margin-top:6px;color:rgba(255,255,255,.35)">This takes 5–10 seconds</div>
+      </div>
+    </div>
+    <div class="exp-footer">
+      <div style="font-family:var(--font-n);font-size:.65rem;color:rgba(255,255,255,.3)">⚠ Educational only — not financial advice</div>
+      <button class="exp-copy-btn" id="expCopyBtn" onclick="copyExpText()" style="display:none">📋 Copy</button>
+    </div>
+  </div>
 </div>
 
 <!-- Paper Trade Modal -->
@@ -3230,12 +3289,16 @@ function renderDeep(container, symbol, rsi, vol, entry, curP, extra) {
 
   const reasons  = buildReasons(rsi, vol, entry);
   const paperBtn = hardBlock
-    ? `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end">
+    ? `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-explain" id="btnExplain_${symbol}" onclick="openExpModal('${symbol}','${dir}','${entryType}',${ep},${tp1},${tp2},${sl},${conf})">🧠 Explain</button>
         <div style="font-family:var(--font-n);font-size:.75rem;color:rgba(255,61,90,.7);background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.2);border-radius:8px;padding:8px 16px;display:flex;align-items:center;gap:8px">
           🚫 Paper trade disabled — market blocked
         </div>
        </div>`
-    : `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end"><button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${isRisky?'LIMIT':entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button></div>`;
+    : `<div style="padding:0 16px 16px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-explain" id="btnExplain_${symbol}" onclick="openExpModal('${symbol}','${dir}','${entryType}',${ep},${tp1},${tp2},${sl},${conf})">🧠 Explain</button>
+        <button class="btn-paper-trade" onclick="openPTModal('${symbol}','${dir}','${isRisky?'LIMIT':entryType}',${ep},${tp1},${tp2},${sl})">📝 Paper Trade</button>
+       </div>`;
 
   // Risk = entry - SL
   const riskAmt  = Math.abs(ep - sl);
@@ -3548,6 +3611,336 @@ function btSaveSignal(symbol,entry,curP,sess,rsi){
 
 /* ── Paper Trade Modal ── */
 function openPTModal(symbol,direction,entryType,entryPrice,tp1,tp2,sl){ptData={symbol,direction,entryType,entryPrice,tp1,tp2,sl};ptLev=5;document.querySelectorAll('.pt-lbtn').forEach(b=>b.classList.remove('sel'));document.querySelectorAll('.pt-lbtn')[1].classList.add('sel');document.getElementById('ptAmount').value=100;const isLimit=entryType==='LIMIT',dColor=direction==='LONG'?'var(--green)':'var(--red)',dLabel=direction==='LONG'?'▲ LONG':'▼ SHORT';document.getElementById('ptModalTitle').textContent=isLimit?'⏳ Place Limit Order':'📝 Open Paper Trade';document.getElementById('ptPendingNotice').style.display=isLimit?'block':'none';document.getElementById('btnPTOk').textContent=isLimit?'⏳ Place Limit Order':'✅ Open Trade';document.getElementById('ptSummary').innerHTML=`<div class="pt-sbox"><div class="pt-slbl">Pair</div><div class="pt-sval">${symbol.replace('USDT','/USDT')}</div></div><div class="pt-sbox"><div class="pt-slbl">Direction</div><div class="pt-sval" style="color:${dColor}">${dLabel}</div></div><div class="pt-sbox"><div class="pt-slbl">${isLimit?'Limit Price':'Entry'}</div><div class="pt-sval" style="color:var(--cyan)">${fmtPrice(entryPrice)}</div></div>`;updatePTCalc();document.getElementById('ptOverlay').classList.add('open');}
+/* ═══════════════════════════════════════════════════
+   EXPLAIN ANALYSIS MODAL — AI-powered Sinhala/English
+   ═══════════════════════════════════════════════════ */
+let _expData = null;
+let _expLang = 'si';
+let _expCache = {}; // cache si/en per symbol
+
+function openExpModal(symbol, dir, entryType, ep, tp1, tp2, sl, conf) {
+  _expData = { symbol, dir, entryType, ep, tp1, tp2, sl, conf };
+  _expLang = 'si';
+  document.getElementById('expLangSi').classList.add('active');
+  document.getElementById('expLangEn').classList.remove('active');
+  document.getElementById('expModalTitle').textContent = symbol.replace('USDT','/USDT') + ' — Analysis';
+  document.getElementById('expModalSub').textContent = dir === 'LONG' ? '▲ LONG Setup Explanation' : '▼ SHORT Setup Explanation';
+  document.getElementById('expCopyBtn').style.display = 'none';
+  document.getElementById('expOverlay').classList.add('open');
+
+  const cacheKey = symbol + '_' + dir + '_si';
+  if (_expCache[cacheKey]) {
+    renderExpContent(_expCache[cacheKey]);
+  } else {
+    showExpLoading();
+    generateExpExplanation(symbol, dir, entryType, ep, tp1, tp2, sl, conf, 'si').then(html => {
+      _expCache[cacheKey] = html;
+      renderExpContent(html);
+    }).catch(() => {
+      renderExpContent('<div style="color:var(--red);font-family:var(--font-n);font-size:.82rem">❌ Generation failed. Check your connection and try again.</div>');
+    });
+  }
+}
+
+function closeExpModal() {
+  document.getElementById('expOverlay').classList.remove('open');
+}
+
+function switchExpLang(lang) {
+  if (!_expData || lang === _expLang) return;
+  _expLang = lang;
+  document.getElementById('expLangSi').classList.toggle('active', lang === 'si');
+  document.getElementById('expLangEn').classList.toggle('active', lang === 'en');
+  document.getElementById('expCopyBtn').style.display = 'none';
+
+  const { symbol, dir, entryType, ep, tp1, tp2, sl, conf } = _expData;
+  const cacheKey = symbol + '_' + dir + '_' + lang;
+
+  if (_expCache[cacheKey]) {
+    renderExpContent(_expCache[cacheKey]);
+  } else {
+    showExpLoading();
+    generateExpExplanation(symbol, dir, entryType, ep, tp1, tp2, sl, conf, lang).then(html => {
+      _expCache[cacheKey] = html;
+      renderExpContent(html);
+    }).catch(() => {
+      renderExpContent('<div style="color:var(--red);font-family:var(--font-n);font-size:.82rem">❌ Generation failed. Try again.</div>');
+    });
+  }
+}
+
+function showExpLoading() {
+  document.getElementById('expBody').innerHTML = `
+    <div class="exp-loading">
+      <div style="font-size:2rem;margin-bottom:12px">⚡</div>
+      <div>AI analysis generating<span class="exp-loading-dots"></span></div>
+      <div style="font-size:.72rem;margin-top:6px;color:rgba(255,255,255,.35)">5–10 seconds</div>
+    </div>`;
+}
+
+function renderExpContent(html) {
+  document.getElementById('expBody').innerHTML = html;
+  document.getElementById('expCopyBtn').style.display = 'block';
+}
+
+function copyExpText() {
+  const text = document.getElementById('expBody').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('expCopyBtn');
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+  });
+}
+
+async function generateExpExplanation(symbol, dir, entryType, ep, tp1, tp2, sl, conf, lang) {
+  const pair = symbol.replace('USDT', '/USDT');
+  const dirLabel = dir === 'LONG' ? 'LONG (Buy)' : 'SHORT (Sell)';
+  const risk = Math.abs(ep - sl);
+  const rr1 = risk > 0 ? (Math.abs(tp1 - ep) / risk).toFixed(2) : '—';
+  const rr2 = risk > 0 ? (Math.abs(tp2 - ep) / risk).toFixed(2) : '—';
+  const slPct = ep > 0 ? ((Math.abs(ep - sl) / ep) * 100).toFixed(2) : '—';
+
+  // Gather live indicator snapshot from current analysis if available
+  let indicatorContext = '';
+  try {
+    const deepCard = document.querySelector('.deep-card');
+    if (deepCard) {
+      const chips = deepCard.querySelectorAll('.chip');
+      const chipTexts = Array.from(chips).map(c => c.textContent.trim()).filter(t => t).slice(0, 12);
+      if (chipTexts.length) indicatorContext = 'Active signals: ' + chipTexts.join(' | ');
+    }
+  } catch(_) {}
+
+  const isSinhala = lang === 'si';
+
+  const systemPrompt = isSinhala
+    ? `ඔබ InvestySignals cryptocurrency trading platform එකේ AI analysis assistant. ඔබ expert trader කෙනෙක් ලෙස Sinhala භාෂාවෙන් trading signals explain කරනවා. Technical terms (LONG, SHORT, Stop Loss, Take Profit, Fibonacci, Order Block, BOS, FVG, etc.) English ලෙසම තියා Sinhala explanation දෙනවා. Clear, simple, educational tone use කරනවා. HTML formatting use කරන්න — <strong>, <br> tags use කළ හැකිනම් හොඳයි. "Educational purposes only, not financial advice" disclaimer add කරනවා.`
+    : `You are the AI analysis assistant for InvestySignals, a crypto trading platform. You explain trading signals clearly and educationally as an expert trader. Use professional but accessible language. Include HTML formatting with <strong> tags and <br> where helpful. Always add a brief "Educational purposes only" disclaimer.`;
+
+  const userPrompt = isSinhala
+    ? `${pair} සඳහා ${dirLabel} signal එකක් generate වෙලා තියෙනවා. මේ signal explain කරන්න:
+
+**Signal Details:**
+- Pair: ${pair}
+- Direction: ${dirLabel}
+- Entry Price: $${ep.toFixed(4)}
+- Stop Loss: $${sl.toFixed(4)} (${slPct}% risk)
+- Take Profit 1: $${tp1.toFixed(4)} (${rr1}R)
+- Take Profit 2: $${tp2.toFixed(4)} (${rr2}R)
+- Entry Type: ${entryType}
+- Confidence Score: ${conf}%
+${indicatorContext ? '- ' + indicatorContext : ''}
+
+පහත sections ලා HTML format ලා explain කරන්න:
+
+1. **📊 Signal Summary** — මේ trade ගැන කෙටි overview (2-3 sentences)
+2. **🎯 Entry Strategy** — ඇයි මේ price ලා entry ගන්නේ, ${entryType === 'LIMIT' ? 'Limit order ලා wait කරන්නේ ඇයි' : 'Market order ලා entry ගන්නේ ඇයි'}
+3. **🛡️ Stop Loss Logic** — SL ලා තැබූ reason (structure, ATR, etc.)
+4. **🎁 Take Profit Targets** — TP1 TP2 ලා level ගැන explanation, RR ratio meaning
+5. **⚠️ Risk Factors** — මේ trade ලා watch කරන්න ඕනෙ main risks
+6. **💡 Trade Management Tips** — TP1 hit වුනාම SL move කරන්නේ කොහොමද, position manage කරන්නේ කොහොමද`
+    : `A ${dirLabel} signal has been generated for ${pair}. Please explain this trading signal clearly:
+
+**Signal Details:**
+- Pair: ${pair}
+- Direction: ${dirLabel}
+- Entry Price: $${ep.toFixed(4)}
+- Stop Loss: $${sl.toFixed(4)} (${slPct}% risk)
+- Take Profit 1: $${tp1.toFixed(4)} (${rr1}R)
+- Take Profit 2: $${tp2.toFixed(4)} (${rr2}R)
+- Entry Type: ${entryType}
+- Confidence Score: ${conf}%
+${indicatorContext ? '- ' + indicatorContext : ''}
+
+Explain using these sections with HTML formatting:
+
+1. **📊 Signal Summary** — Brief overview of this trade setup
+2. **🎯 Entry Strategy** — Why this entry price, why ${entryType === 'LIMIT' ? 'limit order (wait for price)' : 'market order (enter now)'}
+3. **🛡️ Stop Loss Logic** — Why this SL level, what invalidates the setup
+4. **🎁 Take Profit Targets** — TP1 & TP2 explanation, R:R ratio meaning
+5. **⚠️ Risk Factors** — Key risks to watch for this trade
+6. **💡 Trade Management** — How to move SL to breakeven after TP1, position sizing`;
+
+  const response = await fetch('/api/proxy/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1200,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  });
+
+  if (!response.ok) {
+    // Fallback: generate local explanation without API
+    return generateLocalExplanation(pair, dir, dirLabel, entryType, ep, tp1, tp2, sl, conf, rr1, rr2, slPct, isSinhala);
+  }
+
+  const data = await response.json();
+  const text = data.content?.[0]?.text || data.error || 'No response';
+
+  return formatExpResponse(text, pair, dir, conf, isSinhala);
+}
+
+function generateLocalExplanation(pair, dir, dirLabel, entryType, ep, tp1, tp2, sl, conf, rr1, rr2, slPct, isSinhala) {
+  const isLong = dir === 'LONG';
+  const dirEmoji = isLong ? '▲' : '▼';
+  const confLabel = conf >= 80 ? (isSinhala ? 'ඉතා ශක්තිමත්' : 'Very Strong') : conf >= 70 ? (isSinhala ? 'ශක්තිමත්' : 'Strong') : conf >= 60 ? (isSinhala ? 'මධ්‍යම' : 'Moderate') : (isSinhala ? 'දුර්වල' : 'Weak');
+
+  if (isSinhala) {
+    return `
+      <div class="exp-section">
+        <div class="exp-section-title">📊 Signal Summary</div>
+        <div class="exp-text">
+          <strong>${pair}</strong> සඳහා <strong style="color:${isLong?'var(--green)':'var(--red)'}">${dirEmoji} ${dirLabel}</strong> signal එකක් generate වෙලා තියෙනවා.
+          Confidence score: <strong style="color:var(--cyan)">${conf}%</strong> (${confLabel}).
+          ${entryType === 'LIMIT' ? 'මේකෙ Limit Order strategy use කරනවා — price entry zone ලා ඇවිල්ලා fill වෙනකන් wait කරන්නෙ.' : 'Market ලා trade කරනවා — entry දැනට current price ලා.'}
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">🎯 Entry Strategy</div>
+        <div class="exp-text">
+          Entry Price: <strong style="color:var(--cyan)">$${ep.toFixed(4)}</strong><br>
+          ${isLong ? 'Price ඉහළ යනව කියලා indicators confirm කරලා. Key support zone ලා entry ගන්නෙ.' : 'Price පහළ යනව කියලා indicators confirm කරලා. Key resistance zone ලා entry ගන්නෙ.'}
+          ${entryType === 'LIMIT' ? '<br>⏳ Limit Order — Price entry zone ලා retrace වෙනකන් wait කරන්න. Fill නොවුනොත් cancel කරන්න.' : '<br>⚡ Market Order — දැන් current price ලා enter කරන්න.'}
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">🛡️ Stop Loss Logic</div>
+        <div class="exp-text">
+          Stop Loss: <strong style="color:var(--red)">$${sl.toFixed(4)}</strong> (${slPct}% risk)<br>
+          ${isLong ? 'SL ලා key support ලා below. Price මෙතන close වෙනවා නම් bull setup invalidate වෙනවා.' : 'SL ලා key resistance ලා above. Price මෙතන close වෙනවා නම් bear setup invalidate වෙනවා.'}
+          <br>SL hit වෙනවා නම් trade close කරන්න — never move SL against the trade.
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">🎁 Take Profit Targets</div>
+        <div class="exp-text">
+          TP1: <strong style="color:var(--green)">$${tp1.toFixed(4)}</strong> — Risk/Reward <strong>${rr1}R</strong><br>
+          TP2: <strong style="color:rgba(0,255,136,.6)">$${tp2.toFixed(4)}</strong> — Risk/Reward <strong>${rr2}R</strong><br><br>
+          1R = ඔබ risk කරන amount. ${rr1}R නම් SL hit loss ලා ${rr1}× profit ගන්නෙ TP1 ලා.
+          <br><strong>Strategy:</strong> TP1 hit වෙනකොට 50-70% position close කරන්න. Remainder TP2 ලා carry කරන්න.
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">⚠️ Risk Factors</div>
+        <div class="exp-text">
+          • BTC main trend check කරන්න — BTC opposite direction ගියොත් signal fail වෙන්න පුළුවන්<br>
+          • High volatility news events — FOMC, CPI ලා avoid entry<br>
+          • ${isLong ? 'Price key resistance zone ලා reject වෙනවා නම් early exit සලකන්න' : 'Price key support zone ලා bounce වෙනවා නම් early exit සලකන්න'}<br>
+          • Leverage high ලා use නොකරන්න — per trade 1-2% account risk recommend
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">💡 Trade Management</div>
+        <div class="exp-text">
+          1. TP1 hit වෙනකොට: SL → Breakeven (entry price) ලා move කරන්න<br>
+          2. TP2 ලා runner position carry කරන්න<br>
+          3. ${isLong ? 'Price strongly bearish candle ලා close වෙනවා නම්: manual close consider' : 'Price strongly bullish candle ලා close වෙනවා නම්: manual close consider'}<br>
+          4. Position size: Total account risk 1-2% ලා limit කරන්න
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:10px 12px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-family:var(--font-n);font-size:.7rem;color:rgba(255,255,255,.45)">
+        ⚠️ Educational purposes only. Not financial advice. Always do your own research.
+      </div>`;
+  } else {
+    return `
+      <div class="exp-section">
+        <div class="exp-section-title">📊 Signal Summary</div>
+        <div class="exp-text">
+          A <strong style="color:${isLong?'var(--green)':'var(--red)'}">${dirEmoji} ${dirLabel}</strong> signal has been generated for <strong>${pair}</strong>.
+          Confidence: <strong style="color:var(--cyan)">${conf}%</strong> (${confLabel}).
+          ${entryType === 'LIMIT' ? 'This is a Limit Order — wait for price to reach the entry zone before filling.' : 'This is a Market Order — enter at current market price.'}
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">🎯 Entry Strategy</div>
+        <div class="exp-text">
+          Entry Price: <strong style="color:var(--cyan)">$${ep.toFixed(4)}</strong><br>
+          ${isLong ? 'Multiple indicators confirm bullish momentum. Entry is placed at a key support zone for maximum probability.' : 'Multiple indicators confirm bearish momentum. Entry is placed at a key resistance zone for maximum probability.'}
+          ${entryType === 'LIMIT' ? '<br>⏳ Limit Order — Wait for price to retrace to entry. Cancel if not filled within 4-8 hours.' : '<br>⚡ Market Order — Enter now at current price.'}
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">🛡️ Stop Loss Logic</div>
+        <div class="exp-text">
+          Stop Loss: <strong style="color:var(--red)">$${sl.toFixed(4)}</strong> (${slPct}% from entry)<br>
+          ${isLong ? 'SL is placed below key structural support. A close below this level invalidates the bullish setup.' : 'SL is placed above key structural resistance. A close above this level invalidates the bearish setup.'}
+          <br>If SL is hit, close the trade immediately — never widen the SL.
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">🎁 Take Profit Targets</div>
+        <div class="exp-text">
+          TP1: <strong style="color:var(--green)">$${tp1.toFixed(4)}</strong> — Risk/Reward: <strong>${rr1}R</strong><br>
+          TP2: <strong style="color:rgba(0,255,136,.6)">$${tp2.toFixed(4)}</strong> — Risk/Reward: <strong>${rr2}R</strong><br><br>
+          1R = the amount you risk (Entry → SL distance). At TP1 (${rr1}R) you make ${rr1}× your risk.
+          <br><strong>Recommended:</strong> Close 50-70% at TP1, hold remainder to TP2.
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">⚠️ Risk Factors</div>
+        <div class="exp-text">
+          • Monitor BTC — if BTC moves opposite direction, exit early<br>
+          • Avoid entry during high-impact news (FOMC, CPI, etc.)<br>
+          • ${isLong ? 'If price strongly rejects at resistance, consider early partial exit' : 'If price strongly bounces at support, consider early partial exit'}<br>
+          • Never use excessive leverage — limit risk to 1-2% of account per trade
+        </div>
+      </div>
+      <div class="exp-section">
+        <div class="exp-section-title">💡 Trade Management</div>
+        <div class="exp-text">
+          1. When TP1 is hit: move SL to breakeven (entry price)<br>
+          2. Let remaining position run to TP2<br>
+          3. ${isLong ? 'If a strong bearish candle closes, consider manual exit' : 'If a strong bullish candle closes, consider manual exit'}<br>
+          4. Position sizing: Keep total account risk at 1-2% maximum
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:10px 12px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-family:var(--font-n);font-size:.7rem;color:rgba(255,255,255,.45)">
+        ⚠️ Educational purposes only. Not financial advice. Always do your own research.
+      </div>`;
+  }
+}
+
+function formatExpResponse(text, pair, dir, conf, isSinhala) {
+  // Convert markdown-ish text from AI into styled HTML sections
+  const isLong = dir === 'LONG';
+
+  // Clean up any markdown code blocks
+  let html = text
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/^#{1,3}\s+/gm, '')
+    .trim();
+
+  // If AI returned plain text, wrap it nicely
+  if (!html.includes('<')) {
+    // Convert **bold** to <strong>
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Convert numbered sections to exp-section divs
+    const sectionRegex = /(\d+\.\s*[📊🎯🛡️🎁⚠️💡][^\n]*)\n([\s\S]*?)(?=\d+\.\s*[📊🎯🛡️🎁⚠️💡]|$)/g;
+    let sectioned = '';
+    let match;
+    let hasSections = false;
+    while ((match = sectionRegex.exec(html)) !== null) {
+      hasSections = true;
+      const title = match[1].replace(/^\d+\.\s*/, '').trim();
+      const body  = match[2].trim().replace(/\n/g, '<br>');
+      sectioned += `<div class="exp-section"><div class="exp-section-title">${title}</div><div class="exp-text">${body}</div></div>`;
+    }
+    html = hasSections ? sectioned : `<div class="exp-section"><div class="exp-text">${html.replace(/\n/g, '<br>')}</div></div>`;
+  }
+
+  // Add disclaimer if not present
+  if (!html.includes('Educational') && !html.includes('educational')) {
+    html += `<div style="margin-top:14px;padding:10px 12px;background:rgba(255,195,51,.05);border:1px solid rgba(255,195,51,.15);border-radius:8px;font-family:var(--font-n);font-size:.7rem;color:rgba(255,255,255,.45)">⚠️ ${isSinhala ? 'Educational purposes only. Not financial advice.' : 'Educational purposes only. Not financial advice. Always do your own research.'}</div>`;
+  }
+
+  return html;
+}
+
+/* ═══════════════════════════════════════════════════ */
+
 function closePTModal(){document.getElementById('ptOverlay').classList.remove('open');}
 function setLev(btn,val){ptLev=val;document.querySelectorAll('.pt-lbtn').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');updatePTCalc();}
 function updatePTCalc(){const amount=parseFloat(document.getElementById('ptAmount').value)||0,entry=ptData.entryPrice;if(!entry||!amount)return;const notional=amount*ptLev,size=notional/entry,liq=ptData.direction==='LONG'?entry*(1-1/ptLev):entry*(1+1/ptLev);document.getElementById('calcSize').textContent=size>=1?size.toFixed(4):size.toFixed(6);document.getElementById('calcNotional').textContent='$'+notional.toFixed(2);document.getElementById('calcLiq').textContent=fmtPrice(liq);}
