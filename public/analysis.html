@@ -1846,6 +1846,7 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     } else {
       ep = best.price; entryType = best.price < price ? 'LIMIT' : 'MARKET';
     }
+    if (entryType === 'MARKET') ep = price;
 
     // SL: Fib swing-low → OB low → S/R zone below → Trendline → PSAR → Ichimoku Kijun → ATR fallback
     const fibSL  = getFibSL(ep, fibonacci, 'LONG', aV);
@@ -1965,6 +1966,7 @@ function decideEntry(rsi, vol, O, C, H, L, price, macd, bb, stoch, adx, obv, atr
     } else {
       ep = best.price; entryType = best.price > price ? 'LIMIT' : 'MARKET';
     }
+    if (entryType === 'MARKET') ep = price;
 
     const fibSL  = getFibSL(ep, fibonacci, 'SHORT', aV);
     const obSL   = mtfOBs?.nearestBearOB ? mtfOBs.nearestBearOB.high + aV * 0.3 : null;
